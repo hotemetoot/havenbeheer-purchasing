@@ -3,10 +3,14 @@
 *.xlsx
 *.xls
 *.doc
+*.pptx
 
 # System files
 .DS_Store
 Thumbs.db
+
+# Claude Code session data
+.claude/
 
 # NocoBase local environment files
 .nocobase/
