@@ -13,15 +13,18 @@
 ### In scope (v1)
 - Purchase Requests (PRs): submission, approval workflow, lifecycle
 - Suppliers: collection + basic evaluation (issues, scores)
-- Projects: budget linkage, on-the-fly budget tracking
 - Multi-currency PRs with USD threshold
 - Comments and attachments on PRs
+- Three-tier approval routing (dept → procurement → director → RvC where applicable)
+- Quotation management: three-quote requirement or sole-source justification
 
 ### Explicitly NOT in scope (v1)
 - Goods receipt / receiving (handled in PO model)
 - Invoicing and payment (payment visibility only, in PO model)
-- Budget accounting (the design supports tracking, not GL posting)
-- Vendor selection process for big tenders
+- Annual investment budget ("inkoopbegroting") — not modelled; budget discipline assumed to happen outside the system
+- Project budgets — removed from scope
+- Cashflow approval gate by Finance Manager — not modelled (Finance has view-only access)
+- Vendor tender processes beyond three-quote requirement
 - Tax handling beyond storing the gross amount
 
 ### In scope (v1) — added after initial PR design
@@ -44,11 +47,12 @@
 ### Normal happy path
 
 ```
-Submitter creates draft (with or without quotation)
+Submitter creates draft
   → submits
   → Department Head approves
-  → Procurement Reviewer sources quote if not provided, enters totals, approves
-  → IF total_usd > threshold: Director approves
+  → Procurement Reviewer collects quotes, selects supplier, enters totals, approves
+  → IF total_usd > low_threshold ($1,500): Director approves
+  → IF total_usd > high_threshold ($15,000): Procurement uploads signed RvC document → APPROVED
   → APPROVED
 ```
 
@@ -56,13 +60,15 @@ Submitter creates draft (with or without quotation)
 
 | Scenario | Path |
 |---|---|
-| Department head submits | Skip dept approval → Procurement → (maybe) Director |
-| Procurement member submits | Procurement head approves → straight to Director (skip purchasing review) |
-| Procurement head submits | Skip dept approval AND skip purchasing review → straight to Director |
-| Submitter cancels in draft or pending_dept_approval | Allowed |
-| Submitter cancels when info_requested by dept head or procurement | Allowed |
-| Submitter cancels when info_requested by director | **Not allowed** — procurement has already approved; only rejection path available |
-| Approver returns for info | PR goes back to submitter as `info_requested`; `previous_status` records which stage returned it |
+| Value ≤ $1,500 | Dept Head → Procurement → Approved (no director, no RvC) |
+| $1,501 – $15,000 | Dept Head → Procurement → Director → Approved |
+| > $15,000 | Dept Head → Procurement → Director → RvC (external) → Approved |
+| Dept main approver submits | Skip dept approval → Procurement → (threshold-dependent) |
+| Procurement member submits | Skip purchasing review → Director (skip dept review) |
+| Procurement main approver submits | Skip dept approval AND skip purchasing review → Director |
+| Submitter cancels in draft | Allowed |
+| Submitter cancels after submission (any non-draft status, including `info_requested`) | **Not allowed** — once submitted, a PR cannot be cancelled |
+| Approver returns for info | PR goes back to submitter as `info_requested` |
 | Approver rejects | Terminal: status = rejected |
 
 ---
@@ -73,8 +79,9 @@ Submitter creates draft (with or without quotation)
 |---|---|
 | `draft` | Being prepared by submitter; not yet in any approval queue |
 | `pending_dept_approval` | Waiting for department head |
-| `pending_purchasing_review` | Waiting for procurement reviewer; procurement may enter/complete quotation here |
+| `pending_purchasing_review` | Waiting for procurement reviewer; procurement collects quotes, selects supplier, enters totals here |
 | `pending_director_approval` | Waiting for director |
+| `pending_rvC_approval` | Director approved; awaiting external board (RvC) sign-off. Procurement uploads signed board document to advance. |
 | `info_requested` | An approver returned the PR; waiting for submitter to revise/resubmit |
 | `approved` | Final: PR may now drive a PO (within the eligibility window) |
 | `rejected` | Terminal: PR is dead |
@@ -87,14 +94,16 @@ Submitter creates draft (with or without quotation)
 | Role | How it's modeled in NocoBase | Used as approver where |
 |---|---|---|
 | Submitter | The user creating the PR | n/a |
-| Department head | Native `department.heads` field (multiple supported) | Dept approval node |
-| Procurement reviewer | Member of Procurement department + linked role | Purchasing review node |
-| Director | Member of Director department + linked role | Director approval node |
+| Department approver | `departments.main_approver` (m2o → users) — one designated person per department | Dept approval node |
+| Department backup approver | `departments.secondary_approver` (m2o → users) — optional; covers when main approver is absent | Dept approval node (when `main_approver.on_leave = true`) |
+| Procurement reviewer | `departments.main_approver` of the Procurement department | Purchasing review node |
+| Director | Hardcoded user (Dana, id 12) in workflow config | Director approval node |
 
 ### Backup / holiday coverage
-- Use **multiple heads per department** + **Anyone** approval mode
-- Built-in **Reassign** action for ad-hoc cases
-- No custom delegation field
+- Each department has an optional `secondary_approver` field (m2o → users).
+- Each user has an `on_leave` boolean field (default false). The approver sets this before going on leave and clears it on return.
+- Workflow logic at runtime: if `main_approver.on_leave = true` and `secondary_approver` is set → task goes to `secondary_approver`. If `secondary_approver` is not set, task falls back to `main_approver` (fail-safe).
+- Built-in **Reassign** action remains available for ad-hoc hand-off outside this mechanism.
 
 ### Role principles
 - NocoBase Role Union mode: **Union only** (users get the combined permissions of all assigned roles)
@@ -105,28 +114,31 @@ Submitter creates draft (with or without quotation)
 
 ## 5. Routing and threshold logic
 
-### Threshold
-- Single threshold defined in **USD**, applied to the quotation total **including tax**
-- PRs at or below threshold: dept head + procurement is sufficient
-- PRs above threshold: director also required
-- Threshold value lives in the `approval_limits` collection (extensible — more rules likely to come)
+### Two thresholds
+
+Both values live in the `approval_limits` collection (two rows):
+
+| Row name | Value | Effect |
+|---|---|---|
+| `procurement_to_director` | $1,500 USD | PRs at or below this value: dept + procurement is sufficient, no director needed |
+| `director_to_rvC` | $15,000 USD | PRs above this value: director approval is required AND RvC external approval required |
+
+PRs between $1,501 and $15,000 require director but not RvC. PRs above $15,000 require both.
 
 ### Multi-currency
-- Quote entered in any of three supported currencies (single-select); may be entered by submitter at submission or by procurement during review
-- FX rate is **snapshotted when procurement finalises their review** (not at submission) — this is the definitive rate used for the threshold check
+- Quote entered in any of three supported currencies (single-select); entered by procurement during review after collecting quotes
+- FX rate is **snapshotted when procurement finalises their review** — this is the definitive rate used for threshold checks
 - USD-equivalent total is computed at procurement review completion and stored
-- Threshold check uses the stored USD value
+- Threshold checks use the stored USD value
 - FX rates maintained manually by Finance in the `fx_rates` collection
 - If no fresh rate exists when procurement finalises: **warn** the reviewer, do not block
 
 ### Routing rules (in order of precedence)
-1. If submitter is a head of their main department → skip dept approval
+1. If submitter = `main_approver` of their main department → skip dept approval
 2. If submitter's main department = Procurement → skip purchasing review (always go to director)
 3. If both above are true → skip both, straight to director
-4. After purchasing review: if PR is charged to a project AND `project.is_director_approved = true` AND `quoted_total_usd ≤ project.remaining_budget` → approved directly (no director needed — director already signed off on the project budget)
-5. After purchasing review: if `total_usd > threshold` AND rule 4 does not apply → director; else → approved
-
-> ⚠️ **Workflow decision needed:** Rule 4 skips the director entirely for any PR within an approved project budget, regardless of amount. Confirm with Havenbeheer whether this is intentional — a $500K PR within a $2M approved project budget would bypass the director. If a per-PR amount cap is needed even for project PRs, define it before implementing the approval workflow.
+4. After purchasing review: if `quoted_total_usd ≤ 1,500` → approved directly (no director needed)
+5. After director approval: if `quoted_total_usd ≤ 15,000` → approved; if `> 15,000` → pending_rvC_approval
 
 ---
 
@@ -134,9 +146,9 @@ Submitter creates draft (with or without quotation)
 
 | Case | Rule |
 |---|---|
-| Submitter is dept head of own dept | Allowed; routing skips dept approval |
+| Submitter = `main_approver` of own dept | Allowed; routing skips dept approval |
 | Submitter is in procurement | Allowed; routing skips purchasing review |
-| Submitter is procurement head | Allowed; routing skips both stages, goes to director |
+| Submitter = `main_approver` of Procurement dept | Allowed; routing skips both stages, goes to director |
 | Submitter is director | **Open question — deferred to v2** |
 
 ---
@@ -145,10 +157,9 @@ Submitter creates draft (with or without quotation)
 
 - Use NocoBase's **built-in Return action** (decisive, configurable target node)
 - When an approver returns a PR: status becomes `info_requested`
-- The approval workflow simultaneously sets `previous_status` to the status the PR held before the return (e.g., `pending_dept_approval`, `pending_purchasing_review`, `pending_director_approval`)
-- `previous_status` is used only for the cancellation gate — it is not shown prominently in the UI
 - The PR re-enters the submitter's queue
 - After submitter resubmits, the workflow resumes from where it was returned (NocoBase tracks resume points internally)
+- Return is not available at `pending_rvC_approval` — by that stage both director and procurement have approved; only rejection is possible
 
 ---
 
@@ -156,18 +167,15 @@ Submitter creates draft (with or without quotation)
 
 | Status | Submitter can cancel? | Reason |
 |---|---|---|
-| `draft` | Yes | Not yet submitted |
-| `pending_dept_approval` | Yes | No approval has occurred |
-| `info_requested` (previous_status = `pending_dept_approval`) | Yes | Returned before dept head approved |
-| `info_requested` (previous_status = `pending_purchasing_review`) | Yes | Returned by procurement; no director-level investment yet |
-| `info_requested` (previous_status = `pending_director_approval`) | **No** | Procurement already approved; only rejection path available |
-| `pending_purchasing_review` | No | In procurement's hands |
-| `pending_director_approval` | No | In director's hands |
+| `draft` | Yes | Not yet submitted — the only stage where cancellation is allowed |
+| `pending_dept_approval` | **No** | Once submitted, the PR cannot be cancelled |
+| `pending_purchasing_review` | **No** | Once submitted, the PR cannot be cancelled |
+| `pending_director_approval` | **No** | Once submitted, the PR cannot be cancelled |
+| `pending_rvC_approval` | **No** | Once submitted, the PR cannot be cancelled |
+| `info_requested` | **No** | Returned to submitter but still considered submitted — cannot be cancelled |
 | `approved` / `rejected` / `cancelled` | No | Terminal — no further action |
 
-Only the original submitter can cancel. Procurement can reject a PR but cannot cancel on the submitter's behalf.
-
-**Open question:** Can anyone other than the submitter cancel a PR that's stuck in `pending_dept_approval` for a long time? (e.g., procurement killing a stalled PR.) Default: no.
+Only the original submitter can cancel, and only while the PR is still in `draft`. Procurement can reject a PR but cannot cancel on the submitter's behalf. If a PR is stuck in an approval queue, procurement or admin may reject it — there is no cancel path from any post-submission status.
 
 ---
 
@@ -179,12 +187,12 @@ These rules are enforced at the data layer via NocoBase Before Action Events. Th
 |---|---|---|
 | 1 | **Immutability** | If status ∈ {approved, rejected, cancelled}, block all updates and deletes |
 | 2 | **Submission validity** | Only PRs in `draft` may be submitted |
-| 3 | **Threshold enforcement** | After procurement review: if `quoted_total_usd > threshold`, workflow must route to director — procurement cannot finalise without this check |
-| 4 | **Director scope** | Director may only approve PRs that meet routing criteria (over threshold OR procurement-originated) |
-| 5 | **Cancellation** | Only allowed from `draft`, `pending_dept_approval`, or `info_requested` where `previous_status` ≠ `pending_director_approval`. Only the original submitter may cancel. |
-| 6 | **Required fields at submission** | Cannot submit without: `title`, `description`, `justification`, `charge_to`. If `charge_to = project`, `project` must be set. Quotation fields are optional at submission. |
-| 7 | **Required fields at procurement review completion** | Procurement cannot finalise their review without: `quoted_total`, `quoted_currency`, `quotation_attachment`. If no FX rate exists for the currency: warn reviewer but do not block. |
-| 8 | **Project XOR cost charge** | PR must charge to a project OR a department — exactly one. Enforced on create and update. |
+| 3 | **Threshold enforcement** | After procurement review: workflow routes to director if `quoted_total_usd > 1,500`; routes to RvC stage if `quoted_total_usd > 15,000` after director approves |
+| 4 | **Director scope** | Director may only approve PRs in `pending_director_approval` |
+| 5 | **Cancellation** | Only allowed from `draft`. Once submitted, cancellation is not permitted regardless of status. Only the original submitter may cancel. |
+| 6 | **Required fields at submission** | Cannot submit without: `title`, `description`, `justification`, `charge_to`. Quotation fields are not required at submission. |
+| 7 | **Required fields at procurement review completion** | Procurement cannot finalise without: `quote_strategy`; if `three_quotes` → ≥ 3 entries in `pr_quotations` each with attachment, exactly one with `is_selected = true`, plus `supplier_selection_rationale`; if `existing_supplier` → ≥ 1 quotation entry with attachment, plus `sole_source_justification`. `supplier` must be set (auto-populated from selected quotation). `quoted_total`, `quoted_currency` must be set. If no FX rate exists for the currency: warn reviewer but do not block. |
+| 8 | **RvC document required** | Cannot advance from `pending_rvC_approval` to `approved` without `rvC_approval_document` attached |
 | 9 | **Supplier admin restricted** | Only Procurement role may create new supplier records |
 
 ---
@@ -193,31 +201,33 @@ These rules are enforced at the data layer via NocoBase Before Action Events. Th
 
 ### Access layer (Roles & Permissions — static, always-on)
 
-These define who can reach the edit action at all, using NocoBase's condition builder on data scope. They are not sufficient alone — Before Action guards enforce the harder business rules on top.
-
 | Role | Create | View scope | Edit scope | Delete |
 |---|---|---|---|---|
 | `member` | Yes | Own records (`submitter = currentUser`) | Own records + `status ∈ {draft, info_requested}` | No |
 | `dept_head` | Yes | Department records (`department = currentUser.mainDepartment`) | Own records + `status ∈ {draft, info_requested}` | No |
-| `procurement` | Yes | All records | `status = pending_purchasing_review` (own drafts covered via member role union) | No |
+| `procurement` | Yes | All records | `status = pending_purchasing_review` (own drafts covered via member role union) + `status = pending_rvC_approval` (to upload RvC document) | No |
 | `director` | Yes | All records | None — approves via workflow action only | No |
 | `finance` | No | All records | None | No |
 
-No role has delete permission on `purchase_requests`. Deletions are blocked at the permission layer, with the Before Action guard as API-level backstop.
+No role has delete permission on `purchase_requests`.
 
 ### Field-level permissions
 
 **System-only fields** — no role has edit permission; only workflows may write these:
-`submitted_at`, `fx_rate_to_usd`, `quoted_total_usd`, `department` (snapshotted value), `approved_at`, `rejected_at`, `cancelled_at`, `previous_status`, `status`
+`submitted_at`, `fx_rate_to_usd`, `quoted_total_usd`, `department`, `approved_at`, `rejected_at`, `cancelled_at`, `rvC_approved_at`, `status`, `supplier` (locked after `pending_purchasing_review`)
 
 **Submitter-editable fields** (member role, in draft/info_requested):
-`title`, `description`, `justification`, `expenditure_type`, `charge_to`, `project`, `supplier`, `quoted_total`, `quoted_currency`, `needed_by`, `is_emergency`, `quotation_attachment`, `other_attachments`
+`title`, `description`, `justification`, `expenditure_type`, `charge_to`, `needed_by`, `is_emergency`, `other_attachments`
 
 **Procurement-editable fields** (procurement role, during pending_purchasing_review):
-`quoted_total`, `quoted_currency`, `quotation_attachment`, `other_attachments`
+`quote_strategy`, `sole_source_justification`, `supplier_selection_rationale`, `other_attachments`
+Plus full CRUD on child `pr_quotations` records
+
+**Procurement-editable fields** (procurement role, during pending_rvC_approval):
+`rvC_approval_document`
 
 **Workflow-only fields** (set by approval workflow nodes, never by user form):
-`rejection_reason_category`, `rejection_comment`, `cancellation_reason`, `status`, `previous_status`, all timestamp fields
+`rejection_reason_category`, `rejection_comment`, `cancellation_reason`, `status`, all timestamp fields, `supplier` (snapshotted from selected quotation when procurement finalises)
 
 **Visible to all roles that can view the PR** (no restrictions):
 `status`, `rejection_reason_category`, `rejection_comment`, `cancellation_reason`
@@ -227,9 +237,9 @@ No role has delete permission on `purchase_requests`. Deletions are blocked at t
 ## 11. Data model — collections
 
 ### Native NocoBase collections used as-is
-- `users`
+- `users` — extended with `on_leave` (boolean, default false): approver sets this before going on leave
 - `roles`
-- `departments` (with `heads`, `members`, linked roles)
+- `departments` — extended with `main_approver` (m2o → users) and `secondary_approver` (m2o → users) for workflow routing. Native `heads`/`owners` field is not used for routing.
 - Built-in **Comment Collection** plugin (used for PR discussion thread)
 
 ### Custom collections
@@ -243,30 +253,53 @@ No role has delete permission on `purchase_requests`. Deletions are blocked at t
 | `justification` | textarea | Required at submission — business case / why needed |
 | `submitter` | belongsTo (users) | Auto-set on submission by workflow |
 | `department` | belongsTo (departments) | **Snapshotted** from submitter.main_department at submission by workflow — not live FK |
-| `expenditure_type` | single select | capex / opex / maintenance / consumables (for reporting only, not accounting) |
+| `expenditure_type` | single select | capex / opex / maintenance / consumables — reporting only, no routing effect |
 | `charge_to` | single select | `project` or `department` — required at submission |
-| `project` | belongsTo (projects) | Required when charge_to = project |
-| `supplier` | belongsTo (suppliers) | **Optional.** Advisory only — label: "Suggested supplier." Actual supplier confirmed at PO creation. |
-| `quoted_total` | decimal | Includes tax, in `quoted_currency`. Optional at submission; required before procurement finalises review. |
-| `quoted_currency` | single select | One of three supported currencies. Optional at submission; required before procurement finalises review. |
+| `supplier` | belongsTo (suppliers) | Set by workflow from selected `pr_quotations` entry when procurement finalises review. **Locked after that point.** Not editable by user form. |
+| `quote_strategy` | single select | `three_quotes` / `existing_supplier`. Required before procurement can finalise review. |
+| `sole_source_justification` | textarea | Required when `quote_strategy = existing_supplier`. Written motivation for not seeking competitive quotes. |
+| `supplier_selection_rationale` | textarea | Required when `quote_strategy = three_quotes`. Explains why the selected quote was chosen over the others. |
+| `quoted_total` | decimal | Includes tax, in `quoted_currency`. Auto-populated from selected quotation when procurement finalises. |
+| `quoted_currency` | single select | One of three supported currencies. Auto-populated from selected quotation. |
 | `fx_rate_to_usd` | decimal | Snapshotted when procurement finalises review. Set by workflow only. |
 | `quoted_total_usd` | decimal | = quoted_total × fx_rate_to_usd. Computed and stored by workflow when procurement finalises review. |
-| `quotation_attachment` | attachment | Optional at submission; required before procurement finalises review. Single file or multi — see open question. |
+| `rvC_approval_document` | attachment | Single file. Required to advance from `pending_rvC_approval` to `approved`. Uploaded by procurement. |
 | `other_attachments` | attachment (multi) | Specs, drawings, certificates, comparison docs |
 | `status` | single select | See Section 3. Set by workflow only — never by user form. |
-| `previous_status` | single select | Same values as `status`. Set by workflow when transitioning to `info_requested`. Used to determine cancellation eligibility. |
 | `needed_by` | date | Optional target date |
-| `is_emergency` | boolean | Flag for safety-critical / expedited handling |
+| `is_emergency` | boolean | UI/priority flag only — no routing or workflow branching. Signals to procurement and finance to prioritise. |
 | `rejection_reason_category` | single select | out_of_budget / policy_violation / wrong_supplier / duplicate / not_justified / other |
 | `rejection_comment` | textarea | Free text, set by workflow on rejection |
 | `cancellation_reason` | textarea | Free text, entered by submitter via Cancel form |
 | `resubmitted_from` | belongsTo (purchase_requests) | Self-reference for new PRs created after rejection |
-| `submitted_at` | datetime | Set by workflow at submission. Audit. |
+| `submitted_at` | datetime | Set by workflow at submission |
 | `approved_at` | datetime | Set by workflow at final approval. Used for PO eligibility window check. |
-| `rejected_at` | datetime | Set by workflow on rejection. Audit. |
-| `cancelled_at` | datetime | Set by workflow on cancellation. Audit. |
+| `rvC_approved_at` | datetime | Set by workflow when advancing from `pending_rvC_approval` to `approved` |
+| `rejected_at` | datetime | Set by workflow on rejection |
+| `cancelled_at` | datetime | Set by workflow on cancellation |
 
 **Note:** Approval history (who acted, when, comments) lives in the built-in NocoBase approval workflow log. We do not duplicate it on the PR.
+
+#### `pr_quotations`
+
+Child collection of `purchase_requests`. Each row represents one supplier quote collected during procurement review.
+
+| Field | Type | Notes |
+|---|---|---|
+| `purchase_request` | belongsTo (purchase_requests) | Required |
+| `supplier` | belongsTo (suppliers) | Required |
+| `amount` | decimal | Quote total, in `currency` |
+| `currency` | single select | 3 supported currencies |
+| `quote_date` | date | |
+| `attachment` | attachment | The actual quote document. Required. |
+| `is_selected` | boolean | The quote procurement recommends. Exactly one per PR may be true. Enforced by Before Action guard. |
+| `notes` | textarea | Optional commentary |
+
+**Guards on `pr_quotations`:**
+- Only procurement role may create/edit/delete entries
+- Entries are locked when the parent PR status moves past `pending_purchasing_review`
+- Only one entry per PR may have `is_selected = true`
+- When `is_selected` is set to true, the parent PR's `supplier`, `quoted_total`, and `quoted_currency` are updated by workflow
 
 #### `suppliers`
 
@@ -274,6 +307,7 @@ No role has delete permission on `purchase_requests`. Deletions are blocked at t
 |---|---|---|
 | `name` | text | Legal name |
 | `display_name` | text | Short name shown in UI |
+| `address` | textarea | |
 | `tax_id` | text | VAT / KvK / equivalent |
 | `country` | single select | |
 | `default_currency` | single select | Their typical quote currency |
@@ -287,7 +321,7 @@ No role has delete permission on `purchase_requests`. Deletions are blocked at t
 | Field | Type | Notes |
 |---|---|---|
 | `supplier` | belongsTo (suppliers) | Required |
-| `purchase_request` | belongsTo (purchase_requests) | Optional — issue may be tied to a specific PR |
+| `purchase_request` | belongsTo (purchase_requests) | Optional |
 | `issue_type` | single select | quality / delivery / price / communication / compliance / other |
 | `severity` | single select | minor / moderate / major / critical |
 | `description` | textarea | Required |
@@ -309,24 +343,6 @@ No role has delete permission on `purchase_requests`. Deletions are blocked at t
 | `purchase_request` | belongsTo (purchase_requests) | Optional, for per-transaction reviews |
 | `comments` | textarea | |
 
-#### `projects`
-
-| Field | Type | Notes |
-|---|---|---|
-| `code` | text | Short identifier |
-| `name` | text | |
-| `description` | textarea | |
-| `manager` | belongsTo (users) | |
-| `department` | belongsTo (departments) | Owning dept |
-| `status` | single select | planned / active / on_hold / closed — operational status only |
-| `is_director_approved` | boolean | Default false. Set manually by admin/procurement when director has approved the project budget outside the system. Unlocks the within-budget PR routing bypass (see Section 5). |
-| `start_date` | date | |
-| `end_date` | date | Nullable |
-| `approved_budget_usd` | decimal | Total director-approved budget for the project, in USD |
-| `currency` | single select | Project's working currency |
-
-**Budget tracking:** computed on the fly. `remaining_budget = approved_budget_usd − SUM(quoted_total_usd of all PRs charged to this project where status NOT IN {draft, rejected, cancelled})`. Pending PRs (submitted but not yet approved or rejected) reserve budget — they are included in the consumed total. Only draft, rejected, and cancelled PRs do not consume budget. Will revisit if performance becomes an issue.
-
 #### `approval_limits`
 
 | Field | Type | Notes |
@@ -338,7 +354,9 @@ No role has delete permission on `purchase_requests`. Deletions are blocked at t
 | `max_amount_usd` | decimal | The threshold value |
 | `notes` | textarea | Why this limit exists |
 
-Currently one row will exist (the procurement → director threshold). Collection structure exists to support future rules without schema change.
+**Two rows on go-live:**
+1. `procurement_to_director` — $1,500 USD
+2. `director_to_rvC` — $15,000 USD
 
 #### `fx_rates`
 
@@ -353,94 +371,71 @@ Currently one row will exist (the procurement → director threshold). Collectio
 
 ---
 
-## 12. Project budget linkage
+## 12. PO eligibility
 
-- Each PR is `charge_to` either a **project** or its **department** (the department itself acts as a cost center)
-- PRs charged to a project consume from `project.approved_budget_usd`
-- Remaining budget is computed live: `approved_budget_usd − SUM(quoted_total_usd of all PRs charged to this project where status NOT IN {draft, rejected, cancelled})`
-- **Pending PRs reserve budget** — any PR from `pending_dept_approval` onwards (excluding `rejected` and `cancelled`) is counted against the budget. Draft PRs do not reserve budget.
-- If a PR would push the project over its remaining budget: submission is blocked with an error. The project budget must be adjusted (by admin, outside the system) before the PR can proceed.
-- Budget adjustment (increasing `approved_budget_usd`) is out of scope for v1 — done manually by admin.
+One PR drives exactly **one** Purchase Order. A PO can only be created against a PR when:
+1. `status = approved`
+2. `approved_at` is within the eligibility window (currently 30 days — hardcoded in PO creation workflow)
+3. No PO already exists against this PR (enforced by guard in PO collection)
+
+The PO creation workflow checks all three conditions.
 
 ---
 
 ## 13. Comments and attachments
 
-- **Comments:** use NocoBase's built-in Comment Collection plugin, linked to PR records. Threaded, rich text, user-tracked. Used for informal discussion (e.g., "is this price negotiable?")
-- **Approval comments:** captured natively in approval workflow history (approver's note when passing/rejecting/returning)
-- **Quotation attachment:** dedicated field on PR. May be added by submitter at submission or by procurement during review. Single file or multi — see open question.
-- **Other attachments:** multi-file field for specs, drawings, certificates, comparison documents. Editable by submitter and procurement.
+- **Comments:** use NocoBase's built-in Comment Collection plugin, linked to PR records. Threaded, rich text, user-tracked.
+- **Approval comments:** captured natively in approval workflow history
+- **Quotation documents:** stored as attachments on individual `pr_quotations` child records
+- **RvC document:** dedicated `rvC_approval_document` field on PR — single file, uploaded by procurement after board approval
+- **Other attachments:** multi-file field for specs, drawings, certificates. Editable by submitter (draft/info_requested) and procurement (during purchasing review)
 
 ---
 
 ## 14. Supplier management
 
-- Suppliers are pre-vetted. **Only Procurement role** can create new supplier records (enforced via Before Action guard #9)
-- Departments needing a new supplier describe the request in the PR description; Procurement onboards the supplier separately, then resubmits
+- Suppliers are pre-vetted. **Only Procurement role** can create new supplier records (Before Action guard #9)
 - Issue logging via `supplier_issues` — anyone can log; Procurement reviews and resolves
 - Scoring via `supplier_evaluations` — periodic reviews and/or per-transaction feedback
-- Open question: how is `supplier.current_rating` derived? Manually entered, or computed from evaluations?
+- Open question: how is `supplier.current_rating` derived?
 
 ---
 
-## 15. PO eligibility
+## 15. Open questions for the team
 
-A PR may drive a Purchase Order only when:
-1. `status = approved`
-2. `approved_at` is within the eligibility window (currently 30 days — hardcoded in PO creation workflow)
+All questions resolved. No open items remain.
 
-The PO creation workflow checks both conditions. There is no flag on the PR itself — eligibility is computed at the moment of PO creation.
+**Resolved**
 
----
-
-## 16. Open questions for the team
-
-These need answers before we finalise.
-
-**Process and policy**
-
-1. Director-submitted PRs — what's the escalation path? (deferred to v2 unless team has a strong view)
-2. Can anyone other than the submitter cancel a PR that's stuck in `pending_dept_approval`? (e.g., procurement killing a stalled one)
-3. Is `is_emergency` a workflow-routing flag (changes who/how it's approved), or just a UI flag for humans to expedite manually?
-4. Multi-quote requirement: does Havenbeheer require multiple quotes above some threshold? If yes, threshold value, and is sole-source justification needed when only one quote is provided?
-5. Over-budget PRs: if a PR would push a project over its approved budget, block / warn / allow?
-6. Procurement-originated PRs: confirm "always go to director regardless of amount" (option A from earlier) — even small purchases?
-
-**Numbers**
-
-7. Threshold value (USD) above which director approval is required
-8. List of three supported currencies
-9. Supplier scoring scale (1–5? 1–10?)
-10. FX rate update cadence and stale threshold (when does "no fresh rate" trigger the warning to the procurement reviewer?)
-
-**Modelling details**
-
-11. Quotation attachment: single file or multiple?
-12. Supplier `current_rating`: manually maintained or computed from evaluations?
-13. Should new suppliers go through an approval workflow themselves, or is procurement adding them informally enough?
-
-**People and ownership**
-
-14. Who owns the FX rate updates in Finance, and how often?
-15. Who owns the threshold value in `approval_limits`? Who's authorised to change it?
-16. Who maintains supplier records — single procurement person or whole department?
+| # | Question | Answer |
+|---|---|---|
+| 1 | Director-submitted PRs escalation path | Deferred to v2 |
+| 2 | Who else can cancel a stalled PR in `pending_dept_approval`? | No one — cancellation is only possible in `draft`. Procurement or admin may reject a stuck PR instead. |
+| 3 | Does `is_emergency` ever affect routing? | No — priority/reminder flag only, no workflow branching |
+| 4 | Are the 2018 thresholds still current? | Yes — $1,500 (procurement → director) and $15,000 (director → RvC), in USD only; other currencies converted via exchange rate |
+| 5 | Which currencies are supported? | USD, SRD, EUR |
+| 6 | Supplier scoring scale? | 1–5 |
+| 7 | FX rate stale threshold | 30 days |
+| 8 | `supplier.current_rating` — computed or manual? | Manually maintained by procurement |
+| 9 | New supplier approval workflow needed? | No — procurement adds informally, no workflow required |
+| 10 | Who updates FX rates, and how often? | All Finance members can update; no fixed schedule |
+| 11 | Who can change threshold values in `approval_limits`? | Admin only |
+| 12 | Who maintains supplier records? | All procurement members |
 
 ---
 
-## 17. Decisions log (for traceability)
-
-For reference. Each line is a decision already made and not under active discussion.
+## 16. Decisions log
 
 1. PR is an approval artifact only; immutable once approved
-2. Use built-in Return action + `info_requested` status; workflow sets `previous_status` on transition to `info_requested` (for cancellation gate only — not for workflow resume, which is tracked internally by NocoBase)
-3. PR has free text + optional quotation attachment + optional total + currency at submission; no line items at PR level
+2. Use built-in Return action + `info_requested` status
+3. PR has free text + quotations child collection; no line items at PR level
 4. PR's department = submitter's main department, snapshotted at submission by workflow
-5. Per-role approval limits in a separate collection (extensible)
-6. FX rate snapshotted when procurement finalises their review (not at submission); manual rate maintenance by Finance
+5. Per-role approval limits in a separate collection (extensible) — two rows on go-live: $1,500 and $15,000
+6. FX rate snapshotted when procurement finalises their review; manual rate maintenance by Finance
 7. Use native NocoBase Departments
-8. Backup approver = multiple heads + Anyone agreement mode; no custom delegate field
+8. Backup approver = `departments.secondary_approver` (m2o → users, optional) + `users.on_leave` (boolean). When `main_approver.on_leave = true`, workflow routes to `secondary_approver`. If none set, falls back to `main_approver`. Built-in Reassign action covers ad-hoc hand-off.
 9. Built-in approval history is sufficient; no custom audit collection
-10. Cancellation allowed from: `draft`, `pending_dept_approval`, `info_requested` where `previous_status` ≠ `pending_director_approval`. Only the original submitter may cancel.
+10. Cancellation allowed from `draft` only. Once submitted, a PR cannot be cancelled regardless of status (including `info_requested`). Only the original submitter may cancel. Procurement may reject a stuck PR but cannot cancel on the submitter's behalf.
 11. Role Union mode: Union only
 12. No sub-departments in v1
 13. Purchasing and Director are modelled as Departments with linked Roles
@@ -448,32 +443,43 @@ For reference. Each line is a decision already made and not under active discuss
 15. Procurement member submits → skip purchasing review, always to director
 16. Procurement head submits → skip both, straight to director
 17. Department heads always hand off to purchasing (cannot fully approve a PR alone)
-18. `department.heads` is the source of truth for "is dept head"; no custom is_manager role
+18. `departments.main_approver` (m2o → users) is the source of truth for dept approval routing. `departments.secondary_approver` covers absences. No custom "is manager" role — routing is field-based, not role-based. Native `department.heads` / `owners` is not used for workflow routing.
 19. Currencies: single-select on PR (3 supported)
-20. FX rate freshness: warn, don't block (warning shown to procurement reviewer at finalisation)
+20. FX rate freshness: warn, don't block
 21. Justification field on PR, separate from description
 22. No cost_centers collection; departments serve as cost centers
-23. Project budget tracking computed on the fly; no ledger collection in v1. Formula: `approved_budget_usd − SUM(quoted_total_usd where status NOT IN {draft, rejected, cancelled})`. Pending PRs reserve budget; drafts do not.
-41. `projects` collection has `is_director_approved` boolean (default false). Set manually by admin when director approves project budget outside the system. Required for the within-budget PR routing bypass.
-42. Over-budget PRs are blocked (hard error), not warned. Project budget must be adjusted before submission can proceed. Budget adjustment is out of scope for v1 (manual admin action).
-43. `is_emergency` is a UI/reminder flag only — no routing or workflow branching. It signals to procurement and finance to prioritise ordering and payment.
+23. No project budget tracking — removed from scope
 24. Suppliers are a first-class collection; only procurement can add them
 25. Supplier evaluation via `supplier_issues` and `supplier_evaluations` collections
 26. Tax handling out of scope — gross amounts only, used for threshold check
 27. Rejection and cancellation reasons captured as structured fields on PR; visible to all roles that can view the PR
 28. Comments via built-in NocoBase Comment Collection plugin
-29. Two attachment fields on PR: dedicated quotation + multi-file other attachments; both editable by submitter (at draft stage) and procurement (during review)
+29. Other attachments field on PR: multi-file, editable by submitter and procurement
 30. Urgency = `needed_by` date + `is_emergency` boolean
-31. Expenditure type field on PR for reporting purposes only
-32. Resubmission link via self-referencing `resubmitted_from` field on a newly created PR (not editing the rejected one)
-33. `supplier` field on PR is optional and advisory — actual supplier selected at PO level
-34. Quotation fields (`quoted_total`, `quoted_currency`, `quotation_attachment`) are optional at submission. Procurement enters or completes them during purchasing review if not provided by submitter. Both paths are valid.
-35. PO eligibility: `status = approved` AND `approved_at` within 30-day window, checked at PO creation. No flag on the PR itself.
-36. Required fields at submission: `title`, `description`, `justification`, `charge_to` (+ `project` if charge_to = project). Quotation fields are not required at submission.
-37. `status` and all system-computed fields are written only by workflows — never by user form submission. All status transitions are workflow-driven and tied to specific action buttons.
-38. No role has delete permission on `purchase_requests`; delete is blocked at the permissions layer with Before Action guard as API-level backstop.
-39. Procurement edit scope on `purchase_requests`: `status = pending_purchasing_review`. Own draft access comes via member role union.
-40. `previous_status` field added to `purchase_requests` — single select, same values as `status`. Set by workflow on transition to `info_requested`. Used solely for cancellation eligibility; not displayed prominently in UI.
+31. Expenditure type field on PR for reporting purposes only — no routing effect
+32. Resubmission link via self-referencing `resubmitted_from` field on a newly created PR
+33. `supplier` field on PR is set by workflow from selected quotation; locked after procurement review finalises; not editable by user form
+34. RvC approval is external (board meeting); procurement uploads signed document to advance PR to `approved`
+35. `rvC_approval_document` attachment required to advance from `pending_rvC_approval` — enforced by Before Action guard
+36. Three-quote requirement: `quote_strategy` field (three_quotes / existing_supplier) required at procurement review; each path has mandatory supporting fields and quotation records
+37. Quotation records in `pr_quotations` child collection — replaces single `quotation_attachment` field
+38. Exactly one `pr_quotations` entry per PR may have `is_selected = true`; selecting it auto-populates `supplier`, `quoted_total`, `quoted_currency` on the parent PR
+39. `is_emergency` is a UI/priority flag only — no routing or workflow branching
+40. No role has delete permission on `purchase_requests`
+41. Annual inkoopbegroting not modelled — out of scope for v1
+42. Cashflow gate (Finance Manager) not modelled — Finance has view-only access only
+43. Same approval procedure applies to all purchase types (no routing differences by expenditure type)
+44. One PR → one PO (enforced by guard on PO collection)
+45. `quoted_total`, `quoted_currency`, `supplier` on PR auto-populated from selected quotation when procurement finalises; stored as fields for threshold check and audit trail
+46. Supported currencies: USD, SRD, EUR — used as single-select values on `pr_quotations.currency`, `purchase_requests.quoted_currency`, `purchase_orders.currency`, and `fx_rates.currency_code`
+47. Approval thresholds confirmed: $1,500 USD (procurement → director) and $15,000 USD (director → RvC). All threshold checks use USD; non-USD quotes are converted via snapshotted FX rate.
+48. Supplier evaluation score: 1–5 scale, integer, manually entered on `supplier_evaluations`
+49. `supplier.current_rating`: manually maintained by any procurement member — not computed from evaluations
+50. New supplier onboarding: informal — any procurement member adds directly, no approval workflow
+51. FX rate maintenance: any Finance member may create or update rates; no fixed update schedule. Stale threshold (30 days) triggers warning to procurement reviewer at finalisation.
+52. `approval_limits` values editable by admin only
+53. Supplier records maintained by all procurement members (no single owner)
+54. Admin role bypasses all user-facing guards and can perform any action system-wide
 
 ---
 

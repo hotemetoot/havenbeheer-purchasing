@@ -2,7 +2,7 @@
 
 **Purpose:** Implementation-ready reference for all security rules on the Purchase Request workflow. Covers NocoBase Roles & Permissions configuration and Before Action Event guard designs.
 
-**Scope:** Purchase Requests (`purchase_requests`) and directly related collections. PO-specific rules are in the PO document.
+**Scope:** Purchase Requests (`purchase_requests`), the `pr_quotations` child collection, and directly related collections. PO-specific rules are in the PO document.
 
 **Status:** Design finalised except for items marked ⚠️ Open.
 
@@ -27,13 +27,15 @@ UI-level hiding (block visibility, conditional rendering) is used for usability 
 | Role identifier | Source | Who holds it |
 |---|---|---|
 | `member` | Default role | Every user automatically |
-| `dept_head` | Department role | Inherited when set as head of a department |
+| `dept_head` | Department role | Manually granted to users who are the primary or backup approver of a department |
 | `procurement` | Department role | Inherited by all members of the Procurement department |
 | `director` | Department role | Inherited by all members of the Director department |
 | `finance` | Department role | Inherited by all members of the Finance department |
 | `admin` | Personal role | System administrators only |
 
 **Role Union mode:** Union only. Users hold the combined permissions of all their roles simultaneously. A procurement member who is also a dept head holds both sets of permissions. Permissions always resolve to the maximum across all roles.
+
+> **Note on approval routing vs. ACL roles:** The `dept_head` role above controls *what records people can see and edit* (the view/edit scope in Section 3). Approval routing — i.e., *which person receives the dept approval task* — is determined separately by the `departments.main_approver` and `departments.secondary_approver` fields (m2o → users). `departments.main_approver` is the primary assignee; if `main_approver.on_leave = true`, the task goes to `departments.secondary_approver` instead. These two mechanisms are independent: having the `dept_head` role does not automatically make someone the routing target, and vice versa.
 
 ---
 
@@ -54,7 +56,7 @@ UI-level hiding (block visibility, conditional rendering) is used for usability 
 | Role | Condition |
 |---|---|
 | `member` | `submitter = currentUser` |
-| `dept_head` | `department = currentUser.mainDepartment` |
+| `dept_head` | `department = currentUser.mainDepartment` | *(view scope based on dept membership — independent of routing)* |
 | `procurement` | *(no condition — all records)* |
 | `director` | *(no condition — all records)* |
 | `finance` | *(no condition — all records)* |
@@ -67,7 +69,7 @@ With Union only mode, a dept head who is also a regular member sees the union of
 |---|---|---|
 | `member` | `submitter = currentUser` AND (`status = draft` OR `status = info_requested`) | Submitters edit only their own PRs, only while they hold them |
 | `dept_head` | Same as member (dept heads approve via workflow action, not by editing PR content) | |
-| `procurement` | `status = pending_purchasing_review` | Procurement edits only PRs in their queue; own drafts covered via member union |
+| `procurement` | `status = pending_purchasing_review` OR `status = pending_rvC_approval` | Purchasing review stage for quotation work; RvC stage to upload signed board document. Own drafts covered via member union. |
 | `director` | *(no edit scope — no edit permission)* | Approves via workflow action only |
 | `finance` | *(no edit scope — no edit permission)* | Read-only on PRs |
 
@@ -79,18 +81,18 @@ With Union only mode, a dept head who is also a regular member sees the union of
 
 | Collection | `member` | `dept_head` | `procurement` | `director` | `finance` | `admin` |
 |---|---|---|---|---|---|---|
+| `pr_quotations` | View (via parent PR) | View (via parent PR) | Create, View, Edit, Delete (while parent PR is in `pending_purchasing_review`) | View | View | Full |
 | `suppliers` | View all | View all | Create, View, Edit all | View all | View all | Full |
 | `supplier_issues` | Create own, View all | Create own, View all | Full | View all | View all | Full |
 | `supplier_evaluations` | Create own, View all | Create own, View all | Full | View all | View all | Full |
-| `projects` | View all | View all | View all | View all | View all | Full |
 | `fx_rates` | View all | View all | View all | View all | Create, Edit all | Full |
 | `approval_limits` | View all | View all | View all | View all | View all | Full (edit) |
 
 **Notes:**
-- Only `procurement` can create supplier records. No Before Action guard needed — the permission layer enforces this.
+- `pr_quotations` records are locked (no edit/delete) once the parent PR moves past `pending_purchasing_review`. Enforced via Before Action guard on `pr_quotations` (see Guard E notes).
+- Only `procurement` can create supplier records. Enforced at the permission layer.
 - Only `finance` can create or edit FX rates.
 - Only `admin` can change `approval_limits` values (threshold amounts).
-- `projects` is read-only for all non-admin roles through this module; project management is out of scope for v1.
 
 ---
 
@@ -103,39 +105,46 @@ These fields must have edit permission explicitly removed for all roles. Only No
 | Field | Set by workflow when |
 |---|---|
 | `status` | Every status transition |
-| `previous_status` | Transition to `info_requested` (set to the status just before the transition); cleared on resubmit |
 | `submitter` | PR submitted (set once, never changed) |
 | `department` | PR submitted (snapshotted from submitter.mainDepartment) |
 | `submitted_at` | PR submitted |
-| `approved_at` | PR reaches approved status |
-| `rejected_at` | PR reaches rejected status |
-| `cancelled_at` | PR reaches cancelled status |
-| `fx_rate_to_usd` | Procurement finalises review (definitive); optionally also at submission as provisional — see ⚠️ below |
-| `quoted_total_usd` | Same as fx_rate_to_usd |
+| `approved_at` | PR reaches `approved` status |
+| `rvC_approved_at` | PR transitions from `pending_rvC_approval` to `approved` |
+| `rejected_at` | PR reaches `rejected` status |
+| `cancelled_at` | PR reaches `cancelled` status |
+| `supplier` | Procurement selects a quotation (`pr_quotations.is_selected = true`); snapshotted from the selected quotation's supplier. Locked after that point — never editable by user form. |
+| `quoted_total` | Same event as `supplier` above — auto-populated from selected quotation's `amount` |
+| `quoted_currency` | Same event as `supplier` above — auto-populated from selected quotation's `currency` |
+| `fx_rate_to_usd` | Procurement finalises review (definitive) |
+| `quoted_total_usd` | Procurement finalises review (= `quoted_total × fx_rate_to_usd`) |
 | `rejection_reason_category` | Approver rejects |
 | `rejection_comment` | Approver rejects |
 
-### Submitter-editable fields (member role, edit permitted in draft / info_requested)
+### Submitter-editable fields (member role, edit permitted in `draft` / `info_requested`)
 
-`title`, `description`, `justification`, `expenditure_type`, `charge_to`, `project`, `supplier`, `quoted_total`, `quoted_currency`, `needed_by`, `is_emergency`, `quotation_attachment`, `other_attachments`
+`title`, `description`, `justification`, `expenditure_type`, `charge_to`, `needed_by`, `is_emergency`, `other_attachments`
 
-Quotation fields (`quoted_total`, `quoted_currency`, `quotation_attachment`) are optional — the submitter may or may not have a quote at submission.
+Submitters no longer enter quotation data directly. Quotes are collected and entered by procurement via the `pr_quotations` child collection during purchasing review.
 
-### Procurement-editable fields (procurement role, edit permitted in pending_purchasing_review)
+### Procurement-editable fields (procurement role, edit permitted in `pending_purchasing_review`)
 
-`quoted_total`, `quoted_currency`, `quotation_attachment`, `other_attachments`
+`quote_strategy`, `sole_source_justification`, `supplier_selection_rationale`, `other_attachments`
 
-Procurement enters or completes the quotation during their review. They do not edit title, description, justification, or other submitter fields.
+Plus full CRUD on child `pr_quotations` records while the parent PR is in `pending_purchasing_review`.
+
+Procurement does not edit title, description, justification, or other submitter fields.
+
+### Procurement-editable fields (procurement role, edit permitted in `pending_rvC_approval`)
+
+`rvC_approval_document` — single file attachment. This is the only field editable at this stage. Uploading this document and clicking "Record Board Approval" advances the PR to `approved`.
 
 ### Submitter-editable via dedicated Cancel form only
 
-`cancellation_reason` — entered in the Cancel form. Set alongside status = cancelled by the cancel workflow. No general edit permission on this field.
+`cancellation_reason` — entered in the Cancel form. Set alongside `status = cancelled` by the cancel workflow. No general edit permission on this field.
 
 ### Visible to all roles that can view the PR (no field-level restriction)
 
-`status`, `previous_status`, `rejection_reason_category`, `rejection_comment`, `cancellation_reason`
-
-⚠️ **Open — provisional USD total:** When a submitter enters a quote at submission, the PR enters `pending_dept_approval` with a quoted amount in a foreign currency but no USD equivalent. The dept head cannot assess whether the PR will require director approval. **Recommendation:** the submission workflow computes a provisional `quoted_total_usd` (using the latest available FX rate, same lookup as the definitive snapshot) and writes it immediately. The procurement finalisation workflow then overwrites it with the definitive value. Requires a decision before workflow design begins.
+`status`, `rejection_reason_category`, `rejection_comment`, `cancellation_reason`
 
 ---
 
@@ -156,8 +165,7 @@ Procurement enters or completes the quotation during their review. They do not e
 
 **Notes:**
 - This guard covers all updates, including API calls that bypass the UI
-- No exceptions — the former `closed_for_new_pos` field has been removed; PO eligibility is checked at PO creation time
-- Procurement's "Close for new POs" operational flag is no longer in the model
+- **Exception:** `closed_for_new_pos` (boolean field) is exempt from this guard. It is an operational flag that may be set by procurement or by the 30-day expiry workflow even after the PR is `approved`. Implement this exception by checking whether the only field in the update payload is `closed_for_new_pos` — if so, pass through regardless of status.
 
 ---
 
@@ -171,21 +179,16 @@ Procurement enters or completes the quotation during their review. They do not e
 
 **Logic:**
 1. Query current record by ID from database
-2. If current `status` ≠ `draft` → **End (error):** *"Only a draft purchase request can be submitted."* (Prevents API-level re-submission; the Resubmit button for info_requested PRs uses a separate action.)
+2. If current `status` ≠ `draft` → **End (error):** *"Only a draft purchase request can be submitted."*
 3. Check submitted data: `title` present → else **End (error):** *"A title is required."*
 4. Check submitted data: `description` present → else **End (error):** *"A description is required."*
 5. Check submitted data: `justification` present → else **End (error):** *"A justification is required."*
 6. Check submitted data: `charge_to` set → else **End (error):** *"Please select whether this PR charges to a project or a department."*
-7. If `charge_to = project`: check `project` is set → else **End (error):** *"Please select a project, or change 'charge to' to Department."*
-8. If `charge_to = department`: check `project` is null → else **End (error):** *"You linked a project but selected 'charge to Department'. Remove the project link or switch to Project."*
-9. If `quoted_total` and `quoted_currency` are present in submitted data AND `charge_to = project` AND `project` is set: query `project.approved_budget_usd` and compute remaining budget (sum of `quoted_total_usd` for all PRs on this project where status NOT IN {draft, rejected, cancelled, and the current PR ID}). If `quoted_total_usd_provisional > remaining_budget` → **End (error):** *"This PR would exceed the project's remaining budget of [amount]. Please adjust the project budget or reduce the requested amount."*
-10. If all pass → action executes; submission workflow sets `status`, `submitter`, `department`, `submitted_at`, and provisional `quoted_total_usd` if quote data is present
+7. If all pass → action executes; submission workflow sets `status`, `submitter`, `department`, `submitted_at`
 
 **Notes:**
-- Quotation fields are NOT validated for presence at submission — they are optional
-- The budget check in step 9 only fires when quote data is present AND the PR is charged to a project; no quote = no budget check at this stage
-- The provisional USD total for the budget check uses the latest available FX rate (same lookup as Guard E step 6–7); if no rate exists, skip the budget check at submission — Guard E will catch it definitively
-- FX presence check has moved to Guard E (procurement finalisation)
+- Quotation fields are NOT validated at submission — quotes are collected by procurement, not the submitter
+- Project budget checks have been removed from this guard — project budget tracking is out of scope for v1
 
 ---
 
@@ -200,33 +203,20 @@ Procurement enters or completes the quotation during their review. They do not e
 **Logic:**
 1. Query current record by ID from database
 2. Check: `operator` (Before Action Event variable) = record's `submitter` field → else **End (error):** *"Only the original submitter can cancel this purchase request."*
-3. Check: current `status` ∈ {`draft`, `pending_dept_approval`, `info_requested`} → else **End (error):** *"This purchase request cannot be cancelled at its current stage."*
-4. If `status = info_requested`: check `previous_status` ≠ `pending_director_approval` → else **End (error):** *"This request was returned by the Director after procurement approval. It can no longer be cancelled — please resubmit or contact Procurement."*
-5. If all pass → action executes; cancel workflow sets `status = cancelled`, `cancelled_at`, writes `cancellation_reason` from form input
+3. Check: current `status` = `draft` → else **End (error):** *"This purchase request cannot be cancelled once submitted."*
+4. If all pass → action executes; cancel workflow sets `status = cancelled`, `cancelled_at`, writes `cancellation_reason` from form input
 
 **Notes:**
+- Cancellation is only possible from `draft`. Once submitted, the PR cannot be cancelled regardless of which stage it is in — including when returned to `info_requested`. The submitter must resubmit or contact Procurement if a PR is stuck.
 - The Cancel button opens a small form where the submitter enters `cancellation_reason` before confirming
 - Procurement cannot cancel on a submitter's behalf; they may only reject
+- Admin role bypasses this guard entirely via full system permissions. Admin uses a direct status edit rather than the Cancel button and is not subject to the submitter check or status restrictions.
 
 ---
 
-### Guard D — Project / charge consistency
+### Guard D — Procurement review finalisation
 
-| Property | Value |
-|---|---|
-| Trigger mode | Global |
-| Actions intercepted | Create, Update |
-| Collection | `purchase_requests` |
-
-**Logic:**
-1. If `charge_to` and `project` are not present in the submitted data → pass through (neither field was touched in this update)
-2. If `charge_to = project` AND `project` is null → **End (error):** *"Please select a project, or change 'charge to' to Department."*
-3. If `charge_to = department` AND `project` is not null → **End (error):** *"You linked a project but selected 'charge to Department'. Remove the project link or switch to Project."*
-4. Otherwise → pass through
-
----
-
-### Guard E — Procurement review finalisation
+*(Previously Guard E. Guard D (project/charge consistency) has been removed — project budget tracking is out of scope for v1.)*
 
 | Property | Value |
 |---|---|
@@ -236,67 +226,99 @@ Procurement enters or completes the quotation during their review. They do not e
 
 **Logic:**
 1. Query current record by ID from database
-2. Check: current `status` = `pending_purchasing_review` → else **End (error):** *"This action is only valid for PRs in the purchasing review stage."* (API-level protection)
-3. Check submitted data or current record: `quoted_total` present and > 0 → else **End (error):** *"A quoted total is required before this purchase request can be approved."*
-4. Check submitted data or current record: `quoted_currency` set → else **End (error):** *"Please set the quote currency."*
-5. Check submitted data or current record: `quotation_attachment` present → else **End (error):** *"Please attach at least one quotation document."*
-6. Query `fx_rates` for `currency_code = quoted_currency` where `effective_date ≤ today`, order by `effective_date` descending, limit 1
-7. If no FX rate found → **End (success status)** with warning message: *"No FX rate found for [currency]. The USD equivalent cannot be calculated. Finance must update the rate before the Director threshold check can run. You may still approve — the workflow will flag this."*
-8. Compute `quoted_total_usd` using the FX rate found. If `charge_to = project` AND `project` is set: query remaining budget (sum of `quoted_total_usd` for all PRs on this project where status NOT IN {draft, rejected, cancelled} AND ID ≠ current PR). If `quoted_total_usd > remaining_budget` → **End (error):** *"This PR would exceed the project's remaining budget of [amount]. The project budget must be adjusted before this request can be approved."*
-9. If all pass → action executes; procurement finalisation workflow writes `fx_rate_to_usd`, `quoted_total_usd` (definitive), then continues routing (project-budget bypass check or threshold check → director or approved)
+2. Check: current `status` = `pending_purchasing_review` → else **End (error):** *"This action is only valid for PRs in the purchasing review stage."*
+3. Check: `quote_strategy` is set on the current record → else **End (error):** *"Please select a quote strategy (three quotes or existing supplier) before completing your review."*
+4. Query `pr_quotations` where `purchase_request = current PR ID`
+5. If `quote_strategy = three_quotes`:
+   - Check: count of quotation records ≥ 3 → else **End (error):** *"At least three quotations are required. Please add quotation records before completing your review."*
+   - Check: all quotation records have an `attachment` → else **End (error):** *"All quotation records must have a document attached."*
+   - Check: exactly one quotation record has `is_selected = true` → else **End (error):** *"Please mark exactly one quotation as the selected quote."*
+   - Check: `supplier_selection_rationale` is set on the PR → else **End (error):** *"Please provide a rationale explaining why the selected quotation was chosen."*
+6. If `quote_strategy = existing_supplier`:
+   - Check: count of quotation records ≥ 1 → else **End (error):** *"Please add at least one quotation record, even for an existing supplier."*
+   - Check: the quotation record has an `attachment` → else **End (error):** *"The quotation record must have a document attached."*
+   - Check: exactly one quotation record has `is_selected = true` → else **End (error):** *"Please mark the quotation as selected."*
+   - Check: `sole_source_justification` is set on the PR → else **End (error):** *"Please provide a justification for using an existing supplier without competitive quotes."*
+7. Verify that the selected quotation has a `supplier` set → else **End (error):** *"The selected quotation must have a supplier linked."*
+8. At this point `quoted_total`, `quoted_currency`, and `supplier` on the PR should already be set (auto-populated when `is_selected` was set). Verify they are present on the current record → else **End (error):** *"Quote total, currency, and supplier must be set. Re-select the winning quotation to populate these fields."*
+9. Query `fx_rates` for `currency_code = quoted_currency` where `effective_date ≤ today`, order by `effective_date` descending, limit 1
+10. If no FX rate found, OR if the most recent rate's `effective_date` is more than 30 days before today → **End (success status)** with warning: *"The FX rate for [currency] is missing or older than one month. Finance must update the rate before the Director threshold check can run. You may still approve — the workflow will flag this."*
+11. If all pass → action executes; procurement finalisation workflow writes `fx_rate_to_usd`, `quoted_total_usd` (definitive), then routes based on threshold checks
 
 **Notes:**
-- Step 3–5 check both submitted data AND current record values. Procurement may have entered the quote fields earlier in the same session (they're already on the record), so the guard must not require them to be in the submitted data object specifically — only that they exist somewhere on the record.
-- Step 7 uses success-status End node so the response displays as a warning, not a hard error
+- Steps 5–6 check both `pr_quotations` records AND fields on the PR itself. The `is_selected` flag on a quotation record triggers an auto-population workflow that writes `supplier`, `quoted_total`, `quoted_currency` back to the parent PR. By the time Guard D fires, these should already be present.
+- Step 10 uses success-status End node so the response displays as a warning, not a hard error
+- `pr_quotations` records become locked immediately after this guard passes and the workflow fires (status moves past `pending_purchasing_review`)
+
+---
+
+### Guard E — RvC document required
+
+| Property | Value |
+|---|---|
+| Trigger mode | Bound — attached to the "Record Board Approval" button only |
+| Actions intercepted | Update |
+| Collection | `purchase_requests` |
+
+**Logic:**
+1. Query current record by ID from database
+2. Check: current `status` = `pending_rvC_approval` → else **End (error):** *"This action is only valid for PRs awaiting board approval."*
+3. Check: `rvC_approval_document` is present in submitted data or on current record → else **End (error):** *"Please upload the signed board approval document before recording approval."*
+4. If all pass → action executes; workflow sets `rvC_approved_at`, transitions `status` to `approved`
+
+**Notes:**
+- Only procurement role has edit permission at `pending_rvC_approval` status (see Section 3), so the permission layer already limits who can trigger this button
+- The button is only visible in the UI when `status = pending_rvC_approval`; the guard provides the API-level backstop
 
 ---
 
 ## 7. Workflow-triggered field writes
 
-These fields are never set by user form input. They are set exclusively by workflow nodes. Documenting here to ensure no edit permissions are accidentally granted for them.
+These fields are never set by user form input. They are set exclusively by workflow nodes.
 
 | Field | Trigger event | Written by |
 |---|---|---|
 | `status` | Every status transition | Approval workflow / cancel workflow / submit workflow |
-| `previous_status` | Transition **to** `info_requested` | Approval workflow (Return node) — set to status before return |
-| `previous_status` (clear) | Transition **out of** `info_requested` | Resubmit workflow — set to null |
 | `submitter` | First submission | Submit workflow |
 | `department` | First submission | Submit workflow (snapshot of submitter.mainDepartment) |
 | `submitted_at` | First submission | Submit workflow |
+| `supplier` | `pr_quotations.is_selected` set to true | Quotation selection workflow — snapshotted from selected quotation's supplier |
+| `quoted_total` | `pr_quotations.is_selected` set to true | Quotation selection workflow — snapshotted from selected quotation's amount |
+| `quoted_currency` | `pr_quotations.is_selected` set to true | Quotation selection workflow — snapshotted from selected quotation's currency |
 | `fx_rate_to_usd` | Procurement finalises review | Procurement finalisation workflow (definitive) |
-| `quoted_total_usd` | Procurement finalises review | Procurement finalisation workflow (definitive) |
-| `fx_rate_to_usd` (provisional) | Submission, if quote data present | Submit workflow (provisional — overwritten at procurement stage) |
-| `quoted_total_usd` (provisional) | Submission, if quote data present | Submit workflow (provisional — overwritten at procurement stage) |
-| `approved_at` | Status → approved | Approval workflow |
-| `rejected_at` | Status → rejected | Approval workflow |
-| `cancelled_at` | Status → cancelled | Cancel workflow |
+| `quoted_total_usd` | Procurement finalises review | Procurement finalisation workflow (= `quoted_total × fx_rate_to_usd`) |
+| `approved_at` | Status → `approved` | Approval workflow |
+| `rvC_approved_at` | Status → `approved` via "Record Board Approval" action | RvC approval workflow |
+| `rejected_at` | Status → `rejected` | Approval workflow |
+| `cancelled_at` | Status → `cancelled` | Cancel workflow |
 | `rejection_reason_category` | Approver submits rejection | Approval workflow |
 | `rejection_comment` | Approver submits rejection | Approval workflow |
 | `cancellation_reason` | Submitter submits cancel form | Cancel workflow |
+
+**Note on `supplier`, `quoted_total`, `quoted_currency`:** These are written when procurement marks a quotation as selected (`is_selected = true`), not when they finalise their review. This means the PR shows the selected supplier and amount while still in `pending_purchasing_review`, which is intentional — it gives approvers visibility before the PR reaches their queue. Once written, these fields are locked (system-only; no user edit permission).
 
 ---
 
 ## 8. Open items
 
-Items resolved are noted inline. Remaining items are ordered by implementation impact.
-
 ### Resolved
 
 | # | Decision |
 |---|---|
-| 1 | **Provisional USD at submission** — confirmed. Submit workflow computes provisional `quoted_total_usd` if `quoted_total` and `quoted_currency` are present. Overwritten definitively at procurement finalisation. |
-| 3 | **Multi-quote requirement** — deferred to v2. Data model supports it (multi-file `quotation_attachment`). A future Guard E extension can check quote count against a value threshold when policy is defined. |
-| 4 | **`is_emergency` routing** — closed. UI/reminder flag only. No workflow branching. Signals to procurement and finance to prioritise. |
-| 2 | **Over-budget PRs** — hard block (error). Guard B checks remaining budget at submission if a quote is present. Guard E checks definitively at procurement finalisation. Remaining budget = `approved_budget_usd − SUM(quoted_total_usd where status NOT IN {draft, rejected, cancelled})`. Budget adjustment is a manual admin action outside the system. |
+| 1 | **Provisional USD at submission** — removed. Submitters no longer enter quote data. Quotes are collected by procurement in `pr_quotations`. The definitive `quoted_total_usd` is set when procurement finalises their review. |
+| 2 | **Over-budget PRs** — project budget tracking removed from scope for v1. No budget checks in guards. |
+| 3 | **Multi-quote requirement** — in scope for v1. Implemented in Guard D with `quote_strategy`, `pr_quotations` child collection, `sole_source_justification`, and `supplier_selection_rationale`. |
+| 4 | **`is_emergency` routing** — closed. UI/priority flag only. No workflow branching. |
+| 5 | **Project-budget routing bypass** — removed. Project budget tracking is out of scope for v1. |
 
-### Still open — workflow decisions needed before building approval workflow
+### All items resolved
 
-| # | Item | Impact if unresolved |
-|---|---|---|
-| 5 | ⚠️ **Project-budget routing bypass** — PRs within an approved project budget skip the director entirely. Confirm whether any per-PR amount cap applies even for project PRs (e.g., a $500K PR within a $2M approved project budget would bypass the director). | Affects routing condition in the approval workflow; no data model change needed either way |
-| 6 | ⚠️ **Procurement always to director** (Q6) — confirm procurement-originated PRs always go to director regardless of amount and project status | Affects approval workflow routing condition |
-| 7 | ⚠️ **Stale FX rate threshold** (Q10) — at what age does a rate trigger the Guard E warning? Currently warns only if no rate exists at all | Affects Guard E step 7 — add age condition once policy is defined |
-| 8 | ⚠️ **Cancellation of stalled PRs** (Q2) — can procurement cancel a PR stuck in `pending_dept_approval`? | If yes: Guard C operator check needs an OR condition for procurement role |
+| # | Decision |
+|---|---|
+| 6 | **Procurement always to director** — confirmed. Procurement-originated PRs always route to director regardless of amount. No amount-based shortcut for procurement. |
+| 7 | **Stale FX rate threshold** — confirmed. A rate older than 30 days triggers the Guard D warning. Updated in Guard D step 10. |
+| 8 | **Cancellation of stalled PRs** — confirmed. Procurement cannot cancel a PR in `pending_dept_approval`. They may reject it instead. Guard C unchanged — only the original submitter can cancel. |
+| 9 | **`is_selected` change after initial selection** — resolved. Free re-selection is allowed while the PR is in `pending_purchasing_review`. The existing lock on `pr_quotations` (enforced when status moves past `pending_purchasing_review`) ensures `is_selected` cannot be changed after procurement finalises. No special workflow logic required. |
 
 ---
 

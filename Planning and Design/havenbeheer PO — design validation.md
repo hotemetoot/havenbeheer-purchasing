@@ -17,9 +17,10 @@
 
 ### Relationship to Purchase Requests
 - A PO can only be created against an **approved** PR
-- One PR → many POs (e.g. splitting an order across multiple suppliers)
+- **One PR → one PO** (enforced). If a need changes after approval, a new PR must be submitted.
 - A PR expires for new POs 30 days after `approved_at` (hardcoded in workflow)
 - Procurement can also manually close a PR for new POs at any time via `closed_for_new_pos` flag
+- The supplier on the PO is pre-filled from the PR (locked at PR approval) and is not editable
 
 ### Explicitly NOT in scope (v1)
 - Goods returns and defective item handling (handled via comments and attachments on the PO)
@@ -35,8 +36,8 @@
 ### Normal happy path
 
 ```
-PR approved
-  → Procurement creates draft PO
+PR approved (supplier already confirmed at PR level)
+  → Procurement creates draft PO (supplier pre-filled from PR)
   → Validates internally
   → Sends to supplier (via system or PDF export + email)
   → Supplier confirms (optional step)
@@ -55,7 +56,6 @@ PR approved
 | Payment before delivery | Finance updates `payment_status` at any point |
 | Multiple deliveries per line | `received_quantity` updated incrementally |
 | Imperfect outcome | Procurement closes PO with `close_reason` |
-| Order split across suppliers | Multiple POs created against same PR, each with its own supplier |
 
 ---
 
@@ -99,7 +99,7 @@ PR approved
 |---|---|
 | Procurement | Create, edit (while not terminal), manage status transitions |
 | Finance | Update `payment_status` and `payment_date` only |
-| Director | View all POs + receives notification on budget overruns |
+| Director | View all POs |
 | Submitter | View only — POs linked to their own PRs |
 | Submitter's department | View only — POs linked to their department's PRs |
 
@@ -107,31 +107,31 @@ PR approved
 
 ## 5. Budget overrun logic
 
-### Three zones (evaluated at `draft → sent` transition)
+Evaluated at `draft → sent` transition. Compares the PO total in USD against the PR's `quoted_total_usd` (which was locked at PR approval).
+
+### Three zones
 
 | Zone | Condition | Action |
 |---|---|---|
-| 1 | Cumulative PO total (USD) ≤ PR `quoted_total_usd` | Proceed normally |
-| 2 | PR amount < cumulative ≤ PR amount × tolerance | Warn procurement + require `budget_override_comment` + notify Director |
-| 3 | Cumulative > PR amount × tolerance | Block. New PR required. |
+| 1 | PO `total_usd` ≤ PR `quoted_total_usd` | Proceed normally |
+| 2 | PR amount < PO total ≤ PR amount × 110% | Warn procurement + require `budget_override_comment` |
+| 3 | PO total > PR amount × 110% | Block. A new PR is required. |
 
 - **Tolerance percentage:** 110% — hardcoded in workflow, not user-editable
-- **Cumulative total:** sum of `total_usd` across all non-cancelled POs linked to the same PR
+- Since one PR → one PO, there is no cumulative total to compute. The check is simply PO `total_usd` vs `PR.quoted_total_usd`.
 - **Zone 2/3 notifications:** Director + head of Finance department
-- **Zone 2/3 notification recipient (Finance):** `department.heads` of the Finance department
 
 ### PR expiry for new POs
 
 - 30 days after `approved_at`, the PR's `closed_for_new_pos` flag is automatically set to `true`
-- Procurement can also set this flag manually at any time (e.g. all intended POs have been created)
-- Existing in-flight POs are not affected by expiry
-- If a PR expires before all POs are placed, a new PR must be submitted and approved — no extension mechanism
+- Procurement can also set this flag manually at any time
+- If a PR expires before a PO is created, a new PR must be submitted and approved — no extension mechanism
 
 ---
 
 ## 6. Payment
 
-Payment is tracked for **operational visibility only** — not for accounting. The purpose is to inform the submitter and procurement whether the supplier has been paid, preventing delays caused by supplier waiting for payment while procurement waits for delivery.
+Payment is tracked for **operational visibility only** — not for accounting.
 
 - Finance has NocoBase access and updates payment fields directly
 - Single payment transaction per PO assumed — no child collection
@@ -161,12 +161,13 @@ The `supplier_note` field appears on the printed document. `internal_notes` does
 |---|---|---|
 | 1 | **PR must be approved** | Cannot create PO against a PR with status ≠ `approved` |
 | 2 | **PR must not be expired** | Cannot create PO if `PR.closed_for_new_pos = true` |
-| 3 | **Budget zone check** | At `draft → sent`: evaluate cumulative PO total (USD) vs PR amount (see Section 5) |
-| 4 | **Override comment required** | Zone 2: cannot send without `budget_override_comment` |
-| 5 | **Close requires reason** | `close_reason` and `close_comment` required when transitioning to `closed` |
-| 6 | **Immutability** | PO and lines locked when status ∈ (`completed`, `closed`, `cancelled`) |
-| 7 | **Cancel from draft only** | Cannot cancel a PO that has been sent |
-| 8 | **Complete from received only** | Cannot complete a PO unless status = `received` |
+| 3 | **One PO per PR** | Cannot create a PO if a non-cancelled PO already exists against the same PR |
+| 4 | **Budget zone check** | At `draft → sent`: evaluate PO `total_usd` vs `PR.quoted_total_usd` (see Section 5) |
+| 5 | **Override comment required** | Zone 2: cannot send without `budget_override_comment` |
+| 6 | **Close requires reason** | `close_reason` and `close_comment` required when transitioning to `closed` |
+| 7 | **Immutability** | PO and lines locked when status ∈ (`completed`, `closed`, `cancelled`) |
+| 8 | **Cancel from draft only** | Cannot cancel a PO that has been sent |
+| 9 | **Complete from received only** | Cannot complete a PO unless status = `received` |
 
 ---
 
@@ -205,8 +206,8 @@ The `supplier_note` field appears on the printed document. `internal_notes` does
 | Field | Type | Notes |
 |---|---|---|
 | `po_number` | sequence | Format: PO-YYYY-0001. Auto-generated, not editable. Resets annually. |
-| `purchase_request` | belongsTo (purchase_requests) | Required. PR must be approved and not expired. |
-| `supplier` | belongsTo (suppliers) | Required |
+| `purchase_request` | belongsTo (purchase_requests) | Required. PR must be approved, not expired, and have no existing non-cancelled PO. |
+| `supplier` | belongsTo (suppliers) | Pre-filled from `PR.supplier` at PO creation. **Not editable.** |
 | `delivery_address` | belongsTo (delivery_addresses) | Pre-filled from `is_default` |
 | `status` | single select | See Section 3 |
 | `currency` | single select | 3 supported currencies |
@@ -216,7 +217,7 @@ The `supplier_note` field appears on the printed document. `internal_notes` does
 | `payment_status` | single select | unpaid / prepayment_made / fully_paid |
 | `payment_date` | date | Set by Finance |
 | `expected_delivery_date` | date | |
-| `quotations` | attachment (multi) | Supplier quotation documents |
+| `quotations` | attachment (multi) | Supplier quotation documents (copies from PR for reference) |
 | `attachments` | attachment (multi) | Confirmations, delivery notes, other supporting docs |
 | `supplier_note` | textarea | Printed on PO document |
 | `internal_notes` | textarea | Not printed — procurement use only |
@@ -250,11 +251,10 @@ The `supplier_note` field appears on the printed document. `internal_notes` does
 ### Modified collections
 
 #### `suppliers`
-Add: `address` (textarea)
+Add: `address` (textarea) — used on printed PO document
 
 #### `purchase_requests`
-- `supplier` field: **change to optional**. Update label to "Suggested supplier." Remove from submission guard #6.
-- Add: `closed_for_new_pos` (boolean, default `false`). This field is **exempt from the PR immutability guard** — it is an operational flag, not a data field. It can be set by procurement manually or by the expiry workflow.
+- Add: `closed_for_new_pos` (boolean, default `false`). Exempt from PR immutability guard — operational flag. Set by procurement manually or by the 30-day expiry workflow.
 
 ---
 
@@ -275,20 +275,14 @@ Add: `address` (textarea)
 1. **Supplier payment terms on document** — is `suppliers.payment_terms_days` (a number) sufficient for the PO document, or does the client need more structured payment terms (e.g. "Net 30", "COD")?
 2. **Products catalogue v2 scope** — what fields and workflows will the future inventory feature require? (Deferred to v2)
 
-**Resolved (no longer open):**
-- Budget overrun tolerance: **110%** — hardcoded in workflow
-- PO number sequence reset: **annually** (PO-2026-0001, PO-2027-0001...)
-- Finance notification recipient: **head of Finance department** (`department.heads` of Finance)
-- PR expiry extension: **no extension** — a new PR must be created if the original expires
-
 ---
 
 ## 12. Decisions log
 
-1. One PR → many POs supported by design; each PO links to one supplier
-2. PO line items are created fresh by procurement; not derived from PR content
-3. PO has its own currency and FX rate snapshotted at creation; all amounts also stored in USD
-4. `pr.supplier` is optional and advisory — actual supplier selected at PO creation
+1. One PR → one PO enforced by guard #3 on PO collection
+2. PO line items are created fresh by procurement; not derived from PR quotation lines
+3. PO has its own currency and FX rate snapshotted at creation; amounts also stored in USD
+4. `purchase_orders.supplier` is pre-filled from `PR.supplier` at PO creation and is not editable — supplier is locked at PR approval, not at PO creation
 5. `received` status is derived from line items and reversible; not a terminal state
 6. `completed` is the terminal happy path state — manual procurement action after all lines received
 7. `completed` and `closed` are separate terminal states — not collapsed
@@ -297,26 +291,24 @@ Add: `address` (textarea)
 10. Payment is orthogonal to PO status — Finance updates independently at any stage
 11. Receiving tracked as `received_quantity` on line only — no receiving_events collection; Record History plugin provides audit trail
 12. PO total is workflow-maintained (not a native formula) because NocoBase formula fields cannot aggregate child records
-13. Budget overrun: soft cap with three zones; Zone 3 blocks and requires new PR
-14. Budget overrun tolerance hardcoded in workflow — not user-editable; changing requires developer
+13. Budget overrun: soft cap with three zones; Zone 3 blocks and requires new PR. Since one PR → one PO, check is PO total vs PR `quoted_total_usd` directly — no cumulative calculation needed.
+14. Budget overrun tolerance hardcoded in workflow at 110% — not user-editable
 15. PR expires for new POs 30 days after `approved_at` — hardcoded in workflow
 16. `closed_for_new_pos` flag on PR is exempt from immutability guard — operational flag
 17. Procurement can also manually set `closed_for_new_pos = true` at any time
-18. Director notification on Zone 2/3 overrun targets the single Director role in the company
+18. Director notification on Zone 2/3 overrun targets the single Director role
 19. `units_of_measure` is a client-managed lookup collection — not a single select
 20. `products` collection added as v1 stub; full inventory management deferred to v2
 21. `delivery_addresses` is a client-managed lookup collection with a default value
-22. PO number format: PO-YYYY-0001 via NocoBase sequence field
+22. PO number format: PO-YYYY-0001 via NocoBase sequence field, resets annually
 23. PO document generated via Template Printing plugin (Word → PDF); LibreOffice required on server
 24. Submitter and submitter's department have view-only access to POs linked to their PRs
 25. Comments on POs via built-in Comment Collection plugin (same pattern as PRs)
 26. No attachments on PO lines — PO-level attachment fields are sufficient
 27. `confirmed` status is voluntary — POs can transition directly from `sent` to receiving states
-28. Two attachment fields on PO: `quotations` (supplier quotes) + `attachments` (everything else)
-29. Budget overrun tolerance: 110% — hardcoded in workflow, not user-editable
-30. PO number sequence resets annually — format PO-YYYY-0001
-31. Budget overrun notifications sent to Director and head of Finance department
-32. No PR expiry extension mechanism — expired PRs require a new PR submission and approval
+28. Two attachment fields on PO: `quotations` (reference copies) + `attachments` (everything else)
+29. No PR expiry extension mechanism — expired PRs require a new PR submission and approval
+30. If a PO is cancelled, a new PO can be created against the same PR (provided it hasn't expired) — the one-PO-per-PR guard checks for non-cancelled POs only
 
 ---
 

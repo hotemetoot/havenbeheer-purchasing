@@ -1,0 +1,12 @@
+# Binary office files — tracked manually if needed
+*.docx
+*.xlsx
+*.xls
+*.doc
+
+# System files
+.DS_Store
+Thumbs.db
+
+# NocoBase local environment files
+.nocobase/
