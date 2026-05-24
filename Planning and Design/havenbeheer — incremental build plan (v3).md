@@ -98,6 +98,9 @@ MVP2 — Cancel by submitter. See §MVP2 below.
 
 | D21 | Dept approval routing model | **Explicit `main_approver` + `secondary_approver` fields on `departments` (m2o → users).** `users.on_leave` (boolean) controls fallback: when true, workflow routes to `secondary_approver` instead of `main_approver`. Replaced the `department.owners[]` array approach which was unreliable (could be empty, multiple entries, or accidentally broken). Names kept role-neutral ("approver" not "manager") to avoid hierarchy implications. |
 | D22 | FX rate entry in MVP3 | **User enters `fx_rate_to_usd` manually on the PR.** The original design had a separate `fx_rates` collection + workflow FX-lookup nodes at submit time. Simplified 2026-05-24: `fx_rate_to_usd` is a plain number field edited by the submitter or procurement; `quoted_total_usd` is a **formula field** (`{{quoted_total}} * {{fx_rate_to_usd}}`, formula.js) that auto-computes whenever either input changes. `fx_rates` collection was created then deleted. D3 (stale FX rate warning) is now moot — there is no rate lookup. Guard E now validates `fx_rate_to_usd` IS NOT NULL instead of looking up an FX rate. |
+| D23 | MVP4 director routing | **Manual `needs_director_approval` checkbox instead of automatic `approval_limits` threshold.** Original plan used an `approval_limits` collection ($1,500 USD → skip director, above → director). Simplified 2026-05-24: submitter checks `needs_director_approval` on the PR form. Workflow conditions on that field. `approval_limits` collection never built. Linkage rule on create form makes `justification` required when checkbox is checked. |
+| D24 | Guard A bulk update | **Guard A does not intercept bulk update (known limitation, deferred).** Bulk update sends target IDs in `$context.params.filter.$and[0].id.$in`, not `$context.params.filterByTk`. The Guard A query node looks up by `filterByTk` only, so bulk-update requests pass through. Fix requires a Script/JSON-query node to extract IDs from `$context.params.filter`, or a dedicated bulk-update workflow. Deferred post-MVP5. |
+| D25 | MVP6 Procurement submitter routing | **Procurement staff cannot initiate purchase requests.** Original MVP6 included routing for "submitter's dept = Procurement → skip dept + procurement, always to director." Instead: Procurement members are excluded from submitting PRs by policy/ACL. The dept-owner skip (submitter IS dept approver → skip dept) was already implemented in MVP1 (condition `5hed96jh1u7`). No new workflow restructuring needed. MVP6 is complete. |
 
 ### Items deferred to v2 (do not implement in v1)
 
@@ -270,26 +273,14 @@ Either "submit-from-table works", or "submission goes through Workflow Tasks", o
 
 ---
 
-## MVP6 — Submitter-role routing variants
+## MVP6 — Submitter-role routing variants ✓ COMPLETE (2026-05-24, D25)
 
-### What it includes
+**Design change (D25):** Procurement staff are excluded from initiating PRs by policy/ACL — the routing variant "submitter's dept = Procurement → skip to director" is moot. The dept-owner skip (submitter IS dept approver → skip dept approval) was already implemented in MVP1 (condition node `5hed96jh1u7` in the PR Approval workflow). No new workflow restructuring needed.
 
-- Approval workflow logic at submit:
-  - submitter is owner of their main dept → skip dept approval
-  - submitter's main dept = Procurement → skip purchasing review (per D2, ALWAYS to director — no threshold check on this path)
-  - both true (Procurement dept owner) → skip both, straight to director
-- Implemented inside the submit workflow / initial Update node, with branching that resumes from the correct approval node.
-
-### Phases
-
-- **6.1** Design routing logic — single decision tree.
-- **6.2** Restructure approval workflow (parallel / conditional gates as needed).
-- **6.3** Verify: R1 Operations member → normal 3-stage. R2 Oliver (Operations owner) submits → skip dept, straight to Procurement. R3 Pat (Procurement member) submits → skip dept AND procurement, straight to director (D2 — even if $1). R4 a Procurement owner submits → same as R3.
-
-### Critical files / artifacts
-
-- Existing approval workflow (significant restructuring)
-- Possibly a new test user (Procurement owner)
+Verified routing as-built:
+- R1 Operations member (alice) → normal 3-stage ✓ (MVP1)
+- R2 Oliver (Operations owner) submits → skips dept, straight to Procurement ✓ (MVP1)
+- R3/R4 Procurement staff → excluded from submitting PRs (ACL, MVP7+)
 
 ---
 
