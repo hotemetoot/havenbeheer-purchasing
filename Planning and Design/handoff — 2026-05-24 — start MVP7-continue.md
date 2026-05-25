@@ -31,38 +31,6 @@ Read the memory file first (`project_current_state.md`), then this document.
 
 ---
 
-## What still needs to be done
-
-### Approval workflow forms — supplier field NOT properly applied
-
-**Problem**: The `add-field` calls targeted `ProcessFormModel` UIDs that appear to be template-backed surfaces. The fields were added to the schema shell but not to the template source the approval workflow actually renders. The user confirmed changes are not visible in the workflow.
-
-**The correct procedure** (per user): "create a copy and then adjust the forms"
-
-This means: before editing an approval form, you must first detach it from its template (create an independent copy), then add fields to the local copy.
-
-**Three approval forms need the supplier field:**
-
-| Approval Step | Form UID | Field mode |
-|---|---|---|
-| Dept Owner Approval | `ProcessFormModel uid=070d0efb9bb` (approvalUid `klak6hh6vu0`) | editable picker, after description |
-| Procurement Approval | `ProcessFormModel uid=ti4uf7gwhpu` (approvalUid `qswcu5p6ihj`) | editable picker, after description |
-| Director Approval | `ProcessFormModel uid=qcwkfuffa9g` (approvalUid `42ay2w0j69v`) | **display-only** (readPretty), after description |
-
-**Current state of each form** (field order currently stored, may or may not be visible):
-- Dept (`070d0efb9bb`): title → description → supplier (editable) → quoted_total → ...
-- Procurement (`ti4uf7gwhpu`): title → description → supplier (editable) → justification → ...
-- Director (`qcwkfuffa9g`): title → description → supplier (readPretty) → justification → ...
-
-**What to ask the user at start of session**: Confirm the exact procedure for "create a copy" — is this the `flow-surfaces` `copy` mode on the popup template, a workflow node form reset, or a UI operation? Then apply correctly to all 3 forms.
-
-**Task card UIDs** (read-only view side, for reference):
-- Dept: taskCardUid `92sgwoqox8y`
-- Procurement: taskCardUid `koo33nxd7gg`
-- Director: taskCardUid `j0ikk0gww0m`
-
----
-
 ## Known deferred items
 
 - D24: Guard A bulk-update limitation (post-MVP5, still deferred)
