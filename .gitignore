@@ -10,7 +10,8 @@
 Thumbs.db
 
 # Claude Code session data
-.claude/
+.claude/*
+!.claude/settings.json
 
 # NocoBase local environment files
 .nocobase/
