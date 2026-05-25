@@ -1,5 +1,13 @@
 # Havenbeheer Purchasing — Incremental Build Plan (v3)
 
+> **SUPERSEDED 2026-05-25.** This file is preserved as historical reference only.
+> Current planning lives in `roadmap.md`, `chunks/`, `design/`, and `decisions.md` at the project root.
+> Authoritative runtime state lives in `project_current_state.md` at the project root.
+> The `§0 Where we are right now` section below is stale — do not act on it.
+
+---
+
+
 **Status:** v3 supersedes v2 (and v1). All open questions and design discrepancies from v2 are now resolved — see §3 for the decision register. The build pivots away from the original "1 PR → many POs" design to a much simpler **1 PR → 1 PO** model, and the "projects with approved budgets" feature is removed from v1.
 
 **How to use:** Take this file into a new chat session. Read it first, then continue with MVP1 verification.
