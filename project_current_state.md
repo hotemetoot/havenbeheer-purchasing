@@ -103,7 +103,7 @@ Key fields: `po_number` (sequence `PO-YYYY-NNNN`), `purchase_request` (m2o → p
 
 ### `po_lines` (MVP9a — built 2026-05-26)
 
-Line items for purchase orders. Fields: `purchase_order` (m2o), `product` (m2o optional), `description` (textarea, required), `unit_of_measure` (m2o), `quantity_ordered`, `unit_price`, `line_total` (formula.js: `{{quantity_ordered}} * {{unit_price}}`), `line_total_usd` (formula.js: `{{line_total}} / {{purchase_order.fx_rate_to_usd}}`), `received_quantity`, `line_status` (default `pending`).
+Line items for purchase orders — **pricing was descoped 2026-05-26 (D27)**. Lines now track quantity + receiving only; financial values stay at PO level (manually entered from supplier invoice). Fields: `purchase_order` (m2o), `product` (m2o optional), `description` (textarea, required), `unit_of_measure` (m2o), `quantity_ordered`, `received_quantity`, `line_status` (default `pending`). Previously had `unit_price`, `line_total` (formula), `line_total_usd` (formula); all three deleted. The planned 9a.4 Total-maintenance workflow is **cancelled** — PO `total` is no longer derived from lines.
 
 ### `delivery_addresses`, `units_of_measure`, `products` (MVP9a — built 2026-05-26)
 
@@ -171,9 +171,9 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
 
 ### Generate PO workflow (MVP9a)
 - **Key:** `2izsx8uv50r`
-- **Active version ID:** `366595041853440` (enabled=true) — revision of `366569458696192` that removed the embedded condition guard and added `createdById`.
+- **Active version ID:** `366608098721792` (enabled=true) — round-3 revision: restored embedded guard (calculation-engine format, UI-editable) and dropped `unit_price` from the create-po_line payload per D27. Per [`feedback_request_interception_scope`](../../../.claude/projects/-Users-alexander-Documents-Claude-Projects-Havenbeheer-Purchasing/memory/feedback_request_interception_scope.md), the separate Create-PO Guard does NOT cover custom-action internal creates, so the inline guard is required.
 - **Type:** custom-action, sync, collection `purchase_requests`; appends `[supplier, purchase_order]`.
-- **Node chain:** Query default delivery address (`ay8dlnys4ef`) → Create purchase_orders (`ubg9mju1tjm`, sets `createdById={{$context.user.id}}`) → Create po_lines default line (key varies per revision; currently `4p3q7oq3co5`).
+- **Node chain:** Guard condition (`uufqoeb8xyz`, AND of `status==approved` + `purchase_order==null`) → [branch 1] Query default delivery address (`ay8dlnys4ef`) → Create purchase_orders (`ubg9mju1tjm`, sets `createdById={{$context.user.id}}`) → Create po_lines default line (`4p3q7oq3co5`, writes only `purchase_order`/`description`/`quantity_ordered=1`).
 - **Bound to button:** `28jh1q2camo` (Generate PO button, visible on PR table block `l1e2iwdwau9` and PR detail popup `2b367dbd157`).
 
 ### Create-PO Guard (MVP9a)
@@ -239,7 +239,8 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 - `1r4vyfbnie8` — hardcoded on the Generate-PO button before workflow build; no workflow with this key ever existed.
 
 ### Stale Generate-PO (`2izsx8uv50r`) versions:
-- `366569458696192` — initial build that included an embedded condition guard. Superseded 2026-05-26 by `366595041853440` (current).
+- `366569458696192` — initial build with JSON-filter embedded guard. Superseded by `366595041853440`.
+- `366595041853440` — round-2 revision that wrongly removed the inline guard (request-interception doesn't cover workflow-internal creates). Superseded 2026-05-26 by `366608098721792` (current).
 
 ---
 

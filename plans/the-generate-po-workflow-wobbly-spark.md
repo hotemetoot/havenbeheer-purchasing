@@ -1,120 +1,119 @@
-# Plan — Generate-PO workflow & PO relation fixes
+# Plan — Generate-PO round 3: restore inline guard, simplify line items, capture two NocoBase facts
 
 ## Context
 
-After the first pass of MVP9a (PO collection + Generate-PO button), several issues were uncovered during validation:
+Round 2 of MVP9a (relation repair, createdBy, embedded-guard removal, line_total_usd) is live and committed (commit `82101f5`). User testing surfaced three new issues that need a third round:
 
-- The relation between `purchase_requests` and `purchase_orders` is malformed: the inverse `purchase_requests.purchase_order` is declared as `obo` / `belongsTo` (FK-holder), and a stray `purchase_requests.purchaseRequestId` bigInt column exists. As a result, the inverse field is empty after PO generation, and any downstream code that checks "does this PR already have a PO?" misbehaves.
-- The Generate-PO workflow doesn't set `createdById` on the new `purchase_orders` row, so the audit trail says nobody created it.
-- The Generate-PO workflow has an embedded condition-node guard, but a separate `request-interception` guard (`Guard: Create PO (PR must be approved)`, key `vgv8hcrtjvx`) already exists on `purchase_orders.create`. The embedded guard is JSON-filter format which doesn't render usefully in the NocoBase condition-node UI.
-- The separate guard's condition currently checks the broken `purchaseRequestId` column, so it won't be correct once the relation is fixed.
-- `po_lines.line_total_usd` (formula) from the chunk plan was never created.
-- The user discovered authoring tips during this session that should be captured for future work (role-based linkage rules, related-record title fields, currency-rate convention).
+1. **Removing the embedded guard was wrong.** The Create-PO request-interception guard (`vgv8hcrtjvx`) is **0 executions** even after a duplicate PO was created by clicking the button with linkage rules disabled. NocoBase's request-interception trigger fires on direct HTTP API requests; the create node inside a custom-action workflow bypasses the HTTP middleware. The NocoBase docs (`triggers/request-interception.md`) explicitly list "Trigger workflow buttons" as **not supported** for the request-interception trigger. The only defence against duplicate Generate-PO clicks is an inline condition node in the Generate-PO workflow itself.
 
-This plan addresses all of the above and updates auto-memory so we don't repeat the same mistakes.
+2. **`po_lines.line_total_usd` formula is broken.** Formula fields can only access fields on their own collection record — they cannot traverse relations. `{{purchase_order.fx_rate_to_usd}}` from `po_lines` returns nothing. The user chose the simplification path: **drop pricing from po_lines entirely**. Invoice amount is manually entered at the PO level; line items become quantity + receiving-tracking only.
+
+3. **createdBy now works.** PO-2026-0003 has `createdById=11` (Pat). The user's manual edit and my CLI edit converged on `{{$context.user.id}}`. No further action needed.
+
+Both #1 and #2 are general NocoBase facts the rest of the project (and future projects) will hit again — capture in auto-memory.
 
 ## Issues & fixes
 
-### 1. Repair the PR ↔ PO relation
+### 1. Restore inline guard inside Generate-PO workflow
 
-**Goal:** keep a single 1:1 relation, FK on `purchase_orders`, virtual hasOne inverse on `purchase_requests`.
+**Skill:** `nocobase-workflow-manage`. The active revision is `366595041853440` (executed 1+ time during validation) → revision first.
 
-**Current state (broken):**
-- `purchase_orders.purchase_request` — `m2o` / `belongsTo`, FK `purchaseRequestId` on `purchase_orders` (correct, keep as-is)
-- `purchase_requests.purchase_order` — `obo` / `belongsTo`, FK `purchaseRequestId` (WRONG — declares the FK on the PR side)
-- `purchase_requests.purchaseRequestId` — `integer` / `bigInt` (stray column, created as side effect)
+In the new revision, insert a condition node at the head (`upstreamId: null`), then chain query → create-PO → create-po_line off branch 1 of the condition.
 
-**Fix (skill: `nocobase-data-modeling`):**
-1. Delete `purchase_requests.purchase_order` (broken inverse).
-2. Delete `purchase_requests.purchaseRequestId` (stray FK column) — confirmed OK to drop. Any existing data is from the broken state.
-3. Re-create the inverse so NocoBase generates `purchase_requests.purchase_order` as a proper hasOne (`oho`) virtual field — no FK column on `purchase_requests`. Path: use the m2o "create inverse field" option on `purchase_orders.purchase_request` if exposed via the CLI; otherwise create the field manually as hasOne with `target=purchase_orders`, `foreignKey=purchaseRequestId` (on target), `sourceKey=id`.
-4. Verify via `fields list`: `purchase_orders.purchase_request` m2o intact with FK `purchaseRequestId`; `purchase_requests.purchase_order` is hasOne; no `purchaseRequestId` column on `purchase_requests`.
+**Condition node config** — use the **calculation-engine** format (operands / calculator) so the NocoBase UI can render it editable. Mirror the shape used by the separate guard `vgv8hcrtjvx` node `dba34lyg168`:
 
-### 2. Generate-PO workflow: set `createdById`
+```json
+{
+  "rejectOnFalse": false,
+  "engine": "basic",
+  "calculation": {
+    "group": {
+      "type": "and",
+      "calculations": [
+        { "calculator": "equal",    "operands": ["{{$context.data.status}}", "approved"] },
+        { "calculator": "equal",    "operands": ["{{$context.data.purchase_order}}", null] }
+      ]
+    }
+  }
+}
+```
 
-**Skill:** `nocobase-workflow-manage`.
+(Logical AND of: PR is approved AND no PO exists yet. Branch 1 = true → continue. False branch ends silently — same UX as round 1.)
 
-The active workflow has been executed at least once (during validation), so this requires creating a new revision first.
+### 2. Simplify po_lines — remove pricing
 
-1. Revision the current Generate-PO workflow (`vgv8hcrtjvx`'s create cousin — wait, that's the guard. The Generate-PO is key `2izsx8uv50r`, id `366569458696192`).
-2. Update the **Create purchase_orders** node (`key=ubg9mju1tjm`) to add `createdById: "{{$context.user.id}}"` to `params.values`.
-3. Confirm `$context.user.id` is the correct path — if not, use whatever path the workflow trigger surfaces for the triggering user (check via context inspection on the workflow).
-4. Re-enable the new revision.
+**Skill:** `nocobase-data-modeling`.
 
-### 3. Remove the embedded guard in Generate-PO
+Delete from `po_lines`:
+- `unit_price`
+- `line_total`
 
-The separate `request-interception` guard `vgv8hcrtjvx` is the canonical defence; the embedded condition node is double-protection in a format the NocoBase UI can't render.
+(`line_total_usd` was already removed in commit `82101f5`'s context — verify it's gone, drop if still present.)
 
-**Decision:** remove the embedded guard. Revised workflow shape: Query default delivery address → Create PO → Create po_line (3 nodes, all on the main chain, no condition branching). Easiest implementation: in the new revision, delete the condition node and re-parent the query node as the head (`upstreamId: null`), then chain the rest sequentially.
+Remaining po_lines fields after simplification: `purchase_order`, `product`, `description`, `unit_of_measure`, `quantity_ordered`, `received_quantity`, `line_status`.
 
-### 4. Update separate guard `vgv8hcrtjvx` to use the new inverse field
+**Downstream impact:**
+- Generate-PO workflow's "Create po_lines" node currently writes `unit_price: {{$context.data.quoted_total}}`. Drop that field from the create payload in the same revision used for fix #1.
+- `purchase_orders.total` is pre-filled by the Generate-PO workflow from `pr.quoted_total` (still correct) and becomes manually editable post-invoice. The previously-planned 9a.4 "Total-maintenance workflow" is **cancelled** — no longer needed.
 
-After fix #1, the condition node `dba34lyg168` in workflow `vgv8hcrtjvx` will be checking a field (`purchaseRequestId`) that no longer exists on the queried PR. Update it.
+### 3. Auto-memory: two new feedback entries + MEMORY.md index update
 
-Replace the second operand of the calculation:
-- `{{$jobsMapByNodeKey.ww4mxz67ge8.purchaseRequestId}} != null`
-- with `{{$jobsMapByNodeKey.ww4mxz67ge8.purchase_order}} != null`
+**`feedback_request_interception_scope.md`** — request-interception workflows only fire for direct HTTP API operations (and `Create record` / `Update record` / `Delete record` buttons bound to the relevant action). They do **not** fire for:
+- create / update / destroy nodes executed inside any other workflow (custom-action, schedule, collection trigger, etc.)
+- Trigger-workflow buttons (those route through the `custom-action` trigger instead)
+Implication: when a custom-action workflow creates a record, any pre-action guard you've put on that record's `create` is silent. The only protection against the workflow's own misuse is an inline condition node inside the same workflow. Plan defences accordingly — don't rely on global request-interception as a backstop for workflow-internal writes.
 
-This requires either appending `purchase_order` in the query node `ww4mxz67ge8` (so the hasOne is loaded), or filtering directly in a separate query against `purchase_orders` where `purchaseRequestId = pr.id`. Cleaner: append the inverse.
+**`feedback_formula_field_scope.md`** — Formula fields (plugin `@nocobase/plugin-field-formula`) can only reference fields on the **same collection's record**. Expressions like `{{related.fieldName}}` (traversing an m2o, o2o, etc.) return nothing — silently, with no error. For cross-collection math:
+- Denormalize the needed value as a real column and keep it in sync via a workflow, OR
+- Compute server-side in a workflow create/update node and write to a regular number field.
+Don't waste time trying to make a formula traverse a relation; the field always evaluates to empty.
 
-This is also a frozen-version edit, so revision first.
+Update `MEMORY.md` to add these two entries to the index.
 
-### 5. Add missing `po_lines.line_total_usd` formula
+### 4. Update `project_current_state.md`
 
-Per the chunk plan, `po_lines.line_total_usd` should exist as `formula.js`: `{{line_total}} / {{purchase_order.fx_rate_to_usd}}` (division, matching the corrected convention).
+- `po_lines` table: remove `unit_price`, `line_total`, `line_total_usd` from the field list. Add a one-line note that pricing was descoped (decision in this plan; round-3 entry in `decisions.md`).
+- Generate-PO workflow: bump the documented active version id to the new revision created in fix #1. Add the embedded guard node to the node chain description.
+- Append a stale-id entry for `366595041853440` (the post-round-2, pre-round-3 revision).
+- Note that the planned 9a.4 Total-maintenance workflow is cancelled (PO `total` is manually entered post-invoice).
 
-Skill: `nocobase-data-modeling`. Add the field via `fields apply`.
+### 5. Add a D-entry to `decisions.md`
 
-### 6. Save NocoBase patterns to auto-memory
+D-entry (next number — check the file for the latest D-NN before writing): "po_lines pricing descoped. line items track quantity + receiving only; PO `total` is manually entered from supplier invoice. Reason: formula fields can't traverse relations, denormalising fx_rate adds maintenance overhead, and pricing at line level isn't needed for current workflow scope. Affects: MVP9a (this revision), MVP9c (receiving) — receiving logic now only updates `received_quantity` and `line_status`, no $-impact calculations. MVP9d, MVP9e unaffected."
 
-These are generic NocoBase patterns, useful in any NocoBase project. Save as `feedback_*.md` files in auto-memory.
+## Critical IDs
 
-- **`feedback_linkage_rules_user_roles.md`** — When restricting an action button or block by role, use the path `{{ ctx.user.roles.title }}` with operator `$includes` / `$notIncludes` (users can have multiple roles, so a singular `role $ne` check is wrong). The value must be the role's **title** (capitalized, e.g. `"Procurement"`), not the internal `name` (lowercase `procurement`).
-- **`feedback_related_record_title_field.md`** — When a collection is referenced by an m2o / o2m on another collection, set a `title` field on the referenced collection (typically via Collection Settings → Title field). Without one, NocoBase renders the record ID instead of a human-readable label in detail blocks, popups, and select dropdowns.
-- **`feedback_currency_rate_convention.md`** — Confirmed: in this project, `fx_rate_to_usd` stores **units of local currency per 1 USD** (e.g. 35 SRD per 1 USD). The USD value is therefore `local_total / fx_rate_to_usd`. The field name is misleading — the general lesson is to sanity-check rate direction by writing the unit math before writing the formula.
-
-### 7. Update `project_current_state.md`
-
-After all fixes land:
-- Add the Generate-PO workflow and the separate Create-PO Guard (with their post-revision IDs).
-- Note that `purchase_requests.purchaseRequestId` no longer exists and `purchase_requests.purchase_order` is now hasOne.
-- Update the documented `quoted_total_usd` and `total_usd` formulas to use division.
-- Add the new `line_total_usd` field.
-- Capture the PO button UID (`28jh1q2camo`) and the linkage-rule patterns now in use.
-
-## Critical files / IDs
-
-- **Generate-PO workflow:** key `2izsx8uv50r`, id `366569458696192` (has executed → revision required).
-- **Separate Create-PO Guard:** key `vgv8hcrtjvx`, id `366562380808192`. Condition node `dba34lyg168`. Query node `ww4mxz67ge8`.
-- **Generate-PO button:** `28jh1q2camo` on PR table block `l1e2iwdwau9` and detail popup `2b367dbd157` — no changes needed (user already fixed linkage rules).
-- **Collections touched:** `purchase_requests`, `purchase_orders`, `po_lines`.
-
-## Verification
-
-After all changes:
-
-1. **Relation sanity:** `fields list` on `purchase_requests` shows `purchase_order` (hasOne, virtual, no FK column), no `purchaseRequestId` column. On `purchase_orders`, `purchase_request` (m2o, FK `purchaseRequestId`) is unchanged.
-2. **Generate-PO end-to-end:** As `pat.procurement`, click Generate PO on an approved PR with no PO → new PO created, `createdById` = Pat's user id, `purchase_request` set, default po_line created, `purchase_requests.purchase_order` now resolves to the new PO when appended.
-3. **Inverse appears:** Open the PR detail popup → the `purchase_order` field shows the newly created PO (not empty).
-4. **Re-click is blocked:** Click Generate PO again on the same PR → button is hidden (linkage rule's `$notEmpty` on `purchase_order` now fires correctly).
-5. **API bypass blocked:** Direct `POST /purchase_orders` referencing a non-approved PR → separate guard returns the error message and `endStatus: -1`.
-6. **Line USD:** `po_lines.line_total_usd` exists and computes correctly for a line in a non-USD PO.
-7. **Memory written:** Three `feedback_*.md` files in auto-memory plus a `MEMORY.md` index entry for each.
-
-## Resolved choices
-
-- Embedded guard in Generate-PO → **remove**.
-- Stray `purchase_requests.purchaseRequestId` column → **drop**.
-- Missing `po_lines.line_total_usd` formula → **add now**.
-- `fx_rate_to_usd` convention → **local currency per 1 USD** (division is correct in the USD formulas).
+- Generate-PO workflow key: `2izsx8uv50r`. Current active version `366595041853440` (executed → revision required).
+- Create-PO Guard key: `vgv8hcrtjvx`, id `366562380808192` — no changes this round.
+- Generate-PO node keys to preserve across revision: `ay8dlnys4ef` (query), `ubg9mju1tjm` (create PO). The "Create po_lines" node's key has shifted (was `rkx04b82o7n`, currently `4p3q7oq3co5`) — value isn't referenced by any other node so the new key doesn't matter.
+- Button: `28jh1q2camo` — no changes (still bound to `2izsx8uv50r`).
 
 ## Execution order
 
-To minimise rework, apply in this order:
+1. Drop `po_lines.unit_price` and `po_lines.line_total` (fix #2 data part).
+2. Revision the Generate-PO workflow. In the new revision:
+   - Insert condition node at the head (fix #1).
+   - Move query node to branch 1 of the condition.
+   - Update create-po_line node config to drop `unit_price` from the create payload (fix #2 workflow part).
+   - Verify the create-PO node still carries `createdById: {{$context.user.id}}` from the previous revision.
+   - Enable the new revision (sets it current, disables the old).
+3. Write the two `feedback_*.md` memory files + update `MEMORY.md`.
+4. Edit `project_current_state.md` (fix #4) and append the D-entry to `decisions.md` (fix #5).
+5. Commit.
 
-1. Repair the PR↔PO relation (fix #1) — this is the foundation; everything else references the corrected fields.
-2. Update separate guard `vgv8hcrtjvx` (fix #4) — once `purchase_order` is a clean hasOne, switch its condition to use it.
-3. Revision the Generate-PO workflow (fixes #2 + #3 in a single revision): drop the condition node, add `createdById` on the create-PO node.
-4. Add `po_lines.line_total_usd` (fix #5).
-5. Write the three auto-memory entries (fix #6).
-6. Update `project_current_state.md` and commit.
+## Verification
+
+After execution, run as `pat.procurement` in the browser:
+
+1. **Inline guard works:** open an approved PR with no PO, disable the Generate-PO button's linkage rules via dev tools, click → workflow runs but creates no PO. Generate-PO workflow execution exists with the condition node ending in the false branch (no downstream jobs). No new PO row, no duplicate.
+2. **Happy path still works:** open another approved PR with no PO (linkage rules re-enabled), click Generate-PO → PO created, default po_line created (no unit_price field on the line), `createdBy` = Pat, `purchase_order` resolves on the PR side.
+3. **po_lines fields:** `fields list` on `po_lines` shows the trimmed set; UI for editing a po_line no longer offers unit_price or line_total.
+4. **PO total stays editable:** open the new PO, edit `total` to a new value, save → persists. (Was previously expected to be workflow-overwritten; verify nothing recomputes it.)
+5. **Separate guard still does its job:** as any user, `POST /purchase_orders` directly via API to a non-approved PR → 400 with the guard's error message and `Create-PO Guard` execution count increments.
+6. **Memory written:** both new `feedback_*.md` files exist, MEMORY.md indexes them.
+
+## Resolved choices
+
+- Inline guard: **add back as calculation-engine condition** (UI-editable).
+- po_lines pricing: **remove entirely** — drop unit_price, line_total. PO total manually entered.
+- createdBy: **leave as-is**, current value works (no special preservation needed).
