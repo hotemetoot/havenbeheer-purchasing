@@ -31,12 +31,18 @@ Verbatim from v3 plan §3, with superseded items flagged. This is the historical
 | D23 | MVP4 director routing | **Manual `needs_director_approval` checkbox instead of automatic `approval_limits` threshold.** `approval_limits` collection never built. | active — supersedes D4 |
 | D24 | Guard A bulk update | **Guard A does not intercept bulk update (known limitation, deferred).** Fix requires extracting IDs from `$context.params.filter`, or a dedicated bulk-update workflow. Deferred post-MVP5. | active limitation |
 | D25 | MVP6 Procurement submitter routing | **Procurement staff cannot initiate purchase requests.** Excluded by policy/ACL. The dept-owner skip already implemented in MVP1 is sufficient. | active — supersedes original MVP6 scope |
+| D26 | MVP7 descoped to suppliers only | `supplier_issues` and `supplier_evaluations` postponed during MVP7. Only the `suppliers` collection + the optional `supplier` m2o on `purchase_requests` were built. Revival sketch in `chunks/deferred-supplier-issues-evaluations.md`. | active — descopes original MVP7 scope |
 
 ---
 
 ## Discrepancies resolved during v3
 
 - **`closed_for_new_pos` field.** Moot under the new 1 PR → 1 PO model (D9). Once procurement generates the PO from a PR, the PR is "consumed". No expiry workflow needed, no flag on the PR. The PR permissions doc was right to remove it; the PO design doc's references to it are obsolete.
+
+## Items deferred (active queue, not v2)
+
+- `supplier_issues` + `supplier_evaluations` (D26) — see [chunks/deferred-supplier-issues-evaluations.md](chunks/deferred-supplier-issues-evaluations.md).
+- Guard A bulk-update interception (D24) — see decisions.md.
 
 ## Items deferred to v2 (do not implement in v1)
 
