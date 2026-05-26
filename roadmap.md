@@ -8,8 +8,8 @@
 | 004 | Manual `needs_director_approval` checkbox (D23) + routing | ✓ complete |
 | 005 | Guard A — PR immutability when terminal (bulk-update limitation deferred, D24) | ✓ complete |
 | 006 | Submitter-role routing variants (resolved via ACL under D25, no new build) | ✓ complete |
-| 007 | Suppliers collection + supplier on PR (issues/evaluations descoped, D26) | ✓ built (verification: confirm S1/S2/S5 with user) |
-| 008 | Comments + attachments + soft fields | **next** |
+| 007 | Suppliers collection + supplier on PR (issues/evaluations descoped, D26) | ✓ built |
+| 008 | Comments + attachments + soft fields | ✓ built (comments UI block removed post-verify; data layer kept) |
 | 009a | PO collection + po_lines + Generate-PO button | pending |
 | 009b | PO send + budget zones (110%) + zone 2/3 notifications | pending |
 | 009c | PO receiving (per-line `received_quantity`) | pending |

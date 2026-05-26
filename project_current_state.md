@@ -1,8 +1,8 @@
 # Current Build State
 
-**Last verified:** 2026-05-25 (live env queried via `nb api` — collections, workflows, approval surfaces).
+**Last verified:** 2026-05-26 (live env queried via `nb api` — collections, workflows, approval surfaces).
 
-MVPs 1–7 built; MVP7 reduced to suppliers-only (`supplier_issues` and `supplier_evaluations` postponed — see [decisions.md](decisions.md) D26). Next: **MVP8 — comments + attachments + soft fields**.
+MVPs 1–8 built. MVP7 was reduced to suppliers-only (D26). MVP8 added comments collection + 4 soft fields + UI surfaces; the comments UI block in the PR detail popup was removed by the user post-verification (data layer remains — can be re-added). Next: **MVP9a — PO collection + Generate-PO button**.
 
 This file is the **single source of truth** for the live NocoBase environment state. Update it at the end of every session that creates or modifies collections, fields, workflows, or UI surfaces. Commit changes alongside the build commits they describe.
 
@@ -42,6 +42,11 @@ This file is the **single source of truth** for the live NocoBase environment st
 | needs_director_approval | checkbox (boolean) | MVP4 — default false; set by submitter; triggers director path |
 | approved_at | datetime | MVP4 — written on final approval (both paths) |
 | supplier | m2o → suppliers | MVP7 — optional "Suggested supplier" |
+| expenditure_type | select (capex/opex/maintenance/consumables) | MVP8 |
+| is_emergency | checkbox (boolean) | MVP8 — UI flag only, no routing impact |
+| needed_by | dateOnly | MVP8 |
+| other_attachments | attachment (multi) | MVP8 — distinct from `quotation_attachment` |
+| comments | o2m → pr_comments | MVP8 — comment thread relation; UI block removed post-verify (data layer kept) |
 
 **`status` values:** `draft`, `pending_dept_approval`, `pending_purchasing_review`, `pending_director_approval`, `info_requested`, `approved`, `rejected`, `cancelled`
 
@@ -85,6 +90,10 @@ Collection key `a4ogom91smz`. Fields:
 - `supplier_issues` — postponed from MVP7
 - `supplier_evaluations` — postponed from MVP7
 
+### `pr_comments` (MVP8 — built 2026-05-26)
+
+Comment-template collection (`@nocobase/plugin-comments`). Baseline fields only: `id`, `content` (vditor, long text, not deletable), `createdAt`, `createdBy`, `updatedAt`, `updatedBy`. Linked to `purchase_requests` via the `purchase_requests.comments` o2m relation.
+
 ### Deleted collections
 - `fx_rates` — deleted 2026-05-24 (MVP3 simplification under D22)
 
@@ -94,11 +103,11 @@ Collection key `a4ogom91smz`. Fields:
 
 ### PR Approval workflow
 - **Key:** `cv237r8h7k9`
-- **Active version ID:** `366234405109760` (enabled=true, current=true). All prior versions of this key are disabled — see "Stale IDs".
+- **Active version ID:** `366549533655040` (enabled=true, current=true) — built MVP8 (revision of 366234405109760, with user follow-up edits creating this final version). All prior versions of this key are disabled — see "Stale IDs".
 - **Type:** approval, collection `purchase_requests`
 - **Trigger appends:** `createdBy`, `createdBy.mainDepartment`, `createdBy.mainDepartment.main_approver`, `createdBy.mainDepartment.secondary_approver`
-- **Trigger approvalUid:** `no4q0qifkv2`; **taskCardUid:** `fc8790fw6pd`
-- **Nodes** (active version `366234405109760`):
+- **Trigger approvalUid:** `1yw73plyqsf`; **taskCardUid:** `e6edajqk51d`
+- **Nodes** (active version `366549533655040`; same 18-node structure as prior, node keys preserved across revisions):
   - Root update `1f6a1h52l9u` — sets status=pending_dept_approval
   - Query `yrl9kgkrb3x` (qProc) — fetches Procurement dept with `main_approver` appended
   - Condition `5hed96jh1u7` — submitter IS dept main_approver → skip dept
@@ -117,10 +126,12 @@ Collection key `a4ogom91smz`. Fields:
     - br=2 (approve): Update `kj1zcmujub8` → status=approved, approved_at=now
     - br=1 (return): Update `z1x6ghkmr2t` → status=info_requested
     - br=-1 (reject): Update `t2odlgyqdra` → status=rejected
-- **Approval surfaces (version 366234405109760):**
-  - Dept approver (`cfg687cye3n`): approvalUid `0x4yjm74y0o`, taskCardUid `jmy6o8nkdld`
-  - Procurement (`ec2h8cqal32`): approvalUid `zbvpqgod2bs`, taskCardUid `39ynx9u1zlh`
-  - Director (`sxvxwl498xg`): approvalUid `nnzr393hos1`, taskCardUid `wet1jqjv8t2`
+- **Approval surfaces (version 366549533655040):**
+  - Dept approver (`cfg687cye3n`): approvalUid `0qljvpsiceo`, taskCardUid `pdbm4aixrc9`
+  - Procurement (`ec2h8cqal32`): approvalUid `z01rza37pod`, taskCardUid `bvlz1vbvi7t` — procurement ProcessForm detached from shared template `k60b738pjy0` during MVP8 to scope field additions; now local to this revision lineage.
+  - Director (`sxvxwl498xg`): approvalUid `6x42w7n9h4g`, taskCardUid `aahsde3cnie`
+
+The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_attachments`) are present on all three approval forms: editable on dept, read-only (`pattern: readPretty`) on procurement and director.
 
 **Note:** Filter by key `cv237r8h7k9` + enabled=true to get current version.
 
@@ -159,10 +170,10 @@ Collection key `a4ogom91smz`. Fields:
 ## UI
 
 - **Purchase Requests page UID:** `cuycec133qb`
-- **Table block:** `l1e2iwdwau9` — columns include title, status, quoted_total, quoted_currency (+ more)
-- **PR view popup** (DetailsBlockModel `2b367dbd157`): shows all PR fields incl. quote fields, `needs_director_approval`, `supplier`
-- **Procurement approval form** (ProcessFormModel `ti4uf7gwhpu`): quoted_total, quoted_currency, fx_rate_to_usd, quotation_attachment editable; quoted_total_usd readPretty; supplier editable
-- **PR create form** (CreateFormModel `e76c40c8c79`, template `n9f8v5vnhhc`): includes `needs_director_approval` checkbox after justification; linkage rule makes justification required when checkbox is checked
+- **Table block:** `l1e2iwdwau9` — columns include title, status, quoted_total, quoted_currency, `expenditure_type`, `is_emergency`, `needed_by` (MVP8)
+- **PR view popup** (DetailsBlockModel `2b367dbd157`): shows all PR fields incl. quote fields, `needs_director_approval`, `supplier`, and the four MVP8 fields. The popup grid `5fb7b74fa30` contained an MVP8 Comments block `52t8wtbzni4` bound to `purchase_requests.comments`; the user removed it post-verification. Re-add via `nb api flow-surfaces add-block` with type `comments` and resource `{binding:"associatedRecords", associationField:"comments"}` targeting the grid.
+- **Procurement approval form** (now per-revision, detached from template `k60b738pjy0`): current ProcessFormModel uid varies per workflow revision. MVP8 read-only fields applied.
+- **PR create form** (CreateFormModel `e76c40c8c79`, template `n9f8v5vnhhc`): includes `needs_director_approval` checkbox after justification; linkage rule makes justification required when checkbox is checked. MVP8 added `expenditure_type`, `needed_by`, `is_emergency`, `other_attachments` after `needs_director_approval`.
 
 Approval form surface IDs on the active version: see "Approval surfaces" above.
 
@@ -170,8 +181,11 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 
 ## Stale IDs (DO NOT USE)
 
-### Workflow versions of `cv237r8h7k9` (all disabled before `366234405109760`):
-- `366232953880576` (was active during MVP7 build, now disabled)
+### Workflow versions of `cv237r8h7k9` (all disabled before `366549533655040`):
+- `366523411529728` (MVP8 intermediate revision, superseded by user's follow-up edits → `366549533655040`)
+- `366523398946816` (MVP8 duplicate revision created accidentally, never enabled — destroying it needs explicit user OK per CLAUDE.md irreversible-action rule)
+- `366234405109760` (was active up to MVP8, replaced 2026-05-26)
+- `366232953880576`
 - `366207890817024`
 - `366087730298880`
 - `366086440550400`
@@ -182,10 +196,9 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 - `365001941123072`
 
 ### Approval surfaces from disabled workflow versions:
-- Trigger surfaces from version `366232953880576`: approvalUid `2zmok19gb2c`, taskCardUid `exgm0gh0mru`
-- Dept surfaces from version `366232953880576`: approvalUid `7xwj8l0sjqp`, taskCardUid `5l5vdolh5su`
-- Procurement surfaces from version `366232953880576`: approvalUid `knwxauc0yoz`, taskCardUid `ivg75pqfe6b`
-- Director surfaces from version `366232953880576`: approvalUid `lav2su037qi`, taskCardUid `arpce782zod`
+- From version `366234405109760` (prior active): trigger approvalUid `no4q0qifkv2` / taskCardUid `fc8790fw6pd`; dept `0x4yjm74y0o` / `jmy6o8nkdld`; procurement `zbvpqgod2bs` / `39ynx9u1zlh`; director `nnzr393hos1` / `wet1jqjv8t2`.
+- From version `366523411529728` (MVP8 intermediate): trigger approvalUid `svezxiek2gk` / taskCardUid `ndpn7l9cnif`; dept `wankth4i85p` / `iwqxqf5j5p6`; procurement `4qbsr41frsw` / `jwwayk35jmg`; director `mcmyxnng8q7` / `pa83sj9uoke`.
+- From version `366232953880576`: approvalUids `2zmok19gb2c`, `7xwj8l0sjqp`, `knwxauc0yoz`, `lav2su037qi`; taskCardUids `exgm0gh0mru`, `5l5vdolh5su`, `ivg75pqfe6b`, `arpce782zod`.
 - Older disabled-version surfaces: `5sewfvayoc4`, `ylccjkdatwa`, `wa1guuahjjo`, `4ceoua2g0ij`, `klak6hh6vu0`, `qswcu5p6ihj`, `42ay2w0j69v`, `apz6gdy0z6z`, `n7n6x0xg3t0`, `wdty2zx7de7`, `8yyu6ofo1ww`, `rgcyt60s8pg`, `yyptfj0azru`, `o4jc2ghrs4q`, `8x5ktd74gwx`, `o1n99mp7sn7`
 
 ### Stale workflow keys:
@@ -199,3 +212,4 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 
 - **MVP7 was descoped.** Only `suppliers` was built; `supplier_issues` and `supplier_evaluations` are postponed (D26). Don't assume they exist.
 - **Supplier UI:** if a suppliers list/detail page was built during MVP7, its page UID isn't recorded here yet — capture it the next time it's touched.
+- **MVP8 ACL note:** Field-level edit gating for procurement/director on PR content stays enforced via form-pattern (`readPretty`) only, not strict ACL. Procurement+director roles still technically have those fields in their `update` whitelist via strategy-based ACL (`usingActionsConfig=false`). Tightening to independent permissions is a future hardening MVP. The four MVP8 fields inherit this same posture.
