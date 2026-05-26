@@ -1,8 +1,8 @@
 # Current Build State
 
-**Last verified:** 2026-05-26 (live env queried via `nb api` — collections, workflows, approval surfaces).
+**Last verified:** 2026-05-26 (live env queried via `nb api` — collections, workflows, approval surfaces; MVP9a fix-up pass completed).
 
-MVPs 1–8 built. MVP7 was reduced to suppliers-only (D26). MVP8 added comments collection + 4 soft fields + UI surfaces; the comments UI block in the PR detail popup was removed by the user post-verification (data layer remains — can be re-added). Next: **MVP9a — PO collection + Generate-PO button**.
+MVPs 1–8 built. MVP7 was reduced to suppliers-only (D26). MVP8 added comments collection + 4 soft fields + UI surfaces; the comments UI block in the PR detail popup was removed by the user post-verification (data layer remains — can be re-added). **MVP9a built 2026-05-26**: PO + po_lines + lookups, Generate-PO workflow (`2izsx8uv50r` v `366595041853440`), Create-PO Guard (`vgv8hcrtjvx`), Generate-PO button on PR surfaces with procurement-only visibility. PR↔PO relation re-shaped to clean m2o + virtual hasOne. Next: **MVP9b — sending the PO + budget zones**.
 
 This file is the **single source of truth** for the live NocoBase environment state. Update it at the end of every session that creates or modifies collections, fields, workflows, or UI surfaces. Commit changes alongside the build commits they describe.
 
@@ -37,7 +37,7 @@ This file is the **single source of truth** for the live NocoBase environment st
 | quoted_total | number | MVP3 — entered by submitter or procurement |
 | quoted_currency | radioGroup (USD/SRD/EUR) | MVP3 |
 | fx_rate_to_usd | number | MVP3 — **entered manually** by submitter or procurement |
-| quoted_total_usd | formula | MVP3 — formula.js: `{{quoted_total}} * {{fx_rate_to_usd}}`, auto-computes, read-only |
+| quoted_total_usd | formula | MVP3 — formula.js: `{{quoted_total}} / {{fx_rate_to_usd}}`, auto-computes, read-only. **Division**: `fx_rate_to_usd` is local-per-USD (e.g. 35 SRD per 1 USD). |
 | quotation_attachment | attachment (multi) | MVP3 |
 | needs_director_approval | checkbox (boolean) | MVP4 — default false; set by submitter; triggers director path |
 | approved_at | datetime | MVP4 — written on final approval (both paths) |
@@ -47,6 +47,7 @@ This file is the **single source of truth** for the live NocoBase environment st
 | needed_by | dateOnly | MVP8 |
 | other_attachments | attachment (multi) | MVP8 — distinct from `quotation_attachment` |
 | comments | o2m → pr_comments | MVP8 — comment thread relation; UI block removed post-verify (data layer kept) |
+| purchase_order | oho (hasOne) → purchase_orders | MVP9a — virtual inverse of `purchase_orders.purchase_request`. No FK column on PR side. |
 
 **`status` values:** `draft`, `pending_dept_approval`, `pending_purchasing_review`, `pending_director_approval`, `info_requested`, `approved`, `rejected`, `cancelled`
 
@@ -93,6 +94,20 @@ Collection key `a4ogom91smz`. Fields:
 ### `pr_comments` (MVP8 — built 2026-05-26)
 
 Comment-template collection (`@nocobase/plugin-comments`). Baseline fields only: `id`, `content` (vditor, long text, not deletable), `createdAt`, `createdBy`, `updatedAt`, `updatedBy`. Linked to `purchase_requests` via the `purchase_requests.comments` o2m relation.
+
+### `purchase_orders` (MVP9a — built 2026-05-26)
+
+Header collection for purchase orders. Created via Generate-PO workflow from approved PRs (one PR → one PO per D9).
+
+Key fields: `po_number` (sequence `PO-YYYY-NNNN`), `purchase_request` (m2o → purchase_requests, FK `purchaseRequestId`), `supplier` (m2o), `delivery_address` (m2o), `status` (default `draft`), `currency`, `fx_rate_to_usd`, `total` (workflow-maintained, no formula), `total_usd` (formula.js: `{{total}} / {{fx_rate_to_usd}}` — division, local-per-USD), `payment_status`, `payment_date`, `expected_delivery_date`, `invoice` (attachment), `attachments` (attachment multi), `supplier_note`, `internal_notes`, `budget_override_comment`, `close_reason`, `close_comment`, audit timestamps (`sent_at`, `confirmed_at`, `completed_at`, `closed_at`, `cancelled_at` — populated by later MVPs).
+
+### `po_lines` (MVP9a — built 2026-05-26)
+
+Line items for purchase orders. Fields: `purchase_order` (m2o), `product` (m2o optional), `description` (textarea, required), `unit_of_measure` (m2o), `quantity_ordered`, `unit_price`, `line_total` (formula.js: `{{quantity_ordered}} * {{unit_price}}`), `line_total_usd` (formula.js: `{{line_total}} / {{purchase_order.fx_rate_to_usd}}`), `received_quantity`, `line_status` (default `pending`).
+
+### `delivery_addresses`, `units_of_measure`, `products` (MVP9a — built 2026-05-26)
+
+Lookup collections. `delivery_addresses` has `name` (title), `address`, `is_default`, `status`. `units_of_measure` has `name` (title, **unique**), `abbreviation`, `status`. `products` (v1 stub) has `name` (title, **unique**), `description`, `default_uom` (m2o → units_of_measure), `status`.
 
 ### Deleted collections
 - `fx_rates` — deleted 2026-05-24 (MVP3 simplification under D22)
@@ -154,6 +169,19 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
 - **Node chain:** Query (`q33wtlxitr1`) → Condition OR status∈{approved,rejected,cancelled} (`nbs3zmsr60x`) → branch 1: response-message + end(endStatus:-1)
 - **Known limitation (D24):** does NOT intercept bulk update. See [decisions.md](decisions.md).
 
+### Generate PO workflow (MVP9a)
+- **Key:** `2izsx8uv50r`
+- **Active version ID:** `366595041853440` (enabled=true) — revision of `366569458696192` that removed the embedded condition guard and added `createdById`.
+- **Type:** custom-action, sync, collection `purchase_requests`; appends `[supplier, purchase_order]`.
+- **Node chain:** Query default delivery address (`ay8dlnys4ef`) → Create purchase_orders (`ubg9mju1tjm`, sets `createdById={{$context.user.id}}`) → Create po_lines default line (key varies per revision; currently `4p3q7oq3co5`).
+- **Bound to button:** `28jh1q2camo` (Generate PO button, visible on PR table block `l1e2iwdwau9` and PR detail popup `2b367dbd157`).
+
+### Create-PO Guard (MVP9a)
+- **Key:** `vgv8hcrtjvx`
+- **Active version ID:** `366562380808192` (enabled=true)
+- **Type:** request-interception, global, sync; actions: `create` on `purchase_orders`
+- **Node chain:** Query referenced PR (`ww4mxz67ge8`, appends `purchase_order`) → Condition OR pr.status≠approved | pr.purchase_order≠null (`dba34lyg168`) → branch 1: response-message (`7fp12f2018u`) + end (`j57v75y2cky`, endStatus:-1).
+
 ---
 
 ## Test users
@@ -174,6 +202,9 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
 - **PR view popup** (DetailsBlockModel `2b367dbd157`): shows all PR fields incl. quote fields, `needs_director_approval`, `supplier`, and the four MVP8 fields. The popup grid `5fb7b74fa30` contained an MVP8 Comments block `52t8wtbzni4` bound to `purchase_requests.comments`; the user removed it post-verification. Re-add via `nb api flow-surfaces add-block` with type `comments` and resource `{binding:"associatedRecords", associationField:"comments"}` targeting the grid.
 - **Procurement approval form** (now per-revision, detached from template `k60b738pjy0`): current ProcessFormModel uid varies per workflow revision. MVP8 read-only fields applied.
 - **PR create form** (CreateFormModel `e76c40c8c79`, template `n9f8v5vnhhc`): includes `needs_director_approval` checkbox after justification; linkage rule makes justification required when checkbox is checked. MVP8 added `expenditure_type`, `needed_by`, `is_emergency`, `other_attachments` after `needs_director_approval`.
+- **Generate PO button** (`28jh1q2camo`, MVP9a): `RecordTriggerWorkflowActionModel` on PR table row popup and PR detail popup. Bound to workflow key `2izsx8uv50r`. Two linkage rules:
+  - Hide when `record.status != "approved"` OR `record.purchase_order is not empty`.
+  - Hide when `ctx.user.roles.title` does not include `"Procurement"` (procurement-only visibility; see [feedback_linkage_rules_user_roles](../../../.claude/projects/-Users-alexander-Documents-Claude-Projects-Havenbeheer-Purchasing/memory/feedback_linkage_rules_user_roles.md) in auto-memory for the pattern).
 
 Approval form surface IDs on the active version: see "Approval surfaces" above.
 
@@ -205,6 +236,10 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 - `p4n6dffjcgq` / version `364960795000832` — does not exist
 - `p1tnx6nb5r9` / version `364995697901568` — disabled rebuild from between sessions
 - `idezsq1k1ts` / `363982109736960` — original v3-plan MVP1 key, superseded
+- `1r4vyfbnie8` — hardcoded on the Generate-PO button before workflow build; no workflow with this key ever existed.
+
+### Stale Generate-PO (`2izsx8uv50r`) versions:
+- `366569458696192` — initial build that included an embedded condition guard. Superseded 2026-05-26 by `366595041853440` (current).
 
 ---
 
