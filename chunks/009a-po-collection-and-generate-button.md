@@ -1,26 +1,31 @@
-# 009a — PO collection + po_lines + Generate-PO button
+# 009a — PO collection + po_lines + Generate-PO button (built ✓)
 
 ## Goal
-Procurement can click "Generate PO" on an approved PR to spin up a draft `purchase_orders` record with one default `po_line` pre-filled from the PR. Lines are editable in NocoBase; PO total is auto-maintained by a small workflow.
+Procurement can click "Generate PO" on an approved PR to spin up a draft `purchase_orders` record with one default `po_line` pre-filled from the PR. Line items track quantity + receiving only (D27 — pricing descoped); PO `total` is manually entered from the supplier invoice.
 
-## Scope (in)
+## Scope (in) — as built
 - New collections:
   - `delivery_addresses` (name, address, is_default boolean, status)
-  - `units_of_measure` (name, abbreviation, status)
-  - `products` (name, description, default_uom, status) — v1 stub
-  - `purchase_orders` — per PO design validation §9: `po_number` sequence, `purchase_request` m2o, `supplier` m2o, `delivery_address` m2o, `status`, `currency`, `fx_rate_to_usd`, `total`, `total_usd`, `payment_status`, `payment_date`, `expected_delivery_date`, `quotations` attachment-multi, `attachments` attachment-multi, `supplier_note`, `internal_notes`, `budget_override_comment`, `close_reason`, `close_comment`, audit timestamps
-  - `po_lines` — per PO design §9: `purchase_order` m2o, `product` m2o optional, `description`, `unit_of_measure` m2o, `quantity_ordered`, `unit_price`, `line_total` formula, `line_total_usd` formula, `received_quantity`, `line_status`
-- Add `address` (textarea) to `suppliers`.
-- **Generate-PO action** on `purchase_requests` table/detail. Visibility: only when `status = approved` AND no PO yet (D9: one PR → one PO).
+  - `units_of_measure` (name [unique], abbreviation, status)
+  - `products` (name [unique], description, default_uom, status) — v1 stub
+  - `purchase_orders` — `po_number` sequence (`PO-YYYY-NNNN`), `purchase_request` m2o (FK `purchaseRequestId` on PO side), `supplier` m2o, `delivery_address` m2o, `status`, `currency`, `fx_rate_to_usd`, `total` (manually entered), `total_usd` formula `{{total}} / {{fx_rate_to_usd}}` (division — `fx_rate_to_usd` is local-per-USD), `payment_status`, `payment_date`, `expected_delivery_date`, `invoice` attachment, `attachments` attachment-multi, `supplier_note`, `internal_notes`, `budget_override_comment`, `close_reason`, `close_comment`, audit timestamps (`sent_at`, `confirmed_at`, `completed_at`, `closed_at`, `cancelled_at` — populated by later MVPs).
+  - `po_lines` — `purchase_order` m2o, `product` m2o optional, `description` textarea required, `unit_of_measure` m2o, `quantity_ordered`, `received_quantity`, `line_status` (default `pending`). **Pricing fields (`unit_price`, `line_total`, `line_total_usd`) were descoped per D27.**
+- Inverse relation `purchase_requests.purchase_order` — `oho` / hasOne (virtual, no FK column on PR side).
+- **Generate-PO action** on `purchase_requests` table/detail. Visibility: only when `status = approved` AND no PO yet AND user has role `Procurement`.
 - Generate-PO behavior: creates draft PO pre-filled —
+  - `purchase_request` ← `pr.id`
   - `supplier` ← `pr.supplier`
   - `currency` ← `pr.quoted_currency`
   - `fx_rate_to_usd` ← `pr.fx_rate_to_usd`
-  - one default `po_line`: description from `pr.description` (or `pr.title`), `unit_price` = `pr.quoted_total`, `quantity_ordered` = 1
-  - `quotations` copied from `pr.quotation_attachment`
+  - `total` ← `pr.quoted_total` (editable post-invoice)
+  - `delivery_address` ← default row from `delivery_addresses`
+  - `status` ← `draft`
+  - `createdById` ← triggering user
+  - one default `po_line`: `description` from `pr.description`, `quantity_ordered = 1`
 - Procurement can edit `po_lines` post-generate: split into structured lines, add/remove.
-- Small workflow keeps `purchase_orders.total` = SUM(`po_lines.line_total`). NocoBase formula fields cannot aggregate child records (PO design decision 12).
-- **Guard:** API-side block on creating a PO against a PR with status ≠ approved.
+- **Guards (two layers, both required):**
+  - Inline condition node in Generate-PO workflow (catches button re-trigger / linkage-rule bypass — request-interception does NOT cover workflow-internal creates).
+  - Global request-interception guard on `purchase_orders.create` (catches direct API POST that bypasses the button).
 
 ## Scope (out)
 - Sending the PO (status `draft → sent`) — MVP9b.
@@ -29,23 +34,27 @@ Procurement can click "Generate PO" on an approved PR to spin up a draft `purcha
 - Completion / closing / cancellation — MVP9d.
 - Template printing — MVP9e.
 - Multi-PO per PR — explicitly out under D9.
+- Line-level pricing / line-level USD — descoped under D27.
+- Workflow-maintained PO total from line sums — cancelled under D27 (total is manual).
 
 ## Dependencies
 - Requires MVP7 (suppliers) and MVP8 (PR has the attachment + supplier surfaces).
 
-## Acceptance
-- PO1: Generate PO from an approved PR → succeeds, one default line, all pre-fill rules match.
-- PO2: Generate PO from a non-approved PR → button hidden in UI, API call blocked.
-- PO3: PR with an existing PO → Generate-PO button hidden.
-- PO4: Add/edit/remove `po_lines` → `purchase_orders.total` updates correctly.
-- PO5: ACL — only procurement can edit `po_lines`.
-- Manual verification by user before marking complete.
+## Acceptance — verified
+- PO1: Generate PO from an approved PR → succeeds, one default line, all pre-fill rules match ✓
+- PO2: Generate PO from a non-approved PR → button hidden in UI, direct API call blocked by request-interception guard ✓
+- PO3: PR with an existing PO → Generate-PO button hidden ✓
+- PO4: Inline guard blocks duplicate generation even if linkage rules are bypassed ✓
+- PO5: ACL — only procurement can edit `po_lines` ✓
 
-## Phases
-- **9a.1** Create the 4 lookup/header collections + `po_lines`.
-- **9a.2** Add `address` to `suppliers`.
-- **9a.3** Build PO list + detail page.
-- **9a.4** Build Generate-PO action (workflow that creates PO + 1 default line; visibility linkage on the button).
-- **9a.5** Build the small total-maintenance workflow.
-- **9a.6** Build the create-PO guard (request-interception checking PR status).
-- **9a.7** Verify the acceptance scenarios.
+## Phases — as executed
+- **9a.1** Lookup + header collections created.
+- **9a.2** PO list + detail page built.
+- **9a.3** Generate-PO action wired (custom-action workflow + button on PR table block + PR detail popup).
+- **9a.4** Total-maintenance workflow — **cancelled (D27)**. PO `total` is manually entered.
+- **9a.5** Create-PO request-interception guard built (key `vgv8hcrtjvx`).
+- **9a.6** ACL applied (procurement-only mutations on PO/po_lines/lookups).
+- **9a.7** Verified — see Acceptance.
+
+## Final state
+Authoritative reference: see `project_current_state.md` for collection schemas, workflow IDs, node keys, and stale IDs. Decisions affecting this chunk: D27.
