@@ -171,9 +171,11 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
 
 ### Generate PO workflow (MVP9a)
 - **Key:** `2izsx8uv50r`
-- **Active version ID:** `366608098721792` (enabled=true) — round-3 revision: restored embedded guard (calculation-engine format, UI-editable) and dropped `unit_price` from the create-po_line payload per D27. Per [`feedback_request_interception_scope`](../../../.claude/projects/-Users-alexander-Documents-Claude-Projects-Havenbeheer-Purchasing/memory/feedback_request_interception_scope.md), the separate Create-PO Guard does NOT cover custom-action internal creates, so the inline guard is required.
+- **Active version ID:** `366623590383616` (enabled=true) — user-revisioned 2026-05-27 to add a `response-message` + `end-process(-1)` pair on the inline guard's false branch, per [`feedback_inline_guard_end_node`](../../../.claude/projects/-Users-alexander-Documents-Claude-Projects-Havenbeheer-Purchasing/memory/feedback_inline_guard_end_node.md). Earlier round-3 (`366608098721792`) had the guard but no end-process node, which left the UI without a clear rejection signal.
 - **Type:** custom-action, sync, collection `purchase_requests`; appends `[supplier, purchase_order]`.
-- **Node chain:** Guard condition (`uufqoeb8xyz`, AND of `status==approved` + `purchase_order==null`) → [branch 1] Query default delivery address (`ay8dlnys4ef`) → Create purchase_orders (`ubg9mju1tjm`, sets `createdById={{$context.user.id}}`) → Create po_lines default line (`4p3q7oq3co5`, writes only `purchase_order`/`description`/`quantity_ordered=1`).
+- **Node chain:** Guard condition (`uufqoeb8xyz`, AND of `status==approved` + `purchase_order==null`):
+  - branch 1 (true) → Query default delivery address (`ay8dlnys4ef`) → Create purchase_orders (`ubg9mju1tjm`, sets `createdById={{$context.user.id}}`) → Create po_lines default line (`4p3q7oq3co5`, writes only `purchase_order`/`description`/`quantity_ordered=1`)
+  - branch 0 (false) → Response message (`ylrivonemrq`) → End process (`gviz4zia0ha`, endStatus: -1)
 - **Bound to button:** `28jh1q2camo` (Generate PO button, visible on PR table block `l1e2iwdwau9` and PR detail popup `2b367dbd157`).
 
 ### Create-PO Guard (MVP9a)
@@ -239,8 +241,16 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 - `1r4vyfbnie8` — hardcoded on the Generate-PO button before workflow build; no workflow with this key ever existed.
 
 ### Stale Generate-PO (`2izsx8uv50r`) versions:
-- `366569458696192` — initial build with JSON-filter embedded guard. Superseded by `366595041853440`.
-- `366595041853440` — round-2 revision that wrongly removed the inline guard (request-interception doesn't cover workflow-internal creates). Superseded 2026-05-26 by `366608098721792` (current).
+- `366569458696192` — initial build with JSON-filter embedded guard.
+- `366595041853440` — round-2 revision that wrongly removed the inline guard.
+- `366602797121536` — interim revision.
+- `366608098721792` — round-3 revision: restored guard but missed the end-process node on the false branch.
+- `366623370182656` — interim user revision.
+- All superseded 2026-05-27 by `366623590383616` (current).
+
+### Disabled po_lines collection workflows (cancelled per D27):
+- `jsgbxph9444` ("PO Total: Lines Added/Updated", id `366562246590464`) — was a sync collection trigger on po_lines create/update that aggregated `line_total`. Disabled 2026-05-27 because the field no longer exists; the sync failure was silently rolling back po_line creates from the Generate-PO workflow. Keep disabled.
+- `s4syz7vom4n` ("PO Total: Line Deleted", id `366562257076224`) — sibling delete trigger for the same total-maintenance scheme. Also disabled.
 
 ---
 
