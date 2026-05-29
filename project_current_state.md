@@ -286,9 +286,6 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 - From version `366232953880576`: approvalUids `2zmok19gb2c`, `7xwj8l0sjqp`, `knwxauc0yoz`, `lav2su037qi`; taskCardUids `exgm0gh0mru`, `5l5vdolh5su`, `ivg75pqfe6b`, `arpce782zod`.
 - Older disabled-version surfaces: `5sewfvayoc4`, `ylccjkdatwa`, `wa1guuahjjo`, `4ceoua2g0ij`, `klak6hh6vu0`, `qswcu5p6ihj`, `42ay2w0j69v`, `apz6gdy0z6z`, `n7n6x0xg3t0`, `wdty2zx7de7`, `8yyu6ofo1ww`, `rgcyt60s8pg`, `yyptfj0azru`, `o4jc2ghrs4q`, `8x5ktd74gwx`, `o1n99mp7sn7`
 
-### Stray duplicate workflows from MVP010 CLI revision bug (2026-05-29):
-- `367149477658624` (**key `wqfj1dy8y92`**) and `367150016626688` (**key `4b2ik0k9gw0`**) — both created by `nb api workflow workflows revision` (which mints a new key instead of versioning). Full 18-node copies of the PR Approval workflow, both disabled, unreferenced, `current=true` for their own orphan keys (harmless since disabled). NOT in the `cv237r8h7k9` lineage. Safe to delete with explicit user OK. Do not enable or reference.
-
 ### Stale workflow keys:
 - `p4n6dffjcgq` / version `364960795000832` — does not exist
 - `p1tnx6nb5r9` / version `364995697901568` — disabled rebuild from between sessions
