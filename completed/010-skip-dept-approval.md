@@ -1,4 +1,14 @@
-# 010 — Optional skip-dept-approval
+# 010 — Optional skip-dept-approval ✓
+
+**Verified:** 2026-05-29 (user activated + ran end-to-end).
+
+## As-built
+- Field `purchase_requests.skip_dept_approval` (boolean, default false).
+- PR Approval workflow revision `367150157135872` (key `cv237r8h7k9`, active): new condition `eafkgfa3axi` on the dept-skip false branch → br1 notification `5h232imw9ss` (FYI to dept head via channel `approval-todo-in-app-message`) → update `budfy1scwbw` (pending_purchasing_review); br0 → existing Dept Owner Approval. Submitter-IS-approver skip unchanged (no notify).
+- UI: create-form toggle (wrapper `830iodzmcjo`); read-only on detail popup (wrapper `in24ndj91et`).
+- ACL: no change (member view is global → dept heads can open any PR).
+- Decisions: D29. Node IDs + surfaces in [project_current_state.md](../project_current_state.md).
+- on_leave→secondary fallback for the FYI recipient: NOT implemented (main-only, v1 per D29) — optional follow-up.
 
 ## Goal
 Let the submitter optionally skip the department-head approval stage on a PR. When skipped,
