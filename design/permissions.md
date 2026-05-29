@@ -21,3 +21,4 @@ See [users-and-roles.md](users-and-roles.md).
 - Procurement is read-only on PR content except for quote fields (`quoted_total`, `quoted_currency`, `fx_rate_to_usd`, `quotation_attachment`) which they fill in.
 - Director is read-only on the whole PR.
 - All members get base view of PRs they're involved with via standard NocoBase ACL — do not add redundant view grants per the auto-memory feedback note on `member` being the base role.
+- **Skipped-PR view access (D29).** When a submitter sets `skip_dept_approval`, the dept head gets no approval task but must still be able to *open* the PR they're notified about. The dept-owner (`main_approver`) view scope must therefore cover department PRs independent of task assignment — verify the MVP1 scope already does this; widen only if it's effectively task-driven.

@@ -15,6 +15,7 @@
 | 009c | PO receiving (per-line `received_quantity`) | pending |
 | 009d | PO completion / closing / cancellation + immutability | pending |
 | 009e | PO template printing (Word → PDF) | pending |
+| 010 | Optional submitter-chosen skip of dept-head approval (FYI notify + view access, D29) | pending |
 | — | supplier_issues + supplier_evaluations | deferred (D26) — see [chunks/deferred-supplier-issues-evaluations.md](chunks/deferred-supplier-issues-evaluations.md) |
 
 Detail lives in `chunks/NNN-*.md` for pending/active MVPs and `completed/NNN-*.md` for finished ones.

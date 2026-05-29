@@ -124,6 +124,31 @@ The PO `cancelled` status is removed. Cancelling a PO is now just closing it wit
 
 ---
 
+## D29 — Optional submitter-chosen skip of dept-head approval
+Submitters may opt to skip the department-head approval stage per PR via a
+`skip_dept_approval` boolean (default false). When skipped, the dept head is **not** a
+blocking approver but is **kept in the loop**: an in-app FYI notification to the submitter's
+`mainDepartment.main_approver` (fallback `secondary_approver` when on leave, per D21) plus
+view access to the PR. The pre-existing "submitter IS their own dept approver → auto-skip"
+path (condition `5hed96jh1u7`) is unchanged and does **not** notify. **Affects:** MVP1
+(approval workflow `cv237r8h7k9` — new condition branch + notify node, revisioned), MVP4
+(toggle sits beside `needs_director_approval` on the create form). Built as MVP010.
+
+**Why:** The team confirmed dept-head approval isn't always required, but the exact rule is
+unclear and likely to stay fuzzy. Rather than encode a brittle rule, we add flexibility and
+shift the judgment to the submitter — the same reasoning as D23 (manual
+`needs_director_approval` over an automatic threshold). FYI-only (no pull-back) keeps it in
+line with D19 (in-app only) and avoids re-injecting an approval mid-flight, which NocoBase
+approval workflows don't support cleanly.
+
+**How to apply:** Workflow branches: if submitter is NOT their own dept approver, test
+`skip_dept_approval` — true → notify dept head + route to `pending_purchasing_review`;
+false → existing Dept Owner Approval. No new status. Ensure the dept head can *open* a
+skipped PR (verify the dept-owner view scope; widen only if it's task-driven). The skip is
+not a pull-back mechanism — the dept head is informed, not gating.
+
+---
+
 ## Living register
 
 New entries go below in numeric order. When superseding a prior decision, mark the prior entry as superseded in [decisions-archive.md](decisions-archive.md) and add a `**Supersedes:** D#` line on the new entry.

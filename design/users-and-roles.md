@@ -7,7 +7,7 @@
 | Role | Who | Typical actions |
 |---|---|---|
 | `member` | every user (base role, D21+D25 design) | submit / edit own draft PRs; comment; log supplier issues; view suppliers |
-| Dept owner (via `main_approver` field, not a role) | the user on `departments.main_approver` | approve / return / reject PRs at the Dept stage; edit PR content while in their queue (D16) |
+| Dept owner (via `main_approver` field, not a role) | the user on `departments.main_approver` | approve / return / reject PRs at the Dept stage; edit PR content while in their queue (D16); when a submitter sets `skip_dept_approval`, receives an in-app FYI notification + view access instead of an approval task (D29) |
 | `procurement` | Procurement staff (Pat) | review approved Dept PRs; fill quote fields; generate POs; manage suppliers (D6, D8); **cannot submit PRs** (D25) |
 | `director` | Director (Dana) | approve / return / reject final stage when `needs_director_approval` is true (D23) |
 | Finance head (via dept `main_approver` on Finance) | Finance staff | receives in-app notifications for zone-2 budget overruns (D12, D19) |
