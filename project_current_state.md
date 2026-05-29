@@ -1,8 +1,8 @@
 # Current Build State
 
-**Last verified:** 2026-05-26 (live env queried via `nb api` — collections, workflows, approval surfaces; MVP9a fix-up pass completed).
+**Last verified:** 2026-05-29 (live env queried via `nb api` — MVP9b Send-PO + Close-PO workflows and budget zones).
 
-MVPs 1–8 built. MVP7 was reduced to suppliers-only (D26). MVP8 added comments collection + 4 soft fields + UI surfaces; the comments UI block in the PR detail popup was removed by the user post-verification (data layer remains — can be re-added). **MVP9a built 2026-05-26**: PO + po_lines + lookups, Generate-PO workflow (`2izsx8uv50r` v `366595041853440`), Create-PO Guard (`vgv8hcrtjvx`), Generate-PO button on PR surfaces with procurement-only visibility. PR↔PO relation re-shaped to clean m2o + virtual hasOne. Next: **MVP9b — sending the PO + budget zones**.
+MVPs 1–8 built. MVP7 was reduced to suppliers-only (D26). MVP8 added comments collection + 4 soft fields + UI surfaces; the comments UI block in the PR detail popup was removed by the user post-verification (data layer remains — can be re-added). **MVP9a built 2026-05-26**: PO + po_lines + lookups, Generate-PO workflow (`2izsx8uv50r` v `366595041853440`), Create-PO Guard (`vgv8hcrtjvx`), Generate-PO button on PR surfaces with procurement-only visibility. PR↔PO relation re-shaped to clean m2o + virtual hasOne. **MVP9b built 2026-05-29**: PO `draft → sent` with budget-zone guard (Send PO workflow `send_po`), PO `draft → closed` (Close PO workflow `close_po_draft`), Send + Close buttons on PO surfaces. `cancelled` collapsed into `closed` (D28). Zone-2 in-app notifications (9b.3) deferred — gated on Finance dept `main_approver` being set (still NULL). Next: **MVP9c — receiving**.
 
 This file is the **single source of truth** for the live NocoBase environment state. Update it at the end of every session that creates or modifies collections, fields, workflows, or UI surfaces. Commit changes alongside the build commits they describe.
 
@@ -99,7 +99,11 @@ Comment-template collection (`@nocobase/plugin-comments`). Baseline fields only:
 
 Header collection for purchase orders. Created via Generate-PO workflow from approved PRs (one PR → one PO per D9).
 
-Key fields: `po_number` (sequence `PO-YYYY-NNNN`), `purchase_request` (m2o → purchase_requests, FK `purchaseRequestId`), `supplier` (m2o), `delivery_address` (m2o), `status` (default `draft`), `currency`, `fx_rate_to_usd`, `total` (workflow-maintained, no formula), `total_usd` (formula.js: `{{total}} / {{fx_rate_to_usd}}` — division, local-per-USD), `payment_status`, `payment_date`, `expected_delivery_date`, `invoice` (attachment), `attachments` (attachment multi), `supplier_note`, `internal_notes`, `budget_override_comment`, `close_reason`, `close_comment`, audit timestamps (`sent_at`, `confirmed_at`, `completed_at`, `closed_at`, `cancelled_at` — populated by later MVPs).
+Key fields: `po_number` (sequence `PO-YYYY-NNNN`), `purchase_request` (m2o → purchase_requests, FK `purchaseRequestId`), `supplier` (m2o), `delivery_address` (m2o), `status` (default `draft`), `currency`, `fx_rate_to_usd`, `total` (workflow-maintained, no formula), `total_usd` (formula.js: `{{total}} / {{fx_rate_to_usd}}` — division, local-per-USD), `payment_status`, `payment_date`, `expected_delivery_date`, `invoice` (attachment), `attachments` (attachment multi), `supplier_note`, `internal_notes`, `budget_override_comment`, `close_reason`, `close_comment`, audit timestamps (`sent_at`, `confirmed_at`, `completed_at`, `closed_at`).
+
+**`status` values (post-9b):** `draft`, `sent`, `confirmed`, `partially_received`, `received`, `completed`, `closed`. `cancelled` was removed in MVP9b (D28 — collapsed into `closed`). Two terminal states: `completed` (happy path) and `closed` (everything else, with a `close_reason`).
+**`close_reason` values:** `no_longer_required`, `supplier_unable_to_fulfill`, `partial_fulfillment_accepted`, `duplicate`, `replaced_by_new_po`, `other`.
+**Note:** the `cancelled_at` datetime field still physically exists (the drop was blocked by the irreversible-action guard in MVP9b) — it is unused and no workflow writes it. Safe to drop later with explicit user OK.
 
 ### `po_lines` (MVP9a — built 2026-05-26)
 
@@ -184,6 +188,35 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
 - **Type:** request-interception, global, sync; actions: `create` on `purchase_orders`
 - **Node chain:** Query referenced PR (`ww4mxz67ge8`, appends `purchase_order`) → Condition OR pr.status≠approved | pr.purchase_order≠null (`dba34lyg168`) → branch 1: response-message (`7fp12f2018u`) + end (`j57v75y2cky`, endStatus:-1).
 
+### Send PO workflow (MVP9b) — `draft → sent` + budget zones
+- **Key:** `send_po`
+- **Active version ID:** `366981771362304` (enabled=true, current=true)
+- **Type:** custom-action, sync, collection `purchase_orders`; appends `[purchase_request, supplier]` (supplier appended now for future supplier-email step).
+- **15-node chain** (node keys, branch structure):
+  - `g_send_guard` (condition, basic) — AND status==draft, total≠null, fx_rate_to_usd≠null.
+    - br=0 (false) → `g_send_fail_msg` (response-message) → `g_send_fail_end` (end, -1).
+    - br=1 (true) → `calc_po_usd`.
+  - `calc_po_usd` (calculation, **math.js**): `{{$context.data.total}} / {{$context.data.fx_rate_to_usd}}` → `c2dibomnrby`.
+  - `c2dibomnrby` (calculation, formula.js): `{{$context.data.purchase_request.quoted_total}}/{{$context.data.purchase_request.fx_rate_to_usd}}` (PR total in USD) → `calc_cap_usd`.
+  - `calc_cap_usd` (calculation, **math.js**): `{{$jobsMapByNodeKey.c2dibomnrby}} * 1.1` (110% cap) → `z3_check`.
+  - `z3_check` (condition, basic `gt`): `calc_po_usd.result > calc_cap_usd.result`.
+    - br=1 (true, zone 3) → `z3_msg` (response-message) → `z3_end` (end, -1).
+    - br=0 (false) → `z2_check`.
+  - `z2_check` (condition, **math.js**): `{{$jobsMapByNodeKey.calc_po_usd}}>{{$jobsMapByNodeKey.c2dibomnrby}}` (zone 2 = PO USD over PR USD).
+    - br=1 (true, zone 2) → `oc_check`.
+    - br=0 (false, zone 1) → `z1_update` (update status=sent, sent_at=now).
+  - `oc_check` (condition, basic) — OR budget_override_comment==null | =="".
+    - br=1 (true, comment missing) → `oc_msg` (response-message) → `oc_end` (end, -1).
+    - br=0 (false, comment present) → `z2_update` (update status=sent, sent_at=now).
+- **Bound to button:** `slybgc23q1i` (Send PO, `RecordTriggerWorkflowActionModel`) on PO surfaces.
+- **Engine note:** `z2_check` originally used the basic `gt` calculator and never fired (every PO fell to zone 1); switching the node to math.js fixed it. See auto-memory `feedback_prefer_mathjs_engine`. **Zone 2 verified 2026-05-29** (exec `366982002049024`: PO 2.8 USD vs PR 2.667 USD, cap 2.933 → zone 2, missing comment → rejected). Zone-2 in-app notifications (9b.3) are **not yet built** — gated on Finance `main_approver`.
+
+### Close PO workflow (MVP9b) — `draft → closed`
+- **Key:** `close_po_draft`
+- **Active version ID:** `366780629319680` (enabled=true, current=true)
+- **Type:** custom-action, sync, collection `purchase_orders`. Triggered by the Close PO popup form's Submit (popup-form-with-submit-trigger pattern — see auto-memory `feedback_workflow_form_button_pattern`).
+- Stamps `status=closed`, `closed_at={{$system.now}}` from the submitted `close_reason` + `close_comment`.
+
 ---
 
 ## Test users
@@ -209,6 +242,13 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
   - Hide when `ctx.user.roles.title` does not include `"Procurement"` (procurement-only visibility; see [feedback_linkage_rules_user_roles](../../../.claude/projects/-Users-alexander-Documents-Claude-Projects-Havenbeheer-Purchasing/memory/feedback_linkage_rules_user_roles.md) in auto-memory for the pattern).
 
 Approval form surface IDs on the active version: see "Approval surfaces" above.
+
+### Purchase Orders page (MVP9a/9b)
+- **Page UID:** `liwmklclbnc`
+- **Table block:** `vldbcvf41r6`
+- **PO detail popup (DetailsBlockModel):** `g9xffr68350`; row-popup template `wp2s32qgfeg`.
+- **Send PO button** (`slybgc23q1i`, MVP9b): `RecordTriggerWorkflowActionModel`, bound to workflow key `send_po` (set via `nb api resource update --resource flowModels`). Linkage: hide when `record.status != "draft"`; procurement-only (`ctx.user.roles.title` not-includes `"Procurement"`).
+- **Close PO button** (`lylrxwl1b3g`, MVP9b): `PopupCollectionActionModel` — opens a popup with an EditForm bound to the current record. Form fields: `close_reason` (`qou6ge8axe5`, required) + `close_comment` (`h5872h3mc8r`, required). Submit action `5ove3dxktz9` triggers workflow key `close_po_draft`. Same draft + procurement-only linkage as Send. (Close-from-non-draft broadens this in 9d.)
 
 ---
 
@@ -247,6 +287,12 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 - `366608098721792` — round-3 revision: restored guard but missed the end-process node on the false branch.
 - `366623370182656` — interim user revision.
 - All superseded 2026-05-27 by `366623590383616` (current).
+
+### Stale Send-PO (`send_po`) versions (all disabled before `366981771362304`):
+- `366776493735936`, `366882024521728`, `366883251355648` — early build iterations.
+- `366883769352192` — had the zone-2 bug (basic-engine `gt` condition that never fired).
+- `366980364173312` — a revision where the agent patched the zone-2 condition with `.result` (wrong theory); superseded by the user's math.js fix in `366981771362304`.
+- `366980536139776` (**key `s6m4i5hrmzs`**, title "Send PO copy") — a stray *duplicate* (new key, not in the `send_po` lineage) created by the CLI `workflow workflows revision` command, which duplicates rather than versions. Disabled, unreferenced; left in place (deletion needs explicit user OK).
 
 ### Disabled po_lines collection workflows (cancelled per D27):
 - `jsgbxph9444` ("PO Total: Lines Added/Updated", id `366562246590464`) — was a sync collection trigger on po_lines create/update that aggregated `line_total`. Disabled 2026-05-27 because the field no longer exists; the sync failure was silently rolling back po_line creates from the Generate-PO workflow. Keep disabled.

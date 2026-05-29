@@ -11,7 +11,7 @@
 | 007 | Suppliers collection + supplier on PR (issues/evaluations descoped, D26) | ✓ built |
 | 008 | Comments + attachments + soft fields | ✓ built (comments UI block removed post-verify; data layer kept) |
 | 009a | PO collection + po_lines + Generate-PO button | ✓ built (D27 descoped po_lines pricing; planned 9a.4 total-maintenance cancelled) |
-| 009b | PO send + budget zones (110%) + zone 2/3 notifications | pending |
+| 009b | PO send + budget zones (110%) + zone 2/3 notifications | ✓ built (D28 cancel→close collapse; zone-2 verified; zone-2 in-app notifications deferred — gated on Finance `main_approver`) |
 | 009c | PO receiving (per-line `received_quantity`) | pending |
 | 009d | PO completion / closing / cancellation + immutability | pending |
 | 009e | PO template printing (Word → PDF) | pending |

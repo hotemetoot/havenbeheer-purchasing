@@ -115,6 +115,15 @@ Line items track quantity + receiving only. `unit_price`, `line_total`, and `lin
 
 ---
 
+## D28 — Cancel collapsed into Close (two terminal PO states)
+The PO `cancelled` status is removed. Cancelling a PO is now just closing it with an appropriate `close_reason` (e.g. `no_longer_required`). Two terminal states only: `completed` (happy path) and `closed` (everything else, always with a `close_reason` + `close_comment`). The former `draft → cancelled` action becomes `draft → closed`. **Affects:** MVP9b (built this way — Close PO workflow `close_po_draft` stamps `status=closed`, `closed_at`); MVP9a collection definition (`cancelled` dropped from `purchase_orders.status` enum; `no_longer_required` added to `close_reason`); MVP9d (close-from-non-draft builds on this single close path). **Supersedes** PO design-validation §3 (status state machine) and §8 guard #8 wherever they distinguish cancel from close.
+
+**Why:** A separate `cancelled` state added a parallel terminal path and its own audit field (`cancelled_at`) without behavioural difference from a reason-tagged close. Collapsing them simplifies the state machine, the guards, and the UI (one Close button + reason picker instead of Cancel and Close).
+
+**How to apply:** Treat `closed` as the only non-happy terminal state. Use `close_reason = no_longer_required` for what was previously "cancel". The `cancelled_at` field still physically exists on `purchase_orders` (drop was blocked by the irreversible-action guard) but is unused — no workflow writes it; safe to drop later with explicit user OK. Don't reintroduce a `cancelled` status.
+
+---
+
 ## Living register
 
 New entries go below in numeric order. When superseding a prior decision, mark the prior entry as superseded in [decisions-archive.md](decisions-archive.md) and add a `**Supersedes:** D#` line on the new entry.
