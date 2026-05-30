@@ -1,6 +1,6 @@
 # Current Build State
 
-**Last verified:** 2026-05-30 (live env queried via `nb api` — director-approval $300 floor activated; MVP9b Send-PO + Close-PO workflows and budget zones; MVP010 skip-dept-approval).
+**Last verified:** 2026-05-30 (live env queried via `nb api` — PR/PO numbering D31 built + verified; director-approval $300 floor; MVP9b Send-PO + Close-PO; MVP010 skip-dept-approval).
 
 MVPs 1–8 built. MVP7 was reduced to suppliers-only (D26). MVP8 added comments collection + 4 soft fields + UI surfaces; the comments UI block in the PR detail popup was removed by the user post-verification (data layer remains — can be re-added). **MVP9a built 2026-05-26**: PO + po_lines + lookups, Generate-PO workflow (`2izsx8uv50r` v `366595041853440`), Create-PO Guard (`vgv8hcrtjvx`), Generate-PO button on PR surfaces with procurement-only visibility. PR↔PO relation re-shaped to clean m2o + virtual hasOne. **MVP9b built 2026-05-29**: PO `draft → sent` with budget-zone guard (Send PO workflow `send_po`), PO `draft → closed` (Close PO workflow `close_po_draft`), Send + Close buttons on PO surfaces. `cancelled` collapsed into `closed` (D28). Zone-2 in-app notifications (9b.3) deferred — gated on Finance dept `main_approver` being set (still NULL). **MVP010 built + verified 2026-05-29:** optional submitter `skip_dept_approval` (D29) — field + UI toggle live; PR Approval workflow revision `367150157135872` (key `cv237r8h7k9`) activated and end-to-end verified by user. When skipped, dept head gets an in-app FYI notification and the PR routes straight to Procurement. **D30 built + verified 2026-05-30:** mandatory director approval at **`quoted_total_usd >= 300`** — PR Approval revisioned to `367158084370432` (key `cv237r8h7k9`); the director-decision condition `bizoy1sj87j` is now an OR of the manual `needs_director_approval` checkbox and the $300 USD floor. Next: **MVP9c — receiving**.
 
@@ -24,6 +24,7 @@ This file is the **single source of truth** for the live NocoBase environment st
 
 | Field | Interface | Notes |
 |---|---|---|
+| pr_number | sequence | **D31** — auto `PR-YY-NNNN` (2-digit year, 4-digit yearly-cycling counter, e.g. `PR-26-0004`); field key `jo6vvssc0i5`, `inputable: false`. Assigned at PR creation. The 10 pre-existing PRs are null (sequence only fires on new inserts). PO derives its number from this (see Generate-PO workflow). |
 | title | input | |
 | description | textarea | |
 | justification | vditor | rich text |
@@ -100,7 +101,7 @@ Comment-template collection (`@nocobase/plugin-comments`). Baseline fields only:
 
 Header collection for purchase orders. Created via Generate-PO workflow from approved PRs (one PR → one PO per D9).
 
-Key fields: `po_number` (sequence `PO-YYYY-NNNN`), `purchase_request` (m2o → purchase_requests, FK `purchaseRequestId`), `supplier` (m2o), `delivery_address` (m2o), `status` (default `draft`), `currency`, `fx_rate_to_usd`, `total` (workflow-maintained, no formula), `total_usd` (formula.js: `{{total}} / {{fx_rate_to_usd}}` — division, local-per-USD), `payment_status`, `payment_date`, `expected_delivery_date`, `invoice` (attachment), `attachments` (attachment multi), `supplier_note`, `internal_notes`, `budget_override_comment`, `close_reason`, `close_comment`, audit timestamps (`sent_at`, `confirmed_at`, `completed_at`, `closed_at`).
+Key fields: `po_number` (**D31** — plain `string`/`input` field, key `esjop6vlpp9`; the old auto-`sequence` field was deleted by the user and replaced. Written by the Generate-PO workflow as the PR's `pr_number` with the `PR-` prefix swapped to `PO-`, e.g. `PO-26-0004`), `purchase_request` (m2o → purchase_requests, FK `purchaseRequestId`), `supplier` (m2o), `delivery_address` (m2o), `status` (default `draft`), `currency`, `fx_rate_to_usd`, `total` (workflow-maintained, no formula), `total_usd` (formula.js: `{{total}} / {{fx_rate_to_usd}}` — division, local-per-USD), `payment_status`, `payment_date`, `expected_delivery_date`, `invoice` (attachment), `attachments` (attachment multi), `supplier_note`, `internal_notes`, `budget_override_comment`, `close_reason`, `close_comment`, audit timestamps (`sent_at`, `confirmed_at`, `completed_at`, `closed_at`).
 
 **`status` values (post-9b):** `draft`, `sent`, `confirmed`, `partially_received`, `received`, `completed`, `closed`. `cancelled` was removed in MVP9b (D28 — collapsed into `closed`). Two terminal states: `completed` (happy path) and `closed` (everything else, with a `close_reason`).
 **`close_reason` values:** `no_longer_required`, `supplier_unable_to_fulfill`, `partial_fulfillment_accepted`, `duplicate`, `replaced_by_new_po`, `other`.
@@ -180,14 +181,15 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
 - **Node chain:** Query (`q33wtlxitr1`) → Condition OR status∈{approved,rejected,cancelled} (`nbs3zmsr60x`) → branch 1: response-message + end(endStatus:-1)
 - **Known limitation (D24):** does NOT intercept bulk update. See [decisions.md](decisions.md).
 
-### Generate PO workflow (MVP9a)
+### Generate PO workflow (MVP9a; D31 PO-number derivation)
 - **Key:** `2izsx8uv50r`
-- **Active version ID:** `366623590383616` (enabled=true) — user-revisioned 2026-05-27 to add a `response-message` + `end-process(-1)` pair on the inline guard's false branch, per [`feedback_inline_guard_end_node`](../../../.claude/projects/-Users-alexander-Documents-Claude-Projects-Havenbeheer-Purchasing/memory/feedback_inline_guard_end_node.md). Earlier round-3 (`366608098721792`) had the guard but no end-process node, which left the UI without a clear rejection signal.
+- **Active version ID:** `367255610327040` (enabled=true, current=true) — **D31 revision: derive `po_number` from PR's `pr_number`, built + verified 2026-05-30.** Revision of `366626572533760` (which itself was a user revision after the doc previously recorded `366623590383616` as active — that and the other intermediate versions are now stale; see Stale IDs).
 - **Type:** custom-action, sync, collection `purchase_requests`; appends `[supplier, purchase_order]`.
-- **Node chain:** Guard condition (`uufqoeb8xyz`, AND of `status==approved` + `purchase_order==null`):
-  - branch 1 (true) → Query default delivery address (`ay8dlnys4ef`) → Create purchase_orders (`ubg9mju1tjm`, sets `createdById={{$context.user.id}}`) → Create po_lines default line (`4p3q7oq3co5`, writes only `purchase_order`/`description`/`quantity_ordered=1`)
+- **Node chain (7 nodes):** Guard condition (`uufqoeb8xyz`, AND of `status==approved` + `purchase_order==null`):
+  - branch 1 (true) → Query default delivery address (`ay8dlnys4ef`) → **Calculation `umk9xiw5aio` (D31, formula.js): `SUBSTITUTE({{$context.data.pr_number}}, "PR-", "PO-")`** → Create purchase_orders (`ubg9mju1tjm`, sets `po_number={{$jobsMapByNodeKey.umk9xiw5aio}}`, `createdById={{$context.user.id}}`) → Create po_lines default line (`4p3q7oq3co5`, writes only `purchase_order`/`description`/`quantity_ordered=1`)
   - branch 0 (false) → Response message (`ylrivonemrq`) → End process (`gviz4zia0ha`, endStatus: -1)
-- **Bound to button:** `28jh1q2camo` (Generate PO button, visible on PR table block `l1e2iwdwau9` and PR detail popup `2b367dbd157`).
+- The `response-message` + `end-process(-1)` pair on the false branch (per [`feedback_inline_guard_end_node`](../../../.claude/projects/-Users-alexander-Documents-Claude-Projects-Havenbeheer-Purchasing/memory/feedback_inline_guard_end_node.md)) is preserved across the D31 revision.
+- **Bound to button:** `28jh1q2camo` (Generate PO button, visible on PR table block `l1e2iwdwau9` and PR detail popup `2b367dbd157`). Binding is by key, unaffected by the revision.
 
 ### Create-PO Guard (MVP9a)
 - **Key:** `vgv8hcrtjvx`
@@ -240,11 +242,11 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
 ## UI
 
 - **Purchase Requests page UID:** `cuycec133qb`
-- **Table block:** `l1e2iwdwau9` — columns include title, status, quoted_total, quoted_currency, `expenditure_type`, `is_emergency`, `needed_by` (MVP8)
+- **Table block:** `l1e2iwdwau9` — columns include title, status, quoted_total, quoted_currency, `expenditure_type`, `is_emergency`, `needed_by` (MVP8), `pr_number` (D31 — column wrapper `05rzpmr4pxk`, DisplayTextFieldModel)
 - **PR view popup** (DetailsBlockModel `2b367dbd157`): shows all PR fields incl. quote fields, `needs_director_approval`, `supplier`, and the four MVP8 fields. The popup grid `5fb7b74fa30` contained an MVP8 Comments block `52t8wtbzni4` bound to `purchase_requests.comments`; the user removed it post-verification. Re-add via `nb api flow-surfaces add-block` with type `comments` and resource `{binding:"associatedRecords", associationField:"comments"}` targeting the grid.
 - **Procurement approval form** (now per-revision, detached from template `k60b738pjy0`): current ProcessFormModel uid varies per workflow revision. MVP8 read-only fields applied.
 - **PR create form** (CreateFormModel `e76c40c8c79`, template `n9f8v5vnhhc`): includes `needs_director_approval` checkbox after justification; linkage rule makes justification required when checkbox is checked. MVP8 added `expenditure_type`, `needed_by`, `is_emergency`, `other_attachments` after `needs_director_approval`. **MVP010** added `skip_dept_approval` (CheckboxFieldModel, wrapper `830iodzmcjo`, appended to grid `5c325101ecc`).
-- **PR detail popup** (`2b367dbd157`): MVP010 added `skip_dept_approval` read-only (DisplayCheckboxFieldModel, wrapper `in24ndj91et`).
+- **PR detail popup** (`2b367dbd157`): MVP010 added `skip_dept_approval` read-only (DisplayCheckboxFieldModel, wrapper `in24ndj91et`). **D31** added `pr_number` read-only (DisplayTextFieldModel, wrapper `24fsysz731w`).
 - **Generate PO button** (`28jh1q2camo`, MVP9a): `RecordTriggerWorkflowActionModel` on PR table row popup and PR detail popup. Bound to workflow key `2izsx8uv50r`. Two linkage rules:
   - Hide when `record.status != "approved"` OR `record.purchase_order is not empty`.
   - Hide when `ctx.user.roles.title` does not include `"Procurement"` (procurement-only visibility; see [feedback_linkage_rules_user_roles](../../../.claude/projects/-Users-alexander-Documents-Claude-Projects-Havenbeheer-Purchasing/memory/feedback_linkage_rules_user_roles.md) in auto-memory for the pattern).
@@ -290,13 +292,15 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 - `idezsq1k1ts` / `363982109736960` — original v3-plan MVP1 key, superseded
 - `1r4vyfbnie8` — hardcoded on the Generate-PO button before workflow build; no workflow with this key ever existed.
 
-### Stale Generate-PO (`2izsx8uv50r`) versions:
+### Stale Generate-PO (`2izsx8uv50r`) versions (all disabled before `367255610327040`):
 - `366569458696192` — initial build with JSON-filter embedded guard.
 - `366595041853440` — round-2 revision that wrongly removed the inline guard.
 - `366602797121536` — interim revision.
 - `366608098721792` — round-3 revision: restored guard but missed the end-process node on the false branch.
 - `366623370182656` — interim user revision.
-- All superseded 2026-05-27 by `366623590383616` (current).
+- `366623590383616` — was recorded as active through the $300-floor session; superseded by user revisions.
+- `366626266349568`, `366626572533760` — later user revisions; `366626572533760` was the live active version (executed=9) immediately before the D31 revision.
+- All superseded 2026-05-30 by `367255610327040` (current, D31).
 
 ### Stale Send-PO (`send_po`) versions (all disabled before `366981771362304`):
 - `366776493735936`, `366882024521728`, `366883251355648` — early build iterations.

@@ -178,6 +178,36 @@ edit the single `gte` leaf on `bizoy1sj87j`.
 
 ---
 
+## D31 — PR number is the source; PO number is derived by prefix swap
+Every `purchase_requests` record now carries `pr_number`, an auto-`sequence` field
+`PR-YY-NNNN` (2-digit year, 4-digit yearly-cycling counter, e.g. `PR-26-0004`). It is
+assigned automatically at **PR creation** (`inputable: false`), so abandoned/cancelled
+drafts leave gaps in the numbering — accepted. The matching purchase order takes the
+**exact same number with the prefix swapped** (`PR-26-0004` → `PO-26-0004`) so the two
+documents are visibly paired.
+
+**Why two independent sequences were rejected:** PR and PO counters increment separately
+and not every PR becomes a PO, so parallel sequences would drift and never match. The PR
+**owns** the number; the PO **derives** it. Cross-relation formula fields can't read
+`purchase_request.pr_number` from the PO side (see `feedback_formula_field_scope`), so the
+derivation is done inside the Generate-PO workflow, which means `po_number` had to stop
+being an auto-sequence.
+
+**How it's built:**
+- The old `po_number` **sequence** field on `purchase_orders` was deleted by the user and
+  replaced with a plain `string`/`input` field that the workflow writes.
+- Generate-PO workflow (`2izsx8uv50r`) revisioned to active version `367255610327040`: a
+  new formula.js calculation node `umk9xiw5aio` computes
+  `SUBSTITUTE({{$context.data.pr_number}}, "PR-", "PO-")`, and the Create-PO node
+  (`ubg9mju1tjm`) assigns `po_number = {{$jobsMapByNodeKey.umk9xiw5aio}}`.
+- The 10 pre-existing PRs stay `pr_number = null` (sequence only fires on new inserts). A PO
+  generated from a null-`pr_number` PR would get a blank `po_number` — acceptable (test data).
+
+Built + verified end-to-end 2026-05-30 (PR `PR-26-0001` → PO `PO-26-0001`). **Affects:**
+MVP9a (Generate-PO), and any future receiving/reporting MVP that references PO numbering.
+
+---
+
 ## Living register
 
 New entries go below in numeric order. When superseding a prior decision, mark the prior entry as superseded in [decisions-archive.md](decisions-archive.md) and add a `**Supersedes:** D#` line on the new entry.
