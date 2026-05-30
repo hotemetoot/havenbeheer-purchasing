@@ -200,8 +200,11 @@ being an auto-sequence.
   new formula.js calculation node `umk9xiw5aio` computes
   `SUBSTITUTE({{$context.data.pr_number}}, "PR-", "PO-")`, and the Create-PO node
   (`ubg9mju1tjm`) assigns `po_number = {{$jobsMapByNodeKey.umk9xiw5aio}}`.
-- The 10 pre-existing PRs stay `pr_number = null` (sequence only fires on new inserts). A PO
-  generated from a null-`pr_number` PR would get a blank `po_number` — acceptable (test data).
+- Pre-existing PRs would stay `pr_number = null` (sequence only fires on new inserts), and a PO
+  generated from a null-`pr_number` PR would get a blank `po_number` — but moot now: **all PR/PO/
+  po_lines test data was cleared by the user on 2026-05-30** after verification, so the tables
+  start empty. The sequence counter does not roll back on delete, so the first new PR will be
+  `PR-26-0002` (`PR-26-0001` was consumed by the deleted verification PR).
 
 Built + verified end-to-end 2026-05-30 (PR `PR-26-0001` → PO `PO-26-0001`). **Affects:**
 MVP9a (Generate-PO), and any future receiving/reporting MVP that references PO numbering.

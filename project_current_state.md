@@ -24,7 +24,7 @@ This file is the **single source of truth** for the live NocoBase environment st
 
 | Field | Interface | Notes |
 |---|---|---|
-| pr_number | sequence | **D31** — auto `PR-YY-NNNN` (2-digit year, 4-digit yearly-cycling counter, e.g. `PR-26-0004`); field key `jo6vvssc0i5`, `inputable: false`. Assigned at PR creation. The 10 pre-existing PRs are null (sequence only fires on new inserts). PO derives its number from this (see Generate-PO workflow). |
+| pr_number | sequence | **D31** — auto `PR-YY-NNNN` (2-digit year, 4-digit yearly-cycling counter, e.g. `PR-26-0004`); field key `jo6vvssc0i5`, `inputable: false`. Assigned at PR creation. PO derives its number from this (see Generate-PO workflow). **Counter note:** `PR-26-0001` was consumed by a since-deleted verification PR; deleting records does not roll back a sequence counter, so the next new PR will be **`PR-26-0002`**. |
 | title | input | |
 | description | textarea | |
 | justification | vditor | rich text |
