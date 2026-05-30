@@ -1,8 +1,8 @@
 # Current Build State
 
-**Last verified:** 2026-05-29 (live env queried via `nb api` — MVP9b Send-PO + Close-PO workflows and budget zones; MVP010 skip-dept-approval staged).
+**Last verified:** 2026-05-30 (live env queried via `nb api` — director-approval $300 floor activated; MVP9b Send-PO + Close-PO workflows and budget zones; MVP010 skip-dept-approval).
 
-MVPs 1–8 built. MVP7 was reduced to suppliers-only (D26). MVP8 added comments collection + 4 soft fields + UI surfaces; the comments UI block in the PR detail popup was removed by the user post-verification (data layer remains — can be re-added). **MVP9a built 2026-05-26**: PO + po_lines + lookups, Generate-PO workflow (`2izsx8uv50r` v `366595041853440`), Create-PO Guard (`vgv8hcrtjvx`), Generate-PO button on PR surfaces with procurement-only visibility. PR↔PO relation re-shaped to clean m2o + virtual hasOne. **MVP9b built 2026-05-29**: PO `draft → sent` with budget-zone guard (Send PO workflow `send_po`), PO `draft → closed` (Close PO workflow `close_po_draft`), Send + Close buttons on PO surfaces. `cancelled` collapsed into `closed` (D28). Zone-2 in-app notifications (9b.3) deferred — gated on Finance dept `main_approver` being set (still NULL). **MVP010 built + verified 2026-05-29:** optional submitter `skip_dept_approval` (D29) — field + UI toggle live; PR Approval workflow revision `367150157135872` (key `cv237r8h7k9`) activated and end-to-end verified by user. When skipped, dept head gets an in-app FYI notification and the PR routes straight to Procurement. Next: **MVP9c — receiving**.
+MVPs 1–8 built. MVP7 was reduced to suppliers-only (D26). MVP8 added comments collection + 4 soft fields + UI surfaces; the comments UI block in the PR detail popup was removed by the user post-verification (data layer remains — can be re-added). **MVP9a built 2026-05-26**: PO + po_lines + lookups, Generate-PO workflow (`2izsx8uv50r` v `366595041853440`), Create-PO Guard (`vgv8hcrtjvx`), Generate-PO button on PR surfaces with procurement-only visibility. PR↔PO relation re-shaped to clean m2o + virtual hasOne. **MVP9b built 2026-05-29**: PO `draft → sent` with budget-zone guard (Send PO workflow `send_po`), PO `draft → closed` (Close PO workflow `close_po_draft`), Send + Close buttons on PO surfaces. `cancelled` collapsed into `closed` (D28). Zone-2 in-app notifications (9b.3) deferred — gated on Finance dept `main_approver` being set (still NULL). **MVP010 built + verified 2026-05-29:** optional submitter `skip_dept_approval` (D29) — field + UI toggle live; PR Approval workflow revision `367150157135872` (key `cv237r8h7k9`) activated and end-to-end verified by user. When skipped, dept head gets an in-app FYI notification and the PR routes straight to Procurement. **D30 built + verified 2026-05-30:** mandatory director approval at **`quoted_total_usd >= 300`** — PR Approval revisioned to `367158084370432` (key `cv237r8h7k9`); the director-decision condition `bizoy1sj87j` is now an OR of the manual `needs_director_approval` checkbox and the $300 USD floor. Next: **MVP9c — receiving**.
 
 This file is the **single source of truth** for the live NocoBase environment state. Update it at the end of every session that creates or modifies collections, fields, workflows, or UI surfaces. Commit changes alongside the build commits they describe.
 
@@ -48,7 +48,7 @@ This file is the **single source of truth** for the live NocoBase environment st
 | other_attachments | attachment (multi) | MVP8 — distinct from `quotation_attachment` |
 | comments | o2m → pr_comments | MVP8 — comment thread relation; UI block removed post-verify (data layer kept) |
 | purchase_order | oho (hasOne) → purchase_orders | MVP9a — virtual inverse of `purchase_orders.purchase_request`. No FK column on PR side. |
-| skip_dept_approval | checkbox (boolean) | MVP010 — default false; submitter opts to skip dept-head approval (D29). On the create form + read-only on detail popup. Honored by active PR Approval workflow `367150157135872` (FYI-notifies dept head). |
+| skip_dept_approval | checkbox (boolean) | MVP010 — default false; submitter opts to skip dept-head approval (D29). On the create form + read-only on detail popup. Honored by active PR Approval workflow `367158084370432` (FYI-notifies dept head). |
 
 **`status` values:** `draft`, `pending_dept_approval`, `pending_purchasing_review`, `pending_director_approval`, `info_requested`, `approved`, `rejected`, `cancelled`
 
@@ -123,11 +123,12 @@ Lookup collections. `delivery_addresses` has `name` (title), `address`, `is_defa
 
 ### PR Approval workflow
 - **Key:** `cv237r8h7k9`
-- **Active version ID:** `367150157135872` (enabled=true, current=true) — **MVP010 revision, activated + verified 2026-05-29**. Adds the `skip_dept_approval` branch (D29). Revision of 366549533655040 (MVP8 lineage). All prior versions disabled — see "Stale IDs".
+- **Active version ID:** `367158084370432` (enabled=true, current=true) — **D30 revision: director-approval $300 floor, activated + verified 2026-05-30**. Revision of `367150157135872` (MVP010 lineage); the only change is condition `bizoy1sj87j` (see below). All prior versions disabled — see "Stale IDs".
+- **Prior version ID:** `367150157135872` (now disabled) — MVP010 revision (skip_dept_approval branch, D29), activated + verified 2026-05-29.
 - **Type:** approval, collection `purchase_requests`
 - **Trigger appends:** `createdBy`, `createdBy.mainDepartment`, `createdBy.mainDepartment.main_approver`, `createdBy.mainDepartment.secondary_approver`
 - **Trigger approvalUid:** `eau2jcelpdt`; **taskCardUid:** `samikialtou`
-- **Nodes** (active version `367150157135872`; 21 nodes; node keys preserved across revisions):
+- **Nodes** (active version `367158084370432`; 21 nodes; node keys preserved across revisions):
   - Root update `1f6a1h52l9u` — sets status=pending_dept_approval
   - Query `yrl9kgkrb3x` (qProc) — fetches Procurement dept with `main_approver` appended
   - Condition `5hed96jh1u7` — submitter IS dept main_approver → skip dept (no notify)
@@ -139,7 +140,7 @@ Lookup collections. `delivery_addresses` has `name` (title), `address`, `is_defa
         - br=1 (return): Update `bm50djboga3` → status=info_requested
         - br=-1 (reject): Update `1b06nufq3bi` → status=rejected
   - Approval#2 `ec2h8cqal32` Procurement Approval
-    - br=2 (approve): Condition `bizoy1sj87j` — `needs_director_approval == true?`
+    - br=2 (approve): Condition `bizoy1sj87j` — **OR group (D30, basic engine):** `needs_director_approval == true` **OR** `quoted_total_usd >= 300`. (Reads both operands from `{{$jobsMapByNodeKey.ec2h8cqal32.data.*}}`. `quoted_total_usd` is the stored formula field; computes to 0 when no quote, so a missing quote never trips the floor.)
       - br=1 (true): Update `eg86l2ilhmk` → status=pending_director_approval → Approval#3 `sxvxwl498xg`
       - br=0 (false): Update `jy1365pvsce` → status=approved, approved_at=now
     - br=1 (return): Update `pket0lgmjyk` → status=info_requested
@@ -149,10 +150,11 @@ Lookup collections. `delivery_addresses` has `name` (title), `address`, `is_defa
     - br=1 (return): Update `z1x6ghkmr2t` → status=info_requested
     - br=-1 (reject): Update `t2odlgyqdra` → status=rejected
 - **MVP010 notification node** `5h232imw9ss`: channel `approval-todo-in-app-message` (existing in-app channel), receivers `["{{$context.data.createdBy.mainDepartment.mainApproverId}}"]`, `ignoreFail=true` (FYI must not block flow). on_leave→secondary fallback NOT implemented (main-only, v1 per D29).
-- **Approval surfaces (version 367150157135872):**
-  - Dept approver (`cfg687cye3n`): approvalUid `qvig0h56ixs`, taskCardUid `2570ru6tzn4`
-  - Procurement (`ec2h8cqal32`): approvalUid `bix5r31hbtr`, taskCardUid `82brq5d17mn` — procurement ProcessForm local to this revision lineage (detached from shared template `k60b738pjy0` in MVP8).
-  - Director (`sxvxwl498xg`): approvalUid `44zwoatqddy`, taskCardUid `ftbqbeatyo5`
+- **Approval surfaces (active version 367158084370432, D30 revision):**
+  - Trigger: approvalUid `oudb91ahp0g`, taskCardUid `84gqev1gycl`
+  - Dept approver (`cfg687cye3n`): approvalUid `x1v8vfcjrnv`, taskCardUid `g93one3xwn9`
+  - Procurement (`ec2h8cqal32`): approvalUid `1zfnz7s6in2`, taskCardUid `zbx9zt781mg` — procurement ProcessForm local to this revision lineage (detached from shared template `k60b738pjy0` in MVP8).
+  - Director (`sxvxwl498xg`): approvalUid `04fmmdcx1p9`, taskCardUid `j5uzaf7vnnn`
 
 The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_attachments`) are present on all three approval forms: editable on dept, read-only (`pattern: readPretty`) on procurement and director.
 
@@ -260,7 +262,8 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 
 ## Stale IDs (DO NOT USE)
 
-### Workflow versions of `cv237r8h7k9` (all disabled before `367150157135872`):
+### Workflow versions of `cv237r8h7k9` (all disabled before `367158084370432`):
+- `367150157135872` (was active MVP010, replaced by D30 $300-floor revision 2026-05-30). Its approval surfaces are now stale: trigger approvalUid `eau2jcelpdt`/taskCardUid `samikialtou`; dept `qvig0h56ixs`/`2570ru6tzn4`; procurement `bix5r31hbtr`/`82brq5d17mn`; director `44zwoatqddy`/`ftbqbeatyo5`.
 - `366549533655040` (was active MVP8→MVP9b, replaced by MVP010 revision 2026-05-29). Its approval surfaces are now stale: trigger approvalUid `1yw73plyqsf`/taskCardUid `e6edajqk51d`; dept `0qljvpsiceo`/`pdbm4aixrc9`; procurement `z01rza37pod`/`bvlz1vbvi7t`; director `6x42w7n9h4g`/`aahsde3cnie`.
 - `366523411529728` (MVP8 intermediate revision, superseded by user's follow-up edits → `366549533655040`)
 - `366523398946816` (MVP8 duplicate revision created accidentally, never enabled — destroying it needs explicit user OK per CLAUDE.md irreversible-action rule)

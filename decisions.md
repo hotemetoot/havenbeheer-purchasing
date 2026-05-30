@@ -149,6 +149,35 @@ not a pull-back mechanism — the dept head is informed, not gating.
 
 ---
 
+## D30 — Mandatory director approval at ≥ $300 USD (floor on top of the manual checkbox)
+Any PR whose `quoted_total_usd` is **≥ 300** must always route to the Director, regardless of
+the submitter's `needs_director_approval` checkbox. This is a **floor added on top of** D23, not
+a replacement: the checkbox still works as a *voluntary escalation* (a submitter can send a sub-
+$300 PR to the Director), and the threshold forces the Director path even when the box is off.
+The two combine as **OR** in the existing director-decision condition `bizoy1sj87j` (PR Approval
+workflow `cv237r8h7k9`): `needs_director_approval == true` **OR** `quoted_total_usd >= 300`.
+Boundary is **inclusive** (exactly $300.00 requires director). Threshold is **hardcoded** as
+`300` (no config collection). **Partially supersedes** D23 for the director-decision node — D23's
+"director routing is purely the submitter's checkbox" no longer holds; the checkbox is now the
+*lower* bound of when the Director is involved. **Affects:** MVP4 (the director-decision
+condition); implemented as a workflow revision (`367150157135872` → `367158084370432`), built +
+verified 2026-05-30.
+
+**Why:** The team wanted a hard guarantee that larger spends always reach the Director, while
+keeping the manual-judgment flexibility of D23 for everything below the line. A floor (rather
+than reverting to a pure threshold like the old $1,500 rule) preserves both: judgment below
+$300, certainty at/above it.
+
+**How to apply:** The threshold is evaluated on `quoted_total_usd` (the stored USD formula
+field), read in the condition via `{{$jobsMapByNodeKey.ec2h8cqal32.data.quoted_total_usd}}`.
+It computes to `0` when no quote is entered, so a missing quote never trips the floor. Basic
+condition engine, `gte` calculator — no arithmetic/calculation node needed (the
+`feedback_prefer_mathjs_engine` caveat is about `$jobsMapByNodeKey` *result* references, not
+field-scalar comparisons). To change the threshold or boundary later, revision the workflow and
+edit the single `gte` leaf on `bizoy1sj87j`.
+
+---
+
 ## Living register
 
 New entries go below in numeric order. When superseding a prior decision, mark the prior entry as superseded in [decisions-archive.md](decisions-archive.md) and add a `**Supersedes:** D#` line on the new entry.
