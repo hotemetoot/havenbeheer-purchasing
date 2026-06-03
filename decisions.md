@@ -211,6 +211,46 @@ MVP9a (Generate-PO), and any future receiving/reporting MVP that references PO n
 
 ---
 
+## D32 — Mandatory board approval at ≥ $15,000 USD (second floor, above the Director)
+Any PR whose `quoted_total_usd` is **≥ 15000** must, *after* the Director approves, route to a
+new **Board Approval** stage instead of going straight to `approved`. The board does not use the
+app — they sign a hard copy — so the in-app step exists to **record** that decision: Procurement
+(Pat, user 11) uploads the signed document and approves. This is a **floor on top of D30**
+(director ≥ $300): a ≥ $15k PR already passes the director under D30, so the board branch always
+hangs off the director-approve branch — there is no "board but no director" case. Boundary is
+**inclusive** (exactly $15,000.00 requires board); threshold **hardcoded** as `15000`.
+
+**Mechanism (chosen over a free-floating attachment + guarded button):** a 4th approval node
+mirroring the existing three. The required signed-document attachment is enforced natively by a
+**required field on the approval ProcessForm**, the task lands in Procurement's queue (won't be
+forgotten), and reject/return come for free. New status value `pending_board_approval`. New field
+`purchase_requests.board_approval_document` (multi-attachment). Implemented as a workflow revision
+(`367158084370432` → `367885604880384`, key `cv237r8h7k9`): on the Director-approve branch a
+condition `fro4hak78r9` (`gte`, reusing the proven D30 reference
+`{{$jobsMapByNodeKey.ec2h8cqal32.data.quoted_total_usd}}`) routes **< $15k → approved** (existing
+node `kj1zcmujub8`) and **≥ $15k → pending_board_approval → Board Approval node `01upqmcb1qy`
+(assignee 11)** → approve/return/reject. Built + verified end-to-end 2026-06-02 (16,000 USD PR).
+**Affects:** MVP4 (director-decision area); the PR Approval workflow lineage.
+
+**ACL dependency (D32a):** recording board approval requires Procurement to **upload** the signed
+file, which is a `create` on the `attachments` collection. Procurement's global strategy was
+`view/trigger/update` (no create), so this 403'd. Granted a **narrow independent resource
+permission**: procurement → `attachments` → `view/create/update` (scope all). Deliberately **not**
+a global `create` (that would let procurement create PRs, violating D25). See auto-memory
+`feedback_approver_attachment_upload_acl`.
+
+**Build gotcha (not a decision, recorded for context):** the board approval form was built via
+`applyApprovalBlueprint`, which omits the per-action `CommentFormModel`; approvers then 403 on
+`flowModels:save` when the runtime tries to create it. Fixed by pre-creating three
+`CommentFormModel`s (`bcmt_approve/reject/return`) and setting each action's `commentFormUid`. See
+auto-memory `feedback_approval_blueprint_comment_models`.
+
+**Why a floor, not a pure threshold:** same reasoning as D30 — preserves the manual-judgment
+flexibility below the line while guaranteeing the largest spends always reach the board. To change
+the threshold/boundary later, revision the workflow and edit the single `gte` leaf on `fro4hak78r9`.
+
+---
+
 ## Living register
 
 New entries go below in numeric order. When superseding a prior decision, mark the prior entry as superseded in [decisions-archive.md](decisions-archive.md) and add a `**Supersedes:** D#` line on the new entry.

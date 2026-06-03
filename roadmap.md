@@ -16,6 +16,7 @@
 | 009d | PO completion / closing / cancellation + immutability | pending |
 | 009e | PO template printing (Word → PDF) | pending |
 | 010 | Optional submitter-chosen skip of dept-head approval (FYI notify + view access, D29) | ✓ built + verified |
+| 011 | Mandatory board approval at ≥ $15k USD after director — `pending_board_approval` + required signed-doc upload (D32) | ✓ built + verified |
 | — | supplier_issues + supplier_evaluations | deferred (D26) — see [chunks/deferred-supplier-issues-evaluations.md](chunks/deferred-supplier-issues-evaluations.md) |
 
 Detail lives in `chunks/NNN-*.md` for pending/active MVPs and `completed/NNN-*.md` for finished ones.

@@ -56,6 +56,8 @@ Wait for explicit approval before executing.
 - **`triggerWorkflow` action type.** Setting `workflowKey` via `flow-surfaces configure` is not supported. Set it directly via `nb api resource update --resource flowModels`.
 - **`$notIn` operator** is not supported in linkage rule conditions — use combined `$ne` with `$and`.
 - **`fieldGroups` requirement.** Any future page using `purchase_requests` will need `defaults.collections.purchase_requests.fieldGroups` (and similar for `users` because the `submitter` association generates a view popup with >10 fields).
+- **Fresh approval forms need pre-created comment models.** A form built via `applyApprovalBlueprint` omits the per-action `CommentFormModel`; the runtime tries to create+persist it via `flowModels:save` when an approver opens the task → 403 for non-UI-admin approvers ("Failed to load or create comment model"). Pre-create one `CommentFormModel` per Approve/Reject/Return action (as admin) and set each action's `commentFormUid`. (See `feedback_approval_blueprint_comment_models` in auto-memory.)
+- **Approver file upload needs `create` on `attachments`.** Uploading into an attachment field is a `create` on the `attachments` collection. A reviewer/approver role with `view/update` but no `create` gets 403. Grant `create` on `attachments` via a narrow independent resource permission — never add a global `create` (that would let the role create PRs, violating D25). (See `feedback_approver_attachment_upload_acl` in auto-memory.)
 
 ## Skills
 
