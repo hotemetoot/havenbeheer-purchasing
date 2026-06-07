@@ -13,7 +13,7 @@
 | 009a | PO collection + po_lines + Generate-PO button | ✓ built (D27 descoped po_lines pricing; planned 9a.4 total-maintenance cancelled) |
 | 009b | PO send + budget zones (110%) + zone 2/3 notifications | ✓ built (D28 cancel→close collapse; zone-2 verified; zone-2 in-app notifications deferred — gated on Finance `main_approver`) |
 | 009c | PO receiving (per-line `received_quantity`) | ✓ built + verified 2026-06-07 (Receive Guard `mhfp4d15uee` + Receiving recompute `ork27v016yo`; receiving UI user-built; R1–R4 passed) |
-| 009d | PO completion / closing / cancellation + immutability | pending |
+| 009d | PO completion / closing + immutability (no cancel — D28/D33) | backend built 2026-06-07 (Complete `qh7b3hc5q1r` + broadened Close + PO/line immutability guards); UI buttons + C1–C5 verification pending (user wires buttons) |
 | 009e | PO template printing (Word → PDF) | pending |
 | 010 | Optional submitter-chosen skip of dept-head approval (FYI notify + view access, D29) | ✓ built + verified |
 | 011 | Mandatory board approval at ≥ $15k USD after director — `pending_board_approval` + required signed-doc upload (D32) | ✓ built + verified |

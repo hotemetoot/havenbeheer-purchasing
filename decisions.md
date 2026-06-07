@@ -251,6 +251,41 @@ the threshold/boundary later, revision the workflow and edit the single `gte` le
 
 ---
 
+## D33 — MVP9d scope: complete + broadened close + header/line immutability (no cancel)
+PO completion/closing/immutability built 2026-06-07, **aligned to D28** (no `cancel` action, no
+`cancelled` status — "cancel a draft" is close-with-reason, already in 9b). The original
+`chunks/009d` cancel item is removed. Decisions taken:
+
+- **Complete** is `received → completed` only (new sync custom-action workflow `qh7b3hc5q1r`).
+- **Close** is broadened to `{draft, sent, confirmed, partially_received} → closed` by editing the
+  existing `close_po_draft` guard **in place** (the workflow had `executed=0`, so the
+  workflow-versioning rule did not require a revision). `received` is **deliberately not
+  closeable** — a received PO completes; to bail out, correct a line down to revert it to
+  `partially_received`, then close. (Matches the PO design doc; user-confirmed.)
+- **Immutability covers header + lines** (user-confirmed): two request-interception guards
+  (`xvcsdv07c5j` on `purchase_orders`, `f3dkb37te22` on `po_lines`) lock update+destroy when the
+  PO status ∈ {completed, closed}. Same shape as PR Guard A; **D24 bulk-update limitation applies**
+  (relies on `filterByTk`).
+- **UI buttons are built by the user**, not the agent — consistent with the 9c receiving UI. An
+  agent direct-insert of a `RecordTriggerWorkflowActionModel` into `flowModels` did **not** register
+  into the normalized flow-surface readback (and so would not render reliably); build action buttons
+  through the NocoBase UI (or the flow-surfaces authoring API), not raw `flowModels` create. The
+  doc-recorded Close button `lylrxwl1b3g` had already been **removed by the user**, and a
+  `TemplatePrintRecordActionModel` (MVP9e) was added by the user beside Send.
+
+**Payment-vs-immutability caveat (D33a):** the PO immutability guard locks *all* updates on a
+terminal PO, including `payment_status` / `payment_date`. The PO design says payment is orthogonal
+to PO status (Finance updates at any stage). This is **not a conflict today** — no Finance payment
+UI/workflow exists and the finance role strategy is `null` — so terminal-lock is safe. **When a
+payment MVP is built**, add a carve-out so Finance can still set payment fields on a terminal PO
+(e.g. exempt those fields, mirroring the `closed_for_new_pos` operational-flag exemption), rather
+than loosening the whole guard.
+
+**Affects:** MVP9d (this build); MVP9e (template printing — already started by the user); a future
+payment MVP (must respect D33a).
+
+---
+
 ## Living register
 
 New entries go below in numeric order. When superseding a prior decision, mark the prior entry as superseded in [decisions-archive.md](decisions-archive.md) and add a `**Supersedes:** D#` line on the new entry.

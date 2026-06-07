@@ -1,6 +1,10 @@
 # Current Build State
 
-**Last verified:** 2026-06-07 (live env queried via `nb api` — **MVP9c PO-receiving built + verified (R1–R4 passed)**; D32/MVP011 board-approval ≥ $15k; PR/PO numbering D31; director-approval $300 floor D30; MVP9b Send-PO + Close-PO; MVP010 skip-dept-approval). Next: **MVP9d — PO completion / closing / immutability**.
+**Last verified:** 2026-06-07 (live env queried via `nb api` — **MVP9d backend built (Complete workflow + broadened Close + PO/line immutability guards); UI buttons + end-to-end C1–C5 verification PENDING (user wires the buttons)**; MVP9c PO-receiving verified; D32/MVP011 board-approval ≥ $15k; PR/PO numbering D31; director-approval $300 floor D30; MVP9b Send-PO + Close-PO; MVP010 skip-dept-approval). Next: **MVP9d verification, then MVP9e — PO template printing (user has already started a "Template print" action on the PO detail block)**.
+
+**MVP9d backend built 2026-06-07 (PO completion / closing / immutability) — UI + verification pending.** Scope aligned to **D28** (no `cancel` action, no `cancelled` status — "cancel a draft" is just close-with-reason, already in 9b). Four workflow changes: (1) **Complete PO** (custom-action, sync, key `qh7b3hc5q1r`, ver `368746204954624`): guard `complete_guard` (status==received) → true: `complete_update` status=completed + completed_at; false: reject msg + end(-1). (2) **Close PO** (`close_po_draft`, `366780629319680`, **edited in place — executed=0 so no revision**): guard `close_guard_draft` broadened from `draft` only → OR of `draft/sent/confirmed/partially_received`; reject msg + workflow title updated (now "Close PO"). (3) **Guard: PO Immutability** (request-interception, global, sync, key `xvcsdv07c5j`, ver `368747670863872`; actions update+destroy on `purchase_orders`): query target PO → condition OR status∈{completed,closed} → reject msg + end(-1). (4) **Guard: PO Line Immutability** (request-interception, global, sync, key `f3dkb37te22`, ver `368747750555648`; actions update+destroy on `po_lines`): query line (appends purchase_order) → condition OR purchase_order.status∈{completed,closed} → reject msg + end(-1). No new fields (completed_at/closed_at/close_reason/close_comment + status enum all pre-existed). **UI:** the user builds the Complete + Close buttons themselves (as with the 9c receiving UI); the doc-recorded Close button `lylrxwl1b3g` was **removed by the user** and is gone from the surface. **Caveat:** the PO immutability guard locks ALL updates on terminal POs, including payment fields — fine now (no Finance payment UI/workflow built, finance role strategy = null), but a future payment MVP will need a carve-out (cf. the `closed_for_new_pos` exemption pattern). See D33.
+
+**Doc-lag corrected 2026-06-07 (live `nb api` re-query):** active versions had drifted from the doc — **Send PO** active is `367086330314752` (was recorded `366981771362304`); **PR Approval** active is `368641179582464` (was `367885604880384`); **PO Receiving recompute** active is `368710576439296` (was `368072534523904`). Sections below updated. A stray disabled PR-Approval ver `368062113775616` may also exist (not re-confirmed this session).
 
 **MVP9c built + verified 2026-06-07 (PO receiving).** Receiving UI built by the user; R1–R4 passed (partial→partially_received; full→received + Pat notified; correct-down reverts received→partially_received; receiving on non-sent PO blocked). Two workflows: (1) **Guard: Receive** (request-interception, key `mhfp4d15uee`, ver `368072131870720`) blocks a `received_quantity` change on a PO not in `sent`/`confirmed`/`partially_received`/`received`; (2) **PO Receiving recompute** (collection trigger, key `ork27v016yo`, ver `368072534523904`) derives `po_lines.line_status` + PO header status on `received_quantity` change, and notifies Procurement (Pat) when fully received. Pricing untouched (D27 — no PO-total recompute). No new fields (received_quantity/line_status already existed from 9a; Record History already on via collection-level `logging:true`). No plan changes during build → no D-entry.
 
@@ -129,7 +133,7 @@ Lookup collections. `delivery_addresses` has `name` (title), `address`, `is_defa
 
 ### PR Approval workflow
 - **Key:** `cv237r8h7k9`
-- **Active version ID:** `367885604880384` (enabled=true, current=true) — **D32 revision (MVP011): board-approval ≥ $15k branch, activated + verified 2026-06-02** (16,000 USD PR). Revision of `367158084370432`; 27 nodes (21 carried over + 6 new board nodes). All prior versions disabled — see "Stale IDs".
+- **Active version ID:** `368641179582464` (enabled=true, current=true) — **doc-lag corrected 2026-06-07** (was recorded `367885604880384`; a later user revision is now active — its node/surface IDs were NOT re-inspected this session, so the node/surface tables below describe the `367885604880384` D32 revision and may lag). The D32 board-approval ≥ $15k branch was activated + verified 2026-06-02 (16,000 USD PR) on this lineage. All prior versions disabled — see "Stale IDs".
 - **Prior version ID:** `367158084370432` (now disabled) — D30 revision (director $300 floor), was active 2026-05-30 → 2026-06-02.
 - **Type:** approval, collection `purchase_requests`
 - **Trigger appends:** `createdBy`, `createdBy.mainDepartment`, `createdBy.mainDepartment.main_approver`, `createdBy.mainDepartment.secondary_approver`
@@ -211,7 +215,7 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
 
 ### Send PO workflow (MVP9b) — `draft → sent` + budget zones
 - **Key:** `send_po`
-- **Active version ID:** `366981771362304` (enabled=true, current=true)
+- **Active version ID:** `367086330314752` (enabled=true, current=true) — **doc-lag corrected 2026-06-07** (was recorded `366981771362304`, which is now a disabled prior version). Node keys/structure unchanged from the description below; the math.js zone-2 fix is carried.
 - **Type:** custom-action, sync, collection `purchase_orders`; appends `[purchase_request, supplier]` (supplier appended now for future supplier-email step).
 - **15-node chain** (node keys, branch structure):
   - `g_send_guard` (condition, basic) — AND status==draft, total≠null, fx_rate_to_usd≠null.
@@ -232,11 +236,33 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
 - **Bound to button:** `slybgc23q1i` (Send PO, `RecordTriggerWorkflowActionModel`) on PO surfaces.
 - **Engine note:** `z2_check` originally used the basic `gt` calculator and never fired (every PO fell to zone 1); switching the node to math.js fixed it. See auto-memory `feedback_prefer_mathjs_engine`. **Zone 2 verified 2026-05-29** (exec `366982002049024`: PO 2.8 USD vs PR 2.667 USD, cap 2.933 → zone 2, missing comment → rejected). Zone-2 in-app notifications (9b.3) are **not yet built** — gated on Finance `main_approver`.
 
-### Close PO workflow (MVP9b) — `draft → closed`
-- **Key:** `close_po_draft`
-- **Active version ID:** `366780629319680` (enabled=true, current=true)
-- **Type:** custom-action, sync, collection `purchase_orders`. Triggered by the Close PO popup form's Submit (popup-form-with-submit-trigger pattern — see auto-memory `feedback_workflow_form_button_pattern`).
-- Stamps `status=closed`, `closed_at={{$system.now}}` from the submitted `close_reason` + `close_comment`.
+### Close PO workflow (MVP9b; broadened MVP9d) — `draft/sent/confirmed/partially_received → closed`
+- **Key:** `close_po_draft` · **title now "Close PO"**
+- **Active version ID:** `366780629319680` (enabled=true, current=true) — **MVP9d edited the guard in place (executed=0, no revision needed).**
+- **Type:** custom-action, sync, collection `purchase_orders`. Triggered by a Close popup form's Submit (popup-form-with-submit-trigger pattern — see auto-memory `feedback_workflow_form_button_pattern`).
+- **Nodes:** `close_guard_draft` (condition, basic, **MVP9d: OR of `equal status` against `draft`/`sent`/`confirmed`/`partially_received`**, rejectOnFalse=false) → br=1 (true): `close_update` (status=closed, closed_at=now) ; br=0 (false): `close_guard_msg` (response-message, "Close is not available for a completed or closed PO.") → `close_guard_end` (end, -1).
+- Stamps `status=closed`, `closed_at={{$system.now}}` from the submitted `close_reason` + `close_comment`. **Note:** `received` is intentionally NOT closeable (a received PO completes; to bail, correct a line down to revert to `partially_received` first — D33).
+
+### Complete PO workflow (MVP9d) — `received → completed`
+- **Key:** `qh7b3hc5q1r`
+- **Active version ID:** `368746204954624` (enabled=true, current=true) — built 2026-06-07, **end-to-end verification pending** (user wires the Complete button).
+- **Type:** custom-action, sync, collection `purchase_orders`, no appends.
+- **Nodes (4):** `complete_guard` (condition, basic, `equal {{$context.data.status}} == "received"`, rejectOnFalse=false) → br=1 (true): `complete_update` (update `purchase_orders` where id=`{{$context.data.id}}`, status=completed, completed_at=now) ; br=0 (false): `complete_fail_msg` (response-message, "Complete is only available for a fully-received PO.") → `complete_fail_end` (end, -1).
+- **Button (TO BE BUILT BY USER):** a `RecordTriggerWorkflowActionModel` bound to key `qh7b3hc5q1r`, on the PO detail block `g9xffr68350` alongside Send. Visibility: hide when `record.status != "received"`; procurement-only (`ctx.user.roles.title` `$notIncludes` `"Procurement"`). (An agent direct-insert of this button into `flowModels` did NOT register into the normalized surface readback — build it through the NocoBase UI instead.)
+
+### Guard: PO Immutability (MVP9d) — lock terminal PO header
+- **Key:** `xvcsdv07c5j`
+- **Active version ID:** `368747670863872` (enabled=true, current=true) — built 2026-06-07, verification pending.
+- **Type:** request-interception, global, sync; actions: `update` + `destroy` on `purchase_orders`. Mirrors PR Guard A.
+- **Nodes (4):** `po_imm_query` (query purchase_orders, multiple=false, filter id=`{{$context.params.filterByTk}}`, failOnEmpty=false) → `po_imm_cond` (condition, basic, OR `equal {{$jobsMapByNodeKey.po_imm_query.status}}` against `completed`/`closed`, rejectOnFalse=false) → br=1: `po_imm_msg` (response-message, "This PO is finalized and can no longer be edited.") → `po_imm_end` (end, -1).
+- **D24 bulk-update limitation applies** (relies on `filterByTk`; bulk update via `filter.$and[0].id.$in` bypasses it) — documented, not fixed (C5). **Payment caveat:** see D33.
+
+### Guard: PO Line Immutability (MVP9d) — lock lines of a terminal PO
+- **Key:** `f3dkb37te22`
+- **Active version ID:** `368747750555648` (enabled=true, current=true) — built 2026-06-07, verification pending.
+- **Type:** request-interception, global, sync; actions: `update` + `destroy` on `po_lines`. Separate from the 9c Receive Guard (`mhfp4d15uee`, which only blocks `received_quantity` on non-receivable POs).
+- **Nodes (4):** `line_imm_query` (query po_lines, multiple=false, filter id=`{{$context.params.filterByTk}}`, **appends `[purchase_order]`**, failOnEmpty=false) → `line_imm_cond` (condition, basic, OR `equal {{$jobsMapByNodeKey.line_imm_query.purchase_order.status}}` against `completed`/`closed`, rejectOnFalse=false) → br=1: `line_imm_msg` (response-message, "Lines of a finalized PO can no longer be edited.") → `line_imm_end` (end, -1).
+- Workflow-internal updates (9c receiving recompute) bypass request-interception (`feedback_request_interception_scope`), so receiving is unaffected.
 
 ### Receive Guard (MVP9c) — block receiving against a non-receivable PO
 - **Key:** `mhfp4d15uee`
@@ -247,7 +273,7 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
 
 ### PO Receiving recompute workflow (MVP9c) — derive line_status + PO header
 - **Key:** `ork27v016yo`
-- **Active version ID:** `368072534523904` (enabled=true, current=true) — built + verified 2026-06-07 (R1–R3 passed).
+- **Active version ID:** `368710576439296` (enabled=true, current=true) — **doc-lag corrected 2026-06-07** (was recorded `368072534523904`; a later user revision is now active). R1–R3 verified on the lineage.
 - **Type:** collection event, **sync**, collection `po_lines`; **mode=2 (update), `changed:["received_quantity"]`** (loop guard — the workflow's own line_status/header writes don't re-fire), appends `[purchase_order]`.
 - **Node chain (10 nodes):**
   - `nys8gwon5ic` (calculation, **formula.js**) → `line_status` = `IFS(AND(quantity_ordered>0, received_quantity>=quantity_ordered),"received", received_quantity>0,"partially_received", true,"pending")` (reads `{{$context.data.*}}`).
@@ -299,7 +325,8 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 
 ## Stale IDs (DO NOT USE)
 
-### Workflow versions of `cv237r8h7k9` (all disabled before `367885604880384`):
+### Workflow versions of `cv237r8h7k9` (all disabled before `368641179582464`):
+- `367885604880384` — was the D32 board-approval active version (2026-06-02 → sometime before 2026-06-07); superseded by a later user revision `368641179582464` (current). Its approval-surface IDs (recorded in the PR Approval section above) may now be stale; not re-inspected this session.
 - `367158084370432` (was active D30 $300-floor, replaced by D32 board-approval revision 2026-06-02). Its approval surfaces are now stale: trigger approvalUid `oudb91ahp0g`/taskCardUid `84gqev1gycl`; dept `x1v8vfcjrnv`/`g93one3xwn9`; procurement `1zfnz7s6in2`/`zbx9zt781mg`; director `04fmmdcx1p9`/`j5uzaf7vnnn`.
 - `367150157135872` (was active MVP010, replaced by D30 $300-floor revision 2026-05-30). Its approval surfaces are now stale: trigger approvalUid `eau2jcelpdt`/taskCardUid `samikialtou`; dept `qvig0h56ixs`/`2570ru6tzn4`; procurement `bix5r31hbtr`/`82brq5d17mn`; director `44zwoatqddy`/`ftbqbeatyo5`.
 - `366549533655040` (was active MVP8→MVP9b, replaced by MVP010 revision 2026-05-29). Its approval surfaces are now stale: trigger approvalUid `1yw73plyqsf`/taskCardUid `e6edajqk51d`; dept `0qljvpsiceo`/`pdbm4aixrc9`; procurement `z01rza37pod`/`bvlz1vbvi7t`; director `6x42w7n9h4g`/`aahsde3cnie`.
@@ -338,7 +365,8 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 - `366626266349568`, `366626572533760` — later user revisions; `366626572533760` was the live active version (executed=9) immediately before the D31 revision.
 - All superseded 2026-05-30 by `367255610327040` (current, D31).
 
-### Stale Send-PO (`send_po`) versions (all disabled before `366981771362304`):
+### Stale Send-PO (`send_po`) versions (all disabled before `367086330314752`):
+- `366981771362304` — was recorded as active through MVP9c; superseded by a later user revision `367086330314752` (current). Earlier disabled versions below.
 - `366776493735936`, `366882024521728`, `366883251355648` — early build iterations.
 - `366883769352192` — had the zone-2 bug (basic-engine `gt` condition that never fired).
 - `366980364173312` — a revision where the agent patched the zone-2 condition with `.result` (wrong theory); superseded by the user's math.js fix in `366981771362304`.
@@ -352,8 +380,9 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 
 ## Notes for the next session
 
-- **MVP9d — next up.** PO completion / closing / cancellation + immutability: `received → completed` (manual procurement action, only from `received` per PO design §8 guard #9), close-from-non-draft (broadens the MVP9b draft-only Close to `sent`/`confirmed`/`partially_received` → `closed`), and lock PO + child `po_lines` once terminal (`completed`/`closed`) — a request-interception immutability guard analogous to Guard A on PRs. See `chunks/009d-po-completion-closing-immutability.md`.
-- **Doc lag spotted (not acted on):** live shows Send-PO active version `367086330314752` (cur=true) — the "Send PO workflow" section above still records `366981771362304`. Also a stray disabled PR-Approval ver `368062113775616` exists. Verify/clean next time these areas are touched.
+- **MVP9d — backend DONE 2026-06-07, verification PENDING.** Complete workflow (`qh7b3hc5q1r`), broadened Close (`close_po_draft`), and the two immutability guards (`xvcsdv07c5j` PO header, `f3dkb37te22` po_lines) are live + enabled. **What's left:** (a) the user wires the **Complete button** on the PO detail block `g9xffr68350` (spec: trigger key `qh7b3hc5q1r`, visible when `status==received`, procurement-only) and any Close button they want (guard already supports the 4 closeable statuses); (b) end-to-end manual C1–C5. Then a "MVP9d verified" commit.
+- **PO surface drift (FYI):** the user rebuilt the PO detail block — the doc's Close button `lylrxwl1b3g` is gone (removed on purpose), and a **`TemplatePrintRecordActionModel` ("Template print", uid `c579329db0d`)** now sits beside Send — i.e. MVP9e (template printing) has been started by the user. Capture 9e surface IDs when that MVP is formally done.
+- **Doc-lag corrected this session:** Send-PO active `367086330314752`, PR-Approval active `368641179582464`, Receiving-recompute active `368710576439296` (see sections + Stale IDs). The PR-Approval node/surface tables still describe `367885604880384` and were not re-inspected — refresh them next time that workflow is touched. Stray disabled PR-Approval ver `368062113775616` not re-confirmed.
 - **MVP7 was descoped.** Only `suppliers` was built; `supplier_issues` and `supplier_evaluations` are postponed (D26). Don't assume they exist.
 - **Supplier UI:** if a suppliers list/detail page was built during MVP7, its page UID isn't recorded here yet — capture it the next time it's touched.
 - **MVP8 ACL note:** Field-level edit gating for procurement/director on PR content stays enforced via form-pattern (`readPretty`) only, not strict ACL. Procurement+director roles still technically have those fields in their `update` whitelist via strategy-based ACL (`usingActionsConfig=false`). Tightening to independent permissions is a future hardening MVP. The four MVP8 fields inherit this same posture.
