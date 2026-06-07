@@ -1,8 +1,8 @@
 # Current Build State
 
-**Last verified:** 2026-06-07 (live env queried via `nb api` — **MVP9c PO-receiving workflows built, pending user R1–R4 + UI**; D32/MVP011 board-approval ≥ $15k; PR/PO numbering D31; director-approval $300 floor D30; MVP9b Send-PO + Close-PO; MVP010 skip-dept-approval).
+**Last verified:** 2026-06-07 (live env queried via `nb api` — **MVP9c PO-receiving built + verified (R1–R4 passed)**; D32/MVP011 board-approval ≥ $15k; PR/PO numbering D31; director-approval $300 floor D30; MVP9b Send-PO + Close-PO; MVP010 skip-dept-approval). Next: **MVP9d — PO completion / closing / immutability**.
 
-**MVP9c built 2026-06-07 (PO receiving) — workflows live + logic-tested, pending user end-to-end (R1–R4) verification + receiving UI (user is building the UI themselves).** Two new workflows: (1) **Guard: Receive** (request-interception, key `mhfp4d15uee`, ver `368072131870720`) blocks a `received_quantity` change on a PO not in `sent`/`confirmed`/`partially_received`/`received`; (2) **PO Receiving recompute** (collection trigger, key `ork27v016yo`, ver `368072534523904`) derives `po_lines.line_status` + PO header status on `received_quantity` change, and notifies Procurement (Pat) when fully received. Pricing untouched (D27 — no PO-total recompute). No new fields (received_quantity/line_status already existed from 9a; Record History already on via collection-level `logging:true`). Line_status formula + header conditions validated via `flow-nodes test`; live env had no PO test data to drive R1–R4 (cleared 2026-05-30 per D31).
+**MVP9c built + verified 2026-06-07 (PO receiving).** Receiving UI built by the user; R1–R4 passed (partial→partially_received; full→received + Pat notified; correct-down reverts received→partially_received; receiving on non-sent PO blocked). Two workflows: (1) **Guard: Receive** (request-interception, key `mhfp4d15uee`, ver `368072131870720`) blocks a `received_quantity` change on a PO not in `sent`/`confirmed`/`partially_received`/`received`; (2) **PO Receiving recompute** (collection trigger, key `ork27v016yo`, ver `368072534523904`) derives `po_lines.line_status` + PO header status on `received_quantity` change, and notifies Procurement (Pat) when fully received. Pricing untouched (D27 — no PO-total recompute). No new fields (received_quantity/line_status already existed from 9a; Record History already on via collection-level `logging:true`). No plan changes during build → no D-entry.
 
 **D32 built + verified 2026-06-02 (MVP011):** mandatory board approval at `quoted_total_usd >= 15000`, *after* the director. New status `pending_board_approval`, new multi-attachment field `board_approval_document`. PR Approval revisioned `367158084370432` → **`367885604880384`** (key `cv237r8h7k9`); board branch hangs off the director-approve branch via condition `fro4hak78r9`, routing ≥ $15k to a 4th approval node **Board Approval** (`01upqmcb1qy`, assignee Pat) whose ProcessForm requires the signed-doc upload. Two follow-on fixes were needed to make a fresh approval form usable by a non-admin approver: (1) granted Procurement `create` on `attachments` (independent resource perm) so Pat can upload; (2) pre-created the per-action `CommentFormModel`s the blueprint omits (else approver 403 on `flowModels:save`). See decisions D32 and auto-memory `feedback_approver_attachment_upload_acl` + `feedback_approval_blueprint_comment_models`.
 
@@ -240,14 +240,14 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
 
 ### Receive Guard (MVP9c) — block receiving against a non-receivable PO
 - **Key:** `mhfp4d15uee`
-- **Active version ID:** `368072131870720` (enabled=true, current=true) — built 2026-06-07, **pending user R4 verification**.
+- **Active version ID:** `368072131870720` (enabled=true, current=true) — built + verified 2026-06-07 (R4 passed).
 - **Type:** request-interception, global, sync; actions: `update` on `po_lines`.
 - **Node chain (4 nodes):** Query line+parent PO (`567k7v8jzsi`, filter id=`{{$context.params.filterByTk}}`, appends `[purchase_order]`) → Condition (`74kymxgok4k`, basic, **AND** of 5 `notEqual` leaves: `received_quantity` present (`{{$context.params.values.received_quantity}} != null`) AND PO.status ≠ each of sent/confirmed/partially_received/received) → br=1 (true=block): response-message (`9c4j0rzf24t`) → end (`03fvl5yb4vy`, endStatus −1).
 - **Design note:** blocks only when the submitted values carry a non-null `received_quantity` AND the PO isn't receivable — so editing a `draft` PO's lines stays allowed *provided `received_quantity` is empty on that form*. Bulk-update caveat (D24) applies. Workflow-internal update nodes bypass this guard (`feedback_request_interception_scope`).
 
 ### PO Receiving recompute workflow (MVP9c) — derive line_status + PO header
 - **Key:** `ork27v016yo`
-- **Active version ID:** `368072534523904` (enabled=true, current=true) — built 2026-06-07, **pending user R1–R3 verification**.
+- **Active version ID:** `368072534523904` (enabled=true, current=true) — built + verified 2026-06-07 (R1–R3 passed).
 - **Type:** collection event, **sync**, collection `po_lines`; **mode=2 (update), `changed:["received_quantity"]`** (loop guard — the workflow's own line_status/header writes don't re-fire), appends `[purchase_order]`.
 - **Node chain (10 nodes):**
   - `nys8gwon5ic` (calculation, **formula.js**) → `line_status` = `IFS(AND(quantity_ordered>0, received_quantity>=quantity_ordered),"received", received_quantity>0,"partially_received", true,"pending")` (reads `{{$context.data.*}}`).
@@ -259,7 +259,7 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
     - br=0 (false): `7sncivamuep` (condition, **math.js**) `{{$jobsMapByNodeKey.jsj8bqoihag}} > 0` (any receipts?):
       - br=1 (true): `9tot1o6z03u` Update PO `status=partially_received` (covers R1 + R3 reverse).
       - br=0 (false): no node — header unchanged.
-- **Verification status:** line_status formula + both math.js conditions validated via `nb api workflow flow-nodes test`; full R1–R4 pending (needs UI + a sent PO with lines).
+- **Verification status:** line_status formula + both math.js conditions validated via `nb api workflow flow-nodes test`; full R1–R4 passed end-to-end via the user-built receiving UI 2026-06-07.
 
 ---
 
@@ -352,7 +352,7 @@ Approval form surface IDs on the active version: see "Approval surfaces" above.
 
 ## Notes for the next session
 
-- **MVP9c — resume here.** Two workflows are live + enabled (Receive Guard `mhfp4d15uee`, Receiving recompute `ork27v016yo`) and node-tested, but **not yet end-to-end verified**. To finish: (1) user builds the receiving UI (`received_quantity` editable + procurement-only, `line_status` read-only, on the `po_lines` block of the PO detail popup — keep `received_quantity` OFF the draft line-edit form per the guard caveat); (2) run R1–R4 (partial / full+notify / correct-down-reverts / blocked-on-non-sent); (3) once verified, flip roadmap 009c → built and (if the plan changed during build) add a D-entry. No code/plan changes were needed during the build, so no D-entry yet.
+- **MVP9d — next up.** PO completion / closing / cancellation + immutability: `received → completed` (manual procurement action, only from `received` per PO design §8 guard #9), close-from-non-draft (broadens the MVP9b draft-only Close to `sent`/`confirmed`/`partially_received` → `closed`), and lock PO + child `po_lines` once terminal (`completed`/`closed`) — a request-interception immutability guard analogous to Guard A on PRs. See `chunks/009d-po-completion-closing-immutability.md`.
 - **Doc lag spotted (not acted on):** live shows Send-PO active version `367086330314752` (cur=true) — the "Send PO workflow" section above still records `366981771362304`. Also a stray disabled PR-Approval ver `368062113775616` exists. Verify/clean next time these areas are touched.
 - **MVP7 was descoped.** Only `suppliers` was built; `supplier_issues` and `supplier_evaluations` are postponed (D26). Don't assume they exist.
 - **Supplier UI:** if a suppliers list/detail page was built during MVP7, its page UID isn't recorded here yet — capture it the next time it's touched.
