@@ -257,11 +257,17 @@ PO completion/closing/immutability built 2026-06-07, **aligned to D28** (no `can
 `chunks/009d` cancel item is removed. Decisions taken:
 
 - **Complete** is `received → completed` only (new sync custom-action workflow `qh7b3hc5q1r`).
-- **Close** is broadened to `{draft, sent, confirmed, partially_received} → closed` by editing the
-  existing `close_po_draft` guard **in place** (the workflow had `executed=0`, so the
-  workflow-versioning rule did not require a revision). `received` is **deliberately not
-  closeable** — a received PO completes; to bail out, correct a line down to revert it to
-  `partially_received`, then close. (Matches the PO design doc; user-confirmed.)
+- **Close** allows `{draft, sent, confirmed, partially_received} → closed`. `received` is
+  **deliberately not closeable** — a received PO completes; to bail out, correct a line down to
+  revert it to `partially_received`, then close. (Matches the PO design doc; user-confirmed.)
+  - **Trigger-type correction (2026-06-07):** Close must capture `close_reason` + `close_comment`
+    via a form, so it is a **post-action event** (`type:"action"`, sync, local mode, key
+    `f8gpu17s6hq`) bound to the Close EditForm's **Submit**. The first 9d attempt wrongly used a
+    `custom-action` workflow (`close_po_draft`) — a form Submit can only bind
+    pre-action/post-action/approval, never custom-action — so it was unbindable and is now
+    disabled + renamed "(deprecated custom-action)". `custom-action` is only for one-click
+    "Trigger workflow" buttons (Send PO, Complete PO). See auto-memory
+    `feedback_workflow_form_button_pattern` (corrected; this was the 2nd occurrence of the mistake).
 - **Immutability covers header + lines** (user-confirmed): two request-interception guards
   (`xvcsdv07c5j` on `purchase_orders`, `f3dkb37te22` on `po_lines`) lock update+destroy when the
   PO status ∈ {completed, closed}. Same shape as PR Guard A; **D24 bulk-update limitation applies**

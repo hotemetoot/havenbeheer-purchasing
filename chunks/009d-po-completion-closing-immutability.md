@@ -41,7 +41,7 @@ Procurement can complete a received PO or close a non-terminal one with a reason
 
 ## Phases (as built)
 - **9d.1** Complete PO workflow (`qh7b3hc5q1r`) + Complete button (**button built by user**).
-- **9d.2** Broaden Close guard in place (`close_po_draft`, executed=0 → no revision).
+- **9d.2** Close as a **post-action event** (`action`, local mode, key `f8gpu17s6hq`), bound to the Close EditForm Submit — captures `close_reason`/`close_comment`. (The first attempt used a `custom-action` workflow, which can't bind to a form Submit; deprecated.)
 - **9d.3** Guard: PO Immutability (`xvcsdv07c5j`).
 - **9d.4** Guard: PO Line Immutability (`f3dkb37te22`).
 - **9d.5** Verify C1–C5 (pending user UI wiring).
