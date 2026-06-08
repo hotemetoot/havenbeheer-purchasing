@@ -287,8 +287,9 @@ payment MVP is built**, add a carve-out so Finance can still set payment fields 
 (e.g. exempt those fields, mirroring the `closed_for_new_pos` operational-flag exemption), rather
 than loosening the whole guard.
 
-**Affects:** MVP9d (this build); MVP9e (template printing — already started by the user); a future
-payment MVP (must respect D33a).
+**Affects:** MVP9d (this build); MVP9e (template printing — not started; only a bare "Template
+print" button exists on the PO detail block, no template configured/tested); a future payment MVP
+(must respect D33a).
 
 ---
 
