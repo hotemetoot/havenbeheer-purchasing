@@ -18,6 +18,9 @@ Procurement can complete a received PO or close a non-terminal one with a reason
   Close (same `close_po_draft` workflow; guard edited in place). Sets `closed_at`.
   - `received` is **not** closeable — a received PO completes; to bail, correct a line down first
     (reverts to `partially_received`), then close. (User-confirmed.)
+  - **D35 (2026-06-09):** because the Close workflow is a post-action event (can't reject/message),
+    a Close attempt on a non-closeable PO (notably `received`) was silently ignored. Added a
+    request-interception **Close Guard** (`b6brl8r9c58`) that rejects with a message. See decisions D35.
 - **PO immutability guard** when status ∈ {completed, closed} — request-interception on
   `purchase_orders` (update + destroy), mirroring PR Guard A. D24 bulk-update limitation applies.
 - **PO line immutability guard** when the parent PO is terminal — request-interception on

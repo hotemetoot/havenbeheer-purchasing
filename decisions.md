@@ -324,6 +324,36 @@ MVP unaffected.
 
 ---
 
+## D35 — Close Guard: reject + message on a non-closeable close attempt
+Built 2026-06-09. The Close PO workflow (`f8gpu17s6hq`) is a **post-action event** (`type:"action"`),
+which by definition runs **after** the update and cannot reject the request or surface a message
+(confirmed against the workflow trigger reference: `action` = Post-action Event; `request-interception`
+= Pre-action Event). Consequently, a Close attempt on a `received` PO previously saved
+`close_reason`/`close_comment` via the form's own update and then silently did nothing — no error, no
+message. The PO immutability guard (`xvcsdv07c5j`, D33) only covers `completed`/`closed`, so `received`
+(and any other non-closeable, non-terminal status) was a silent gap.
+
+**Fix:** new request-interception (pre-action) workflow **Close Guard** `b6brl8r9c58`
+(ver `368982201729024`, global, sync, action `update` on `purchase_orders`). Chain:
+`close_guard_query` (load PO by `filterByTk`) → `close_guard_cond` (basic AND: `close_reason` present
+in `$context.params.values` **and** current status NOT in {draft, sent, confirmed, partially_received})
+→ response-message + end(-1). Mirrors the immutability-guard shape; the `values.<field>` close-attempt
+test reuses the proven Receive-guard pattern so it does **not** fire on a normal edit that omits
+`close_reason`.
+
+**Design note:** the soft layer (button visibility) + the post-action stamper remain; this adds the
+missing hard pre-action rejection, consistent with how PR/PO immutability is enforced. Verified via
+`flow-nodes test` (block on received/completed close attempt; allow on sent/draft; no false-block on a
+reason-less edit). **D24 bulk-update limitation applies.**
+
+**Caveat:** detection keys on `close_reason` being present in the submitted values — keep
+`close_reason`/`close_comment` out of any normal PO edit form (they belong to the Close popup only),
+or a reason-bearing edit of a received PO would be blocked.
+
+**Affects:** MVP9d (closeability acceptance C2 now actually messages the user). No downstream MVP impact.
+
+---
+
 ## Living register
 
 New entries go below in numeric order. When superseding a prior decision, mark the prior entry as superseded in [decisions-archive.md](decisions-archive.md) and add a `**Supersedes:** D#` line on the new entry.
