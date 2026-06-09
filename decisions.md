@@ -125,6 +125,10 @@ The PO `cancelled` status is removed. Cancelling a PO is now just closing it wit
 ---
 
 ## D29 — Optional submitter-chosen skip of dept-head approval
+> **SUPERSEDED by D36 (2026-06-09).** The skip feature is retired; the dept stage is now always a real
+> approval, optionally reassigned to a custom approver. `skip_dept_approval` is no longer read/written by
+> any workflow and is off both forms (column retained, unused). Original D29 text kept below for history.
+
 Submitters may opt to skip the department-head approval stage per PR via a
 `skip_dept_approval` boolean (default false). When skipped, the dept head is **not** a
 blocking approver but is **kept in the loop**: an in-app FYI notification to the submitter's
@@ -357,3 +361,44 @@ or a reason-bearing edit of a received PO would be blocked.
 ## Living register
 
 New entries go below in numeric order. When superseding a prior decision, mark the prior entry as superseded in [decisions-archive.md](decisions-archive.md) and add a `**Supersedes:** D#` line on the new entry.
+
+---
+
+## D36 — Submitter-selectable dept-stage approver (retires the skip)
+**Supersedes:** D29 (MVP010 skip-dept-approval). Built as MVP012 (2026-06-09).
+
+Submitters may **reassign the department-approval stage** to another person instead of skipping it.
+Two new `purchase_requests` fields: `use_custom_approver` (boolean, default false) and
+`custom_approver` (m2o → users). On the create form a checkbox reveals a required picker (scoped to the
+submitter's department, excluding self — see ACL/UI note). When a custom approver is chosen, the
+dept-stage approval task goes to **that** person and the department head receives an in-app FYI
+notification. When not chosen, the existing Dept Owner Approval (dept head) runs unchanged. The
+pre-existing "submitter IS their own dept approver → auto-skip" path (condition `5hed96jh1u7`) is
+**unchanged and still evaluated first**.
+
+**Why:** Same flexibility-over-brittle-rule reasoning as D23/D29 — the team wanted to redirect approval
+up/sideways in the hierarchy per-PR (e.g. to an assistant manager) without encoding a fixed org chart.
+The skip feature (D29) is retired in favour of this: the dept stage is now always a real approval, just
+optionally reassigned, which keeps an explicit approver on every PR.
+
+**How applied (workflow `cv237r8h7k9`, revision `369076269481984`, 30 nodes):** the old skip branch was
+repurposed. Condition `eafkgfa3axi` (retitled "Custom approver chosen?") = AND of `use_custom_approver==true`,
+`custom_approver.id != null`, and `custom_approver.id != createdById` (defense-in-depth: a self-pick falls
+through to the dept-head path — no self-approval even if the picker is bypassed). br=1 → reused notify node
+`5h232imw9ss` (FYI to dept head) → new approval node **Custom Approver Approval** `fifkfnqn9pm`
+(assignee `{{$context.data.custom_approver.id}}`, built by duplicating the Dept Owner node so the
+ProcessForm + comment models are identical) → approve/return/reject updates → converges to Procurement.
+br=0 → Dept Owner Approval `cfg687cye3n` (dept head, unchanged). `custom_approver` added to trigger appends.
+
+**Skip removal (workflow + UI only, column kept):** the `skip_dept_approval` field is no longer read or
+written by any workflow and was removed from the create form (already absent — user had dropped it) and
+the detail popup (read-only wrapper `in24ndj91et` removed). **The `skip_dept_approval` column is retained**
+(unused) to avoid data loss — safe to drop later with explicit OK.
+
+**ACL/UI note (D25/D36):** the custom_approver picker's department-scope + self-exclusion is set via the
+form's "Set data scope" UI setting (the public CLI authoring API doesn't expose a data scope on the
+record picker). Self-approval is independently blocked server-side by the workflow condition, so the
+picker scope is UX-only.
+
+**Affects:** MVP1 (approval workflow — repurposed branch + new approval node), MVP4 (create form toggle),
+MVP010 (retired — D29 superseded). No impact on the director ($300, D30) / board ($15k, D32) stages.

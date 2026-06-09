@@ -83,4 +83,27 @@ task goes to that person instead, and the department head receives an in-app FYI
 - **Auto-skip precedence** — keep `5hed96jh1u7` as the first check so a submitter who is their own dept
   head still skips, even if they also tick custom approver.
 
-See [decisions.md](../decisions.md) (D36, to be added) and `project_current_state.md` for live IDs and node keys.
+See [decisions.md](../decisions.md) (D36) and `project_current_state.md` for live IDs and node keys.
+
+## As built (2026-06-09)
+
+- **Fields:** `use_custom_approver` (boolean), `custom_approver` (m2o → users, FK `customApproverId`).
+- **Workflow `cv237r8h7k9` revision `369076269481984`** (enabled + current; prior `368983543906304` retired).
+  30 nodes. Condition `eafkgfa3axi` → "Custom approver chosen?" (incl. `custom_approver.id != createdById`
+  self-exclusion). New approval node **`fifkfnqn9pm`** "Custom Approver Approval" (assignee
+  `{{$context.data.custom_approver.id}}`, approvalUid `1a1zhqfmpdl`, taskCardUid `369lxzap6i2`); outcome
+  updates `r8f85w1w1ze` (approve→pending_purchasing_review) / `8loza7mypxd` (return→info_requested) /
+  `vhize11vzsg` (reject→rejected). Notify reused `5h232imw9ss`. Comment models `jlx5nh8qh0d`/`njquu85vbz0`/
+  `etxsnz1y7zp` exist (duplicate carried them → no 403).
+- **UI:** create form `e76c40c8c79` — checkbox `r9iu06my5ot`, picker `gfozpat06nw` (inner
+  `mu4s7d3w0h2`/selector `ueeb9ybhmuc`), field-linkage rules show+require / hide. Detail popup
+  `2b367dbd157` — added `use_custom_approver` (`7jjizc66ex2`) + `custom_approver` (`9tpfw54yy1e`)
+  read-only; removed skip read-only `in24ndj91et`.
+- **Deviations from plan:**
+  - Create form already had **no** `skip_dept_approval` (and no `needs_director_approval`) — user had
+    rebuilt it; only the detail-popup skip wrapper needed removing.
+  - **Picker data scope is a manual UI step** — the public CLI authoring API exposes no data scope on the
+    record picker, so the same-dept + exclude-self filter must be set via the form's "Set data scope" UI
+    setting. Self-approval is hard-blocked server-side regardless (condition self-check), so this is UX-only.
+- **Pending:** A1–A7 user verification; manual picker data-scope step; `skip_dept_approval` column drop
+  (deferred, retained unused).
