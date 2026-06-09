@@ -29,14 +29,14 @@ Procurement clicks "Generate PDF" on a PO and gets a formatted PO document built
 - **9e.3** Wire action button.
 - **9e.4** Verify P1–P3.
 
-## Current state (verified live 2026-06-09 — read before planning)
-- **Plugin `@nocobase/plugin-action-template-print` ("Template print") is DISABLED.** Must enable in 9e.1 (`nb plugin enable @nocobase/plugin-action-template-print`). This is the plugin that owns `TemplatePrintRecordActionModel` + the template-config UI.
-- **Do NOT confuse with `@nocobase/plugin-action-print`** (simple "calls browser print", already enabled). That is the wrong plugin for templated Word→PDF output.
-- **LibreOffice / `soffice` is NOT installed on this host** (no `soffice`/`libreoffice` on PATH, no `/Applications/LibreOffice.app`). The plugin renders PDF server-side via LibreOffice; without it, output is `.docx` only. **Open decision (ask user in 9e.1):** install LibreOffice on the NocoBase server host (server is local `localhost:13000`), or ship `.docx`-only and drop the PDF acceptance (P1/P2 reword). Resolve before 9e.2.
-- **Existing bare button:** `TemplatePrintRecordActionModel` uid `c579329db0d` ("Template print") already sits on the PO detail block `g9xffr68350` (PO page UID `liwmklclbnc`, table block `vldbcvf41r6`), added by the user beside Send. No template configured → currently inert (and inert anyway while the plugin is disabled). 9e.3 = configure its template binding rather than create a new button (verify it survives the plugin enable; recreate if needed).
+## Current state (verified live 2026-06-09, corrected with user — read before planning)
+- **Plugin `@nocobase/plugin-action-template-print` ("Template print") is ENABLED and functioning** (confirmed via `nb plugin list`; user has tested PDF export end-to-end). This is the plugin that owns `TemplatePrintRecordActionModel` + the template-config UI.
+- **Do NOT confuse with `@nocobase/plugin-action-print`** (simple "calls browser print", also enabled). That is the wrong plugin for templated Word→PDF output.
+- **PDF output WORKS.** LibreOffice ships inside the NocoBase server image (the Mac-host `soffice` check was a red herring — rendering happens server-side, not on the local host). **User has verified PDF export already.** So P1/P2 stand as written (PDF). No LibreOffice install needed.
+- **No letterhead/layout exists yet → build a clean default `.docx` template** in 9e.2 (no brand assets to match).
+- **Existing button:** `TemplatePrintRecordActionModel` uid `c579329db0d` ("Template print") sits on the PO detail block `g9xffr68350` (PO page UID `liwmklclbnc`, table block `vldbcvf41r6`), beside Send. 9e.3 = configure/confirm its template binding (use this button; don't create a new one).
 - **Fields to render** (from `purchase_orders`): `po_number`, `supplier` (name/address), `delivery_address`, `currency`, `total`, `total_usd`, `expected_delivery_date`, `supplier_note` (**prints**), `po_lines` (description, quantity_ordered, unit_of_measure). **`internal_notes` must NOT print** (P2). PR link: `purchase_request.pr_number` if a "Ref PR" line is wanted.
 - **Test fixtures on hand for verification:** `PO-26-T4` (completed, has invoice) and the other staged POs T1–T3; plus real POs PO-26-0002/0005/0007. Any post-draft PO works for P3.
 
 ## Open questions to resolve at 9e.1 kickoff
-1. **PDF vs DOCX:** install LibreOffice on the server, or accept `.docx`-only? (Blocks P1/P2 wording.)
-2. **Template look:** does the user have an existing PO letterhead / layout to match, or build a clean default?
+- None blocking. Plugin enabled, PDF verified, clean-default template agreed. Proceed: 9e.2 build the `.docx` template → 9e.3 bind it to button `c579329db0d` → 9e.4 verify P1–P3.
