@@ -10,6 +10,9 @@ Procurement can complete a received PO or close a non-terminal one with a reason
 
 ## Scope (in)
 - **Complete action:** status `received → completed` (manual procurement action). Sets `completed_at`.
+  - **D34 (2026-06-09):** Complete additionally requires an **attached invoice** (`invoice` non-empty)
+    AND a **positive invoice total in USD** (`total_usd > 0`). Enforced in the workflow guard
+    (server, hard stop) and mirrored on the Complete button linkage (UX hide). See decisions D34.
 - **Close action (broadened):** status `draft / sent / confirmed / partially_received → closed`.
   Requires `close_reason` (single-select) + `close_comment` (textarea). Broadens the 9b draft-only
   Close (same `close_po_draft` workflow; guard edited in place). Sets `closed_at`.

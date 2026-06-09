@@ -293,6 +293,37 @@ print" button exists on the PO detail block, no template configured/tested); a f
 
 ---
 
+## D34 — Complete PO requires an attached invoice + invoice total (USD)
+Built 2026-06-09. A PO can no longer be marked `completed` without (a) an **attached invoice**
+(`invoice` belongsToMany non-empty) and (b) a **positive invoice total in USD** (`total_usd > 0`),
+in addition to the existing `status == "received"` gate (D33). Enforced in **two places**:
+
+- **Workflow guard (hard stop)** — Complete PO workflow `qh7b3hc5q1r` revisioned
+  `368746204954624` → **`368971625791488`** (same key; the predecessor had `versionStats.executed:3`
+  so a revision was required despite the doc's stale `executed:0`). Trigger gains `appends:["invoice"]`.
+  Node chain grows 4→8: `complete_guard` now AND's `total_usd > 0` (kept **basic** — returns false,
+  not an error, on null `total_usd`; math.js throws on `null > 0`); a new `inv_count` calc
+  (**math.js** `count({{$context.data.invoice}})`) feeds `complete_invoice_guard`
+  (**math.js** `>= 1`), with its own reject message/end on the false branch.
+- **Button linkage (UX mirror)** — Complete button `e60dce0bb2d` (now built by the user on PO
+  detail block `g9xffr68350`) linkage `us98o7djgw0` gains two `$empty` items
+  (`ctx.record.invoice`, `ctx.record.total_usd`) so the button hides until completable.
+
+**Engine split (verified via `flow-nodes test`):** the basic condition engine has no
+array-emptiness calculator (`empty`/`notEmpty` unregistered) and can't count arrays; math.js can't
+string-compare and errors on `null > 0`. So status/total/null-safe checks → basic, array count →
+math.js. (Reinforces auto-memory `feedback_prefer_mathjs_engine` with the inverse caveat:
+math.js is wrong for string equality and null comparisons.)
+
+**Edge note:** linkage `$empty` does not catch `total_usd == 0` (0 is a value); the server guard's
+`> 0` does, so the button is the soft hint and the workflow is authoritative.
+
+**Affects:** MVP9d (this change; C1 acceptance now includes no-invoice/no-USD-total rejection — needs
+re-verification by the user driving the button). MVP9e (template printing) and the future payment
+MVP unaffected.
+
+---
+
 ## Living register
 
 New entries go below in numeric order. When superseding a prior decision, mark the prior entry as superseded in [decisions-archive.md](decisions-archive.md) and add a `**Supersedes:** D#` line on the new entry.
