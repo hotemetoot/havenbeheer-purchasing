@@ -15,3 +15,6 @@ Thumbs.db
 
 # NocoBase local environment files
 .nocobase/
+
+# Local NocoBase backups (binary, not version-controlled)
+backups/
