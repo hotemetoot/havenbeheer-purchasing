@@ -111,8 +111,7 @@ See [decisions.md](../decisions.md) (D37, D30, D23) and `project_current_state.m
   `16975baef39` → read-only `is_regular` (DisplayCheckboxFieldModel, wrapper `6q8zzia1bt7`, inner
   `n6l48asyh9p`).
 - **Verification:** condition logic validated via `flow-nodes test` across all 6 quadrants incl.
-  null-safety (null → Director). **A1–A7 end-to-end PENDING** (user drives Pat/Oliver/Dana — approval
-  custom-actions can't be `workflows execute`'d without a user).
+  null-safety (null → Director). **A1–A7 PASSED end-to-end (user-driven, 2026-06-09).**
 - **Deviations from plan:** none material. `needs_director_approval` was already off the create form (as
   expected from MVP012). Field-setting key is `label` (not `title`) on `flow-surfaces add-field`. The
   retired `needs_director_approval` read-only display was left on the detail popup (harmless/historical).

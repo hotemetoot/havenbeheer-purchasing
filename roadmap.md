@@ -18,7 +18,7 @@
 | 010 | Optional submitter-chosen skip of dept-head approval (FYI notify + view access, D29) | ⊘ superseded by 012 (D36) — skip retired |
 | 011 | Mandatory board approval at ≥ $15k USD after director — `pending_board_approval` + required signed-doc upload (D32) | ✓ built + verified |
 | 012 | Submitter-selectable dept-stage approver (reassign to dept member, FYI-notify dept head; retires skip, D36) | ✓ built + verified 2026-06-09 (A1–A7 passed) |
-| 013 | Regular-purchase flag — procurement-set `is_regular` bypasses director below $300; sub-$300 default flips to director; retires `needs_director_approval` routing (D37) | ✓ built 2026-06-09 (workflow `cv237r8h7k9` rev `369161752084480` active; condition `bizoy1sj87j` swapped; is_regular editable on procurement form + read-only on popup; flow-nodes test passed; A1–A7 user verification pending) |
+| 013 | Regular-purchase flag — procurement-set `is_regular` bypasses director below $300; sub-$300 default flips to director; retires `needs_director_approval` routing (D37) | ✓ built + verified 2026-06-09 (workflow `cv237r8h7k9` rev `369161752084480` active; condition `bizoy1sj87j` swapped; is_regular editable on procurement form + read-only on popup; A1–A7 passed) |
 | — | supplier_issues + supplier_evaluations | deferred (D26) — see [chunks/deferred-supplier-issues-evaluations.md](chunks/deferred-supplier-issues-evaluations.md) |
 
 Detail lives in `chunks/NNN-*.md` for pending/active MVPs and `completed/NNN-*.md` for finished ones.
