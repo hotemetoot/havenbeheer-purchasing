@@ -402,3 +402,54 @@ picker scope is UX-only.
 
 **Affects:** MVP1 (approval workflow — repurposed branch + new approval node), MVP4 (create form toggle),
 MVP010 (retired — D29 superseded). No impact on the director ($300, D30) / board ($15k, D32) stages.
+
+---
+
+## D37 — Sub-$300 default flips to Director; procurement `is_regular` is the opt-out
+**Amends:** D30 (director $300 floor). **Retires the routing role of:** D23 (`needs_director_approval`).
+Built as MVP013 (2026-06-09).
+
+The director-decision rule below $300 is inverted. Previously (D23/D30): a sub-$300 PR was approved
+directly **unless** the submitter ticked `needs_director_approval` — director was opt-*in*. Now the
+**default below $300 is Director**, and Procurement gets an opt-*out*: a new
+`purchase_requests.is_regular` boolean (default false), set by **Procurement on their approval form**,
+sends a routine small spend (cleaning supplies, consumables, etc.) straight to `approved`.
+
+Final routing at the director-decision condition `bizoy1sj87j` (after Procurement approves):
+- **≥ $300** → Director, always (unchanged, D30 — inclusive boundary, hardcoded `300`).
+- **< $300 AND `is_regular == true`** → approved directly (Procurement final).
+- **< $300 AND not regular (default)** → Director.
+
+**`needs_director_approval` is retired from routing** (user decision): the checkbox no longer affects
+the condition. The **column is kept** (unused, parallel to `skip_dept_approval`) — safe to drop later
+with explicit OK. It was already off the create form (user rebuilt that form in MVP012), so no
+create-form change. `is_regular` is **not** on the create form (it is a procurement-review
+classification, not a submitter field).
+
+**How applied (workflow `cv237r8h7k9`, revision `369154168193024` → `369161752084480`, 30 nodes, same
+key forced via raw `--body`):** condition `bizoy1sj87j` (retitled "Director required? (>= $300 OR not
+regular)") is still a 2-leaf OR on the **basic** engine; the `needs_director_approval == true` (equal)
+leaf was swapped for **`is_regular != true` (notEqual)**, reading
+`{{$jobsMapByNodeKey.ec2h8cqal32.data.is_regular}}` (same node-data reference as `quoted_total_usd`,
+since Procurement sets it during review). The `quoted_total_usd >= 300` (gte) leaf is unchanged. Branch
+orientation unchanged: **true → Director** (`eg86l2ilhmk`), **false → approved** (`jy1365pvsce`).
+
+**Why `!= true`, not `== false`:** null-safety. An unset/null `is_regular` must be treated as
+not-regular → Director. `notEqual(null, true)` returns true on the basic engine (verified via
+`flow-nodes test`: null+<300 → Director), whereas `equal(null, false)` would be false and wrongly route
+a null sub-$300 PR to approved. The field's `default: false` is belt-and-suspenders on top.
+
+**Why a procurement opt-out, not an auto-rule:** same flexibility-over-brittle-rule reasoning as
+D23/D30 — "regular" is a manual judgment call (the team couldn't pin an exact rule), so it stays a
+human classification, just moved to Procurement (who reviews the actual quote) instead of the submitter.
+Threshold stays hardcoded `300`. To change later: revision the workflow and edit the two leaves on
+`bizoy1sj87j`.
+
+**UI:** `is_regular` is **editable** on the Procurement approval ProcessForm (new revision's grid
+`03uy1easu6l`, CheckboxFieldModel wrapper `dcbp2xasi5f`) and **read-only** on the PR detail popup
+(grid `16975baef39`, DisplayCheckboxFieldModel wrapper `6q8zzia1bt7`). No new ACL — Procurement already
+edits its quote fields on the same form. The retired `needs_director_approval` read-only display remains
+on the detail popup (harmless, historical).
+
+**Affects:** MVP4 (director-decision area), MVP013 (this build); the PR Approval workflow lineage. No
+impact on the dept/custom-approver stage (D36) or the board ≥ $15k stage (D32).

@@ -93,3 +93,27 @@
 - **OAuth** — session expired this session; run `nb env auth havenbeheer` before executing live changes.
 
 See [decisions.md](../decisions.md) (D37, D30, D23) and `project_current_state.md` for live IDs and node keys.
+
+## As built (2026-06-09)
+
+- **Field:** `purchase_requests.is_regular` — boolean / checkbox, key `fw0rz4we4bw`, default real
+  boolean `false` (the `fields apply` CLI first stored the string `"false"`; corrected to boolean
+  `false` via `resource update` so a new record's default can't coerce truthy).
+- **Workflow `cv237r8h7k9` revision `369154168193024` → `369161752084480`** (enabled + current; same key
+  forced via raw `--body`; 30 nodes preserved, no dropped branches). Predecessor `369154168193024`
+  auto-disabled. Condition **`bizoy1sj87j`** (id `369161754181632`, retitled "Director required?
+  (>= $300 OR not regular)") — basic-engine OR: `notEqual {{$jobsMapByNodeKey.ec2h8cqal32.data.is_regular}} != true`
+  **OR** `gte {{$jobsMapByNodeKey.ec2h8cqal32.data.quoted_total_usd}} >= 300`. (The
+  `needs_director_approval == true` leaf was removed.) New Procurement approval surface uid on this
+  revision: approvalUid `otlzkklrg0n`, taskCardUid `bhx9rxilzwm`.
+- **UI:** Procurement ProcessForm grid `03uy1easu6l` → editable `is_regular` (CheckboxFieldModel,
+  wrapper `dcbp2xasi5f`, inner `w5v1zvd8t00`, tooltip explaining the rule). Detail popup grid
+  `16975baef39` → read-only `is_regular` (DisplayCheckboxFieldModel, wrapper `6q8zzia1bt7`, inner
+  `n6l48asyh9p`).
+- **Verification:** condition logic validated via `flow-nodes test` across all 6 quadrants incl.
+  null-safety (null → Director). **A1–A7 end-to-end PENDING** (user drives Pat/Oliver/Dana — approval
+  custom-actions can't be `workflows execute`'d without a user).
+- **Deviations from plan:** none material. `needs_director_approval` was already off the create form (as
+  expected from MVP012). Field-setting key is `label` (not `title`) on `flow-surfaces add-field`. The
+  retired `needs_director_approval` read-only display was left on the detail popup (harmless/historical).
+- **Decision:** D37 (amends D30, retires D23 routing role).
