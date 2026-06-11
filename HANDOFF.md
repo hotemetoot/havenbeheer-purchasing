@@ -14,7 +14,16 @@ protection model for trigger buttons (no per-workflow trigger ACL exists).
 
 ---
 
-## Phase 2 — Data-driven approvers (replaces hardcoded Director [12] / Board [11])
+## Phase 2 — Data-driven approvers — **DONE 2026-06-11 (D40); user round-trip test PENDING**
+
+Built as specced below: fiona.finance = user 14 (password `Test1234!`); Director dept → Dana (12),
+Finance dept → fiona (14); finance role = director-mirror grants + member's 11 desktop routes (was
+zero); PR Approval revision **`369495666917376`** active (31 nodes, query node `ld6gei5ybc5`,
+comment models verified). Deviation from spec: `flow-nodes test` is not implemented for `query`
+nodes — verified via live data readback instead. **Remaining:** user round-trips a ≥$300 PR
+(Director = Dana via query) and ideally a ≥$15k PR (Board = Pat via qProc).
+
+### Original spec (for reference)
 
 1. Create user **fiona.finance** (Finance dept `363554454962177`, member base role).
 2. Set `departments.main_approver`: Director dept `363554454962176` → Dana (12); Finance dept →

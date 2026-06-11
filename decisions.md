@@ -491,3 +491,27 @@ edit-own-pending is still desired (see HANDOFF.md follow-ups).
 **Affects:** Cancel PR flow (MVP2), scope 2 / operations role update window (D38), any future
 chunk that assumes a draft stage.
 **Status:** effective.
+
+## D40 — Director and Board approvers are data-driven from departments.main_approver (2026-06-11)
+
+**Decision:** the PR Approval workflow no longer hardcodes approver user ids. The Director
+approval node resolves its assignee from the Director department's `main_approver` (via a new
+"Query Director Dept" node, key `ld6gei5ybc5`, inserted before it); the Board approval node
+resolves from the Procurement department's `main_approver` (reusing the existing qProc query
+`yrl9kgkrb3x`). Both use the proven filter-block variable form
+`{{$jobsMapByNodeKey.<queryKey>.main_approver.id}}`. Set `departments.main_approver` to change
+an approver — no workflow edit needed. Director dept → Dana (12), Finance dept → fiona.finance
+(14, new test user); Procurement (Pat 11) and Operations (Oliver 10) were already set.
+
+**Why:** hardcoded `[12]`/`[11]` assignees survive personnel changes only by re-revisioning the
+workflow; `main_approver` already drove the dept stage, so this completes the pattern (approved
+in the 2026-06-11 audit session, HANDOFF.md Phase 2).
+
+**How to apply:** PR Approval revision `369495666917376` (key `cv237r8h7k9`, 31 nodes) is active.
+Future approver changes = update `departments.main_approver`. The `finance` role got the
+render-enabler treatment per D38 (view 37 fields + update 2 rejection fields @ scope 10, member's
+11 desktop routes) so fiona's future approval forms render. No finance approval stage exists yet —
+fiona is groundwork for the payment MVP.
+
+**Affects:** PR Approval lineage; the future payment/finance MVP; Phase 3 cleanup (HANDOFF.md).
+**Status:** effective (built + CLI-verified; user round-trip pending).
