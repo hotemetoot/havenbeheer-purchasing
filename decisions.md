@@ -453,3 +453,41 @@ on the detail popup (harmless, historical).
 
 **Affects:** MVP4 (director-decision area), MVP013 (this build); the PR Approval workflow lineage. No
 impact on the dept/custom-approver stage (D36) or the board ≥ $15k stage (D32).
+
+## D38 — Role hardening: view-only base, self-sufficient function roles, ACL over guards (2026-06-11)
+
+**Decision:** `member` (base) and `director` strategies are **view-only**. Function roles carry
+complete independent permissions: new dept-bound `operations` role owns PR create/update (update
+scoped to own + editable statuses); `procurement` lost PR `create`/`importXlsx` (D25 now enforced)
+and its update whitelists exclude workflow-managed columns (`status`, stamps, `po_number`,
+`line_status`, derived totals). Workflow-managed fields are enforced read-only via **ACL field
+whitelists, not request-interception guards** (user preference). Approver roles get a
+**render-enabler** update grant (minimal fields, narrow status scope) so approval ProcessForms
+render. Custom-action buttons stay protected by guards *inside* the workflows, not trigger ACL.
+
+**Why:** strategy-mode ACL had no field whitelist — any user could write `status`/`approved_at`
+by API (self-approval bypass); procurement's create violated D25.
+
+**How to apply:** new roles follow the same pattern: explicit full-field `view` in every
+independent row, base-role desktop routes copied, render-enabler if the role's users approve.
+Never re-add `update`/`create` to the member strategy.
+
+**Affects:** all future MVPs touching ACL; payment MVP (finance role needs the same treatment).
+**Status:** effective.
+
+## D39 — PR draft stage removed from the flow; users submit directly (2026-06-11)
+
+**Decision:** the user removed the `draft` stage from the PR flow — creating a PR submits it
+immediately. The `status` enum value `draft` and the field's `defaultValue: 'draft'` are
+**retained** (data model untouched); the change is at form/flow level. May be reinstated later.
+
+**Why:** simplification — the draft+submit two-step added friction without value at current scale.
+
+**How to apply:** nothing should depend on PRs resting in `draft`: the Cancel workflow's guard
+(`status=="draft"`) and ACL scope 2 ("PR — own and editable", status ∈ {draft, info_requested})
+now effectively match only `info_requested`. Revisit both if cancel-before-decision or
+edit-own-pending is still desired (see HANDOFF.md follow-ups).
+
+**Affects:** Cancel PR flow (MVP2), scope 2 / operations role update window (D38), any future
+chunk that assumes a draft stage.
+**Status:** effective.

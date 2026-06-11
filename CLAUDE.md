@@ -19,7 +19,7 @@ NocoBase-based PR/PO approval workflow. This file is auto-loaded every session.
 
 When the user names an MVP (e.g. "let's do 008"):
 
-1. Read [project_current_state.md](project_current_state.md) — IDs, what exists, stale IDs. If a section is empty for what you'll act on, verify against the live env before proceeding.
+1. Read [project_current_state.md](project_current_state.md) — IDs, what exists, stale IDs. If a section is empty for what you'll act on, verify against the live env before proceeding. **Always re-query active workflow versions live** (`workflows` filter `{"current":true,"enabled":true}`) before touching any workflow — the user makes manual adjustments between sessions, and the doc's active-version IDs lag repeatedly.
 2. Read the [roadmap.md](roadmap.md) entry for the MVP.
 3. Check [decisions.md](decisions.md) for any D-entries affecting this MVP.
 4. Read [design/](design/) files only if the chunk touches their area.
@@ -52,11 +52,13 @@ Wait for explicit approval before executing.
 - **Member is the base role.** Every user has the `member` role as base. Do not add redundant view ACL on director/finance/etc. (See `feedback_acl_member_base_role` in auto-memory.)
 - **Verify risky IDs against the live env** before using them — [project_current_state.md](project_current_state.md) is authoritative but can lag.
 - **Never use IDs listed under "Stale IDs"** in [project_current_state.md](project_current_state.md).
-- **Workflow revision branch drop.** When creating a revision of a workflow with condition branches, branch nodes may be dropped from the copy. Verify the full node count after revision and recreate missing nodes before enabling.
+- **Workflow revision node-count check.** After creating a revision, verify the full node count against the source before enabling. (The earlier "branch nodes dropped by revision" warning is unconfirmed — the observed missing nodes were likely manual user removals, e.g. Generate PO's 6-node active version is intentional. Keep the check; don't assume the bug.)
 - **`triggerWorkflow` action type.** Setting `workflowKey` via `flow-surfaces configure` is not supported. Set it directly via `nb api resource update --resource flowModels`.
 - **`$notIn` operator** is not supported in linkage rule conditions — use combined `$ne` with `$and`.
 - **`fieldGroups` requirement.** Any future page using `purchase_requests` will need `defaults.collections.purchase_requests.fieldGroups` (and similar for `users` because the `submitter` association generates a view popup with >10 fields).
 - **Fresh approval forms need pre-created comment models.** A form built via `applyApprovalBlueprint` omits the per-action `CommentFormModel`; the runtime tries to create+persist it via `flowModels:save` when an approver opens the task → 403 for non-UI-admin approvers ("Failed to load or create comment model"). Pre-create one `CommentFormModel` per Approve/Reject/Return action (as admin) and set each action's `commentFormUid`. (See `feedback_approval_blueprint_comment_models` in auto-memory.)
+- **Independent ACL rows must be self-sufficient.** A `usingActionsConfig: true` row suppresses the global strategy for that collection (even under role union): always include `view`, write explicit full field lists (`fields: []` = NO fields), and give new roles the base role's desktop routes. (See `feedback_acl_independent_resource_pitfalls` in auto-memory.)
+- **Approval forms need an `update` grant to render.** An approval ProcessForm shows an empty popup for any role without *some* `update` grant on the bound collection (render check ignores scope). Give every approver role a render-enabler grant: update with minimal fields + narrow status scope. (See `feedback_approval_form_render_update_grant` in auto-memory.)
 - **Approver file upload needs `create` on `attachments`.** Uploading into an attachment field is a `create` on the `attachments` collection. A reviewer/approver role with `view/update` but no `create` gets 403. Grant `create` on `attachments` via a narrow independent resource permission — never add a global `create` (that would let the role create PRs, violating D25). (See `feedback_approver_attachment_upload_acl` in auto-memory.)
 
 ## Skills
