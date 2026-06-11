@@ -514,4 +514,7 @@ render-enabler treatment per D38 (view 37 fields + update 2 rejection fields @ s
 fiona is groundwork for the payment MVP.
 
 **Affects:** PR Approval lineage; the future payment/finance MVP; Phase 3 cleanup (HANDOFF.md).
-**Status:** effective (built + CLI-verified; user round-trip pending).
+**Status:** effective — built + user round-trip verified 2026-06-11 (PR-26-0019: Dana via query
+node, Pat via qProc). Follow-on: the Board form's blank-fields issue (ApprovalDetailsModel renders
+stored approval data, not the live record) was fixed by rebuilding the board ProcessForm on the
+director pattern; see `feedback_approval_details_block_snapshot` in auto-memory.

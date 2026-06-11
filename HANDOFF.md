@@ -14,14 +14,19 @@ protection model for trigger buttons (no per-workflow trigger ACL exists).
 
 ---
 
-## Phase 2 — Data-driven approvers — **DONE 2026-06-11 (D40); user round-trip test PENDING**
+## Phase 2 — Data-driven approvers — **DONE + VERIFIED 2026-06-11 (D40)**
 
 Built as specced below: fiona.finance = user 14 (password `Test1234!`); Director dept → Dana (12),
 Finance dept → fiona (14); finance role = director-mirror grants + member's 11 desktop routes (was
 zero); PR Approval revision **`369495666917376`** active (31 nodes, query node `ld6gei5ybc5`,
 comment models verified). Deviation from spec: `flow-nodes test` is not implemented for `query`
-nodes — verified via live data readback instead. **Remaining:** user round-trips a ≥$300 PR
-(Director = Dana via query) and ideally a ≥$15k PR (Board = Pat via qProc).
+nodes — verified via live data readback instead. **User round-trip verified** on PR-26-0019 ($100k):
+Dana ← query node, Pat ← qProc. **Follow-on fix same evening:** the Board form showed mostly-blank
+fields (its fields sat in an `ApprovalDetailsModel`, which renders stored approval data — no
+associations); rebuilt on the director pattern (15 readPretty fields in ProcessForm grid
+`1y54nvue9eo`, upload last, details block removed; backup in `backups/`). See auto-memory
+`feedback_approval_details_block_snapshot`. **Only remaining check:** Pat reopens his pending board
+task on PR-26-0019, confirms values show, approves with a document upload.
 
 ### Original spec (for reference)
 
