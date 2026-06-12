@@ -518,3 +518,33 @@ fiona is groundwork for the payment MVP.
 node, Pat via qProc). Follow-on: the Board form's blank-fields issue (ApprovalDetailsModel renders
 stored approval data, not the live record) was fixed by rebuilding the board ProcessForm on the
 director pattern; see `feedback_approval_details_block_snapshot` in auto-memory.
+
+## D41 — Stale-field & fixture cleanup; secondary-approver fallback fully removed (2026-06-12)
+
+**Decision:** dropped the dead data-model remnants with user OK (HANDOFF.md Phase 3):
+`purchase_requests.needs_director_approval` (retired from routing by D37) and
+`.skip_dept_approval` (dead since MVP012/D36), `purchase_orders.cancelled_at` (unused since
+D28), and the never-built secondary-approver/on-leave fallback — `departments.secondary_approver`
+**plus its users-side mirror** `users.department_secondary_approver_of` (belongsTo, FK
+`secondaryApproverId` on users) and both leftover FK scalars (`departments.secondaryApproverId`,
+`users.secondaryApproverId`) and `users.on_leave`. Also deleted the 8 MVP9d test fixtures
+(PR-26-0008..0011, PO-26-T1..T4 + their 2 lines; guards temporarily disabled then re-verified)
+and dropped the empty `test` collection. PR-26-0014 "olvire custom" kept per user choice.
+
+**Why:** the fallback feature was never built (system stays dynamic via `main_approver` edits per
+D40); the rest was confirmed-dead routing/test noise. All values were NULL/false everywhere except
+the two PR booleans (historical flags), snapshotted to `backups/snapshot-*-20260612.json` before
+the drop. Fixture records snapshotted to `backups/fixtures-*-20260612.json`.
+
+**How to apply (observed platform behavior):** NocoBase auto-scrubbed the dropped names from ACL
+field whitelists (view lists went 37→35 on their own), but does NOT touch UI display models or
+workflow trigger appends: removed live UI nodes `p9acb4e35of` (PR popup), `2fbb3d11461`
+(departments table column), `b1d31ddeafc` (users table column) via flow-surfaces remove-node, and
+removed `createdBy.mainDepartment.secondary_approver` from the PR Approval trigger appends — done
+as an in-place config edit on the user's brand-new active version `369536223739904` (executed=0,
+so no revision needed). Stale references on dead approval surfaces from disabled versions were
+left as-is (not rendered).
+
+**Affects:** none downstream — a future on-leave/fallback feature would re-add fields from scratch.
+**Status:** effective — drops verified by collection-field readback; guards re-verified blocking
+after re-enable (Guard A, PO immutability, line immutability).
