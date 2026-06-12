@@ -548,3 +548,34 @@ left as-is (not rendered).
 **Affects:** none downstream — a future on-leave/fallback feature would re-add fields from scratch.
 **Status:** effective — drops verified by collection-field readback; guards re-verified blocking
 after re-enable (Guard A, PO immutability, line immutability).
+
+## D42 — Cancel PR retired; PO add-line quick-create fix (2026-06-12)
+
+**Decision:** Cancel-by-submitter (MVP2) is retired. The PR `draft` stage no longer exists in the
+flow (D39 — users submit directly), so the Cancel workflow's guard (`status=="draft"`) could never
+match again. With user OK ("retire cancel"): removed the Cancel button `b197e8120a3` (EditAction +
+popup form with `cancellation_reason`) from the PR detail popup `2b367dbd157`, and deleted **all
+versions** of both workflows — Cancel Purchase Request (key `59ezifdoqvj`, 2 versions) and Cancel
+PR Guard (key `8yngslauuj4`, 4 versions). Backups: `backups/cancel-button-b197e8120a3-20260612.json`
++ `backups/cancel-workflows-20260612.json`.
+
+**Kept:** `purchase_requests.cancellation_reason` + `.cancelled_at` fields and the `cancelled`
+status enum value (historical data may exist; nothing writes them anymore). Scope 2's editable
+window is effectively `info_requested` only — acceptable, no change.
+
+**Same session (PO add-line bug):** "Name already exists" when adding a PO line was the
+`unit_of_measure` select on the add-line form (`d8c864bef73`) having quick-create
+(`quickCreate:"quickAdd"`) — a typed entry submits `{name:"kg",...}` WITHOUT id, so the server
+creates a duplicate `units_of_measure` and hits the unique `name` constraint. Set
+`quickCreate:"none"` (raw flowModels patch; flow-surfaces configure didn't persist this key).
+Also set `po_lines.titleField` → `description` (was `id`).
+
+**Corrected finding:** scopeId `363334209503233` on procurement attachments/suppliers rows is NOT
+dangling — it's the built-in "All records" scope in `dataSourcesRolesResourcesScopes` (a separate
+table from the numbered `rolesResourcesScopes`). Doc note removed. Scopes 3/6–9 are referenced
+only by 8 **orphaned** `dataSourcesRolesResourcesActions` rows (parents deleted during role
+hardening) — inert; fix/delete left pending (permission-blocked this session).
+
+**Affects:** none downstream. A future "cancel pending PR" feature would be a new build (new
+workflow + button), not a revival.
+**Status:** effective — cancel workflows verified gone (0 rows for both keys), button readback null.
