@@ -598,3 +598,22 @@ deletes (count remaining scopes; confirm 0 dangling `scopeId` references). Backu
 
 **Affects:** none downstream — no role or action referenced these. Active scopes 2/4/5/10 untouched.
 **Status:** effective — live-verified 4 scopes remain (2,4,5,10), 0 orphan rows, 0 dangling refs.
+
+## D44 — Guard execution retention: auto-delete resolved only (2026-06-13)
+Set `options.deleteExecutionOnStatus: [1]` on all 6 request-interception guards (`496ookqmg01`,
+`vgv8hcrtjvx`, `mhfp4d15uee`, `xvcsdv07c5j`, `f3dkb37te22`, `b6brl8r9c58`). Status `1` = RESOLVED
+(guard allowed the action through) → auto-deleted. Statuses `-1` (guard blocked a bad mutation)
+and `-2` (error) are retained for audit/debugging. Pruned the 71 pre-existing resolved executions.
+
+**Why:** The guards fire on every update/destroy and the resolved (allowed) executions are pure
+noise that accumulate unbounded (103 rows across 6 guards at this audit). The meaningful records
+are the blocks (someone attempted a forbidden mutation) and errors — those stay.
+
+**How to apply:** `deleteExecutionOnStatus` is a runtime retention setting in `workflows.options`;
+update it in place via `resource update` on the current workflow version — **no revision needed**
+(it is not part of the flow definition). For an interception guard, status `1` = allowed-through;
+the deliberate block ends `-1` (via the end-process `endStatus:-1` node). Manifest backup
+`backups/guard-resolved-executions-DELETED-20260613.json`.
+
+**Affects:** none downstream — retention/observability only, no flow-logic change.
+**Status:** effective — live-verified: all 6 options carry `[1]`; 32 guard executions remain (27×-1, 5×-2), 0 resolved.
