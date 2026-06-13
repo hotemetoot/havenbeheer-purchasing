@@ -579,3 +579,22 @@ hardening) — inert; fix/delete left pending (permission-blocked this session).
 **Affects:** none downstream. A future "cancel pending PR" feature would be a new build (new
 workflow + button), not a revival.
 **Status:** effective — cancel workflows verified gone (0 rows for both keys), button readback null.
+
+## D43 — Inert ACL scopes 3/6–9 deleted (2026-06-13)
+Deleted the 5 unused `rolesResourcesScopes` rows (3 "PR — own department", 6 "PO — submitter
+view", 7 "PO — department view", 8 "PO line — submitter view", 9 "PO line — department view")
+and their 8 orphaned `dataSourcesRolesResourcesActions` rows. Chose delete over camelCase-fix.
+
+**Why:** All 5 parent `dataSourcesRolesResources` rows were already gone (deleted during role
+hardening), so the action rows were inert — nothing rendered or enforced them. The scopes also
+carried snake_case FK columns (`submitter_id`, `department_id`) that would 400 if bound. A future
+department/submitter PO-visibility feature would re-author scopes via the ACL UI anyway, so
+keeping broken dead rows added only clutter.
+
+**How to apply:** A scope with no live action row referencing it is dead config — verify parent
+`dataSourcesRolesResources` existence before assuming a scope is "in use". Live-verify after
+deletes (count remaining scopes; confirm 0 dangling `scopeId` references). Backup
+`backups/acl-scopes-3-6-9-DELETED-20260613.json`.
+
+**Affects:** none downstream — no role or action referenced these. Active scopes 2/4/5/10 untouched.
+**Status:** effective — live-verified 4 scopes remain (2,4,5,10), 0 orphan rows, 0 dangling refs.
