@@ -217,7 +217,7 @@ for c, txt, w in zip(lt.rows[0].cells, cols, widths):
     p = c.paragraphs[0]
     p.paragraph_format.space_after = Pt(0)
     if txt != "Description":
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     run(p, txt, size=9.5, bold=True, color=RGBColor(0xFF, 0xFF, 0xFF), caps=True)
 
 # body row (repeated by Carbone via [i] ... [i+1])
@@ -231,7 +231,7 @@ for c, m, w in zip(body, markers, widths):
     p = c.paragraphs[0]
     p.paragraph_format.space_after = Pt(0)
     if m != markers[0]:
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     run(p, m, size=10)
 # loop-end marker row (Carbone drops it)
 endrow = lt.add_row().cells
@@ -240,14 +240,12 @@ run(endrow[0].paragraphs[0], "{d.lines[i+1].description}", size=1)
 para(doc, space_before=8, space_after=0)
 
 # === Totals (right-aligned box) ===
-tot = doc.add_table(rows=3, cols=2)
+tot = doc.add_table(rows=1, cols=2)
 no_borders(tot)
 tot.alignment = WD_TABLE_ALIGNMENT.RIGHT
 tot.columns[0].width = Cm(5.5)
 tot.columns[1].width = Cm(4.0)
-rows = (("Order Total (lines)", "{d.currency.label} {d.lines_total:formatN(2)}", False),
-        ("Invoice Total", "{d.currency.label} {d.total:formatN(2)}", False),
-        ("Invoice Total (USD)", "USD {d.total_usd:formatN(2)}", True))
+rows = (("Order Total", "{d.currency.label} {d.lines_total:formatN(2)}", True),)
 for ri, (label, marker, emph) in enumerate(rows):
     lc, rc2 = tot.rows[ri].cells
     set_cell_margins(lc, top=40, bottom=40, left=100, right=100)
