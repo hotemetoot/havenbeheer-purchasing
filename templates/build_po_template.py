@@ -205,9 +205,9 @@ run(para(dcell, space_after=0), "{d.delivery_address.address}", size=9.5, color=
 para(doc, space_before=10, space_after=0)
 
 # === Line items ===
-cols = ("Description", "Qty", "Unit")
-widths = (Cm(11.4), Cm(3.0), Cm(3.0))
-lt = doc.add_table(rows=1, cols=3)
+cols = ("Description", "Qty", "Unit", "Unit Price", "Line Total")
+widths = (Cm(7.4), Cm(1.8), Cm(2.2), Cm(3.0), Cm(3.0))
+lt = doc.add_table(rows=1, cols=5)
 lt.alignment = WD_TABLE_ALIGNMENT.LEFT
 # header
 for c, txt, w in zip(lt.rows[0].cells, cols, widths):
@@ -222,7 +222,8 @@ for c, txt, w in zip(lt.rows[0].cells, cols, widths):
 
 # body row (repeated by Carbone via [i] ... [i+1])
 body = lt.add_row().cells
-markers = ("{d.lines[i].description}", "{d.lines[i].quantity_ordered}", "{d.lines[i].unit_of_measure.name}")
+markers = ("{d.lines[i].description}", "{d.lines[i].quantity_ordered}", "{d.lines[i].unit_of_measure.name}",
+           "{d.lines[i].unit_price:formatN(2)}", "{d.lines[i].line_total:formatN(2)}")
 for c, m, w in zip(body, markers, widths):
     c.width = w
     set_cell_margins(c, top=50, bottom=50, left=100, right=100)
@@ -239,13 +240,14 @@ run(endrow[0].paragraphs[0], "{d.lines[i+1].description}", size=1)
 para(doc, space_before=8, space_after=0)
 
 # === Totals (right-aligned box) ===
-tot = doc.add_table(rows=2, cols=2)
+tot = doc.add_table(rows=3, cols=2)
 no_borders(tot)
 tot.alignment = WD_TABLE_ALIGNMENT.RIGHT
 tot.columns[0].width = Cm(5.5)
 tot.columns[1].width = Cm(4.0)
-rows = (("Total", "{d.currency.label} {d.total:formatN(2)}", False),
-        ("Total (USD)", "USD {d.total_usd:formatN(2)}", True))
+rows = (("Order Total (lines)", "{d.currency.label} {d.lines_total:formatN(2)}", False),
+        ("Invoice Total", "{d.currency.label} {d.total:formatN(2)}", False),
+        ("Invoice Total (USD)", "USD {d.total_usd:formatN(2)}", True))
 for ri, (label, marker, emph) in enumerate(rows):
     lc, rc2 = tot.rows[ri].cells
     set_cell_margins(lc, top=40, bottom=40, left=100, right=100)
