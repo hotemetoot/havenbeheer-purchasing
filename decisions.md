@@ -644,4 +644,4 @@ assign-field-values (`{{ ctx.popup.record.id }}`) so it lands in the body. Keep 
 See auto-memory `feedback_request_interception_assoc_create_no_source`.
 
 **Affects:** PO line immutability (MVP9d). No flow-logic change to existing workflows.
-**Status:** effective — flow-nodes test + live direct-create probe + live association replay (completed→block, draft→allow) pass; fixtures cleaned up. Open: client-side confirm `{{ ctx.popup.record.id }}` resolves on a real form submit.
+**Status:** effective + **fully verified 2026-06-13** — flow-nodes test + live direct-create probe + live association replay (completed→block, draft→allow); **user confirmed the real add-line form blocks on a terminal PO and allows on a draft PO** (`{{ ctx.popup.record.id }}` resolves). Fixtures cleaned up.

@@ -1,5 +1,7 @@
 # Manual Workflow Test Walkthrough
 
+> ✅ **PASSED — full run verified by the user 2026-06-13** (all cases A1–A12, B1–B16, C1–C5, incl. the D45 line-create guard via the real add-line form). Boxes below reflect that pass; re-run from a clean slate if the config changes.
+
 A click-through acceptance pass for the whole PR → PO lifecycle. Walk it top to bottom; tick each
 `- [ ]` as you confirm the **Expected** result. Start from an empty data set (PRs/POs/lines are
 currently 0). Cases are ordered so earlier artifacts feed later ones — don't skip the PR-approval
@@ -59,68 +61,68 @@ Use **USD, fx_rate_to_usd = 1** on every PR/PO so `quoted_total_usd = quoted_tot
 > Unless stated, create PRs as **alice.member** (Operations) with `quoted_currency=USD`, `fx_rate_to_usd=1`. Title them so you can find them (e.g. "A2 normal").
 
 ### A1 — Submitter IS dept head → dept stage skipped
-- [ ] As **oliver.owner** (Operations main-approver), create + submit a PR (any amount, e.g. $250, `is_regular` will be set later).
-- [ ] **Expected:** status goes directly to `pending_purchasing_review` (no `pending_dept_approval`, no dept task). Oliver gets **no** dept-approval task.
+- [x] As **oliver.owner** (Operations main-approver), create + submit a PR (any amount, e.g. $250, `is_regular` will be set later).
+- [x] **Expected:** status goes directly to `pending_purchasing_review` (no `pending_dept_approval`, no dept task). Oliver gets **no** dept-approval task.
 
 ### A2 — Normal dept approval (approve)
-- [ ] As **alice**, create + submit a PR ($250).
-- [ ] **Expected:** status = `pending_dept_approval`; **Oliver** has an approval task.
-- [ ] As **oliver**, open the task → **Approve**.
-- [ ] **Expected:** status = `pending_purchasing_review`; **Pat** now has a Procurement task.
+- [x] As **alice**, create + submit a PR ($250).
+- [x] **Expected:** status = `pending_dept_approval`; **Oliver** has an approval task.
+- [x] As **oliver**, open the task → **Approve**.
+- [x] **Expected:** status = `pending_purchasing_review`; **Pat** now has a Procurement task.
 
 ### A3 — Custom approver (reassign dept stage + FYI to dept head)
-- [ ] As **alice**, create a PR; tick **Use custom approver**; pick **simon.supervisor** (same-dept, not self). Submit.
-- [ ] **Expected:** status = `pending_dept_approval`; the dept task goes to **simon** (not Oliver); **Oliver** receives an FYI in-app notification ("reassigned to custom approver").
-- [ ] As **simon**, **Approve**.
-- [ ] **Expected:** status = `pending_purchasing_review`; Pat has the Procurement task.
-- [ ] *(Negative)* As **alice**, confirm the picker will **not** let you select yourself, and only lists Operations users.
+- [x] As **alice**, create a PR; tick **Use custom approver**; pick **simon.supervisor** (same-dept, not self). Submit.
+- [x] **Expected:** status = `pending_dept_approval`; the dept task goes to **simon** (not Oliver); **Oliver** receives an FYI in-app notification ("reassigned to custom approver").
+- [x] As **simon**, **Approve**.
+- [x] **Expected:** status = `pending_purchasing_review`; Pat has the Procurement task.
+- [x] *(Negative)* As **alice**, confirm the picker will **not** let you select yourself, and only lists Operations users.
 
 ### A4 — Regular + under $300 → approved directly (no Director)
-- [ ] Use the A2 PR (now at Procurement, $250) **or** make a fresh $250 one through dept approval.
-- [ ] As **pat**, open the Procurement task; tick **`is_regular`**; **Approve**.
-- [ ] **Expected:** status = `approved` (no Director task, no Board). `approved_at` stamped.
+- [x] Use the A2 PR (now at Procurement, $250) **or** make a fresh $250 one through dept approval.
+- [x] As **pat**, open the Procurement task; tick **`is_regular`**; **Approve**.
+- [x] **Expected:** status = `approved` (no Director task, no Board). `approved_at` stamped.
 
 ### A5 — Under $300 but NOT regular → Director required (default flip, D37)
-- [ ] Fresh $250 PR through dept approval to Procurement.
-- [ ] As **pat**, **Approve** *without* ticking `is_regular`.
-- [ ] **Expected:** status = `pending_director_approval`; **Dana** has a task. (Demonstrates sub-$300 defaults to Director.)
-- [ ] As **dana**, **Approve** → **Expected:** status = `approved` (under $15k, no Board).
+- [x] Fresh $250 PR through dept approval to Procurement.
+- [x] As **pat**, **Approve** *without* ticking `is_regular`.
+- [x] **Expected:** status = `pending_director_approval`; **Dana** has a task. (Demonstrates sub-$300 defaults to Director.)
+- [x] As **dana**, **Approve** → **Expected:** status = `approved` (under $15k, no Board).
 
 ### A6 — Mid-value → Director, no Board
-- [ ] Fresh PR **$5,000**; dept-approve (Oliver) → Procurement.
-- [ ] As **pat**, **Approve** (is_regular irrelevant; ≥ $300 forces Director).
-- [ ] **Expected:** `pending_director_approval`; Dana has a task.
-- [ ] As **dana**, **Approve** → **Expected:** `approved` (no Board, < $15k).
+- [x] Fresh PR **$5,000**; dept-approve (Oliver) → Procurement.
+- [x] As **pat**, **Approve** (is_regular irrelevant; ≥ $300 forces Director).
+- [x] **Expected:** `pending_director_approval`; Dana has a task.
+- [x] As **dana**, **Approve** → **Expected:** `approved` (no Board, < $15k).
 
 ### A7 — High-value → Board with required document (≥ $15k)
-- [ ] Fresh PR **$20,000**; dept-approve (Oliver) → Procurement.
-- [ ] As **pat**, **Approve** → **Expected:** `pending_director_approval`; Dana task.
-- [ ] As **dana**, **Approve** → **Expected:** `pending_board_approval`; **Pat** now has a **Board** task.
-- [ ] As **pat**, open the Board task; try **Approve with no document** → **Expected:** blocked (the `board_approval_document` field is required).
-- [ ] Attach a document; **Approve** → **Expected:** status = `approved`, `approved_at` stamped, document stored.
+- [x] Fresh PR **$20,000**; dept-approve (Oliver) → Procurement.
+- [x] As **pat**, **Approve** → **Expected:** `pending_director_approval`; Dana task.
+- [x] As **dana**, **Approve** → **Expected:** `pending_board_approval`; **Pat** now has a **Board** task.
+- [x] As **pat**, open the Board task; try **Approve with no document** → **Expected:** blocked (the `board_approval_document` field is required).
+- [x] Attach a document; **Approve** → **Expected:** status = `approved`, `approved_at` stamped, document stored.
 
 ### A8 — Return at dept stage (→ info_requested → resubmit)
-- [ ] Fresh PR as **alice**; status `pending_dept_approval`.
-- [ ] As **oliver**, **Return** (request info) with a comment.
-- [ ] **Expected:** status = `info_requested`; the PR is editable again by **alice** (own + `info_requested` window).
-- [ ] As **alice**, edit a field and re-submit.
-- [ ] **Expected:** status returns to `pending_dept_approval` and the cycle resumes.
+- [x] Fresh PR as **alice**; status `pending_dept_approval`.
+- [x] As **oliver**, **Return** (request info) with a comment.
+- [x] **Expected:** status = `info_requested`; the PR is editable again by **alice** (own + `info_requested` window).
+- [x] As **alice**, edit a field and re-submit.
+- [x] **Expected:** status returns to `pending_dept_approval` and the cycle resumes.
 
 ### A9 — Return at Procurement stage
-- [ ] Take any PR to `pending_purchasing_review`.
-- [ ] As **pat**, **Return** with a comment → **Expected:** `info_requested`, editable by submitter.
+- [x] Take any PR to `pending_purchasing_review`.
+- [x] As **pat**, **Return** with a comment → **Expected:** `info_requested`, editable by submitter.
 
 ### A10 — Reject at Director
-- [ ] Take a ≥ $300 PR to `pending_director_approval`.
-- [ ] As **dana**, **Reject** with a reason → **Expected:** status = `rejected` (terminal); PR no longer editable by submitter (see B/immutability spirit — PR Guard A blocks edits on terminal PRs).
+- [x] Take a ≥ $300 PR to `pending_director_approval`.
+- [x] As **dana**, **Reject** with a reason → **Expected:** status = `rejected` (terminal); PR no longer editable by submitter (see B/immutability spirit — PR Guard A blocks edits on terminal PRs).
 
 ### A11 — Reject at Board
-- [ ] Take a $20k PR to `pending_board_approval` (via A7 steps).
-- [ ] As **pat**, **Reject** the Board task → **Expected:** status = `rejected`.
+- [x] Take a $20k PR to `pending_board_approval` (via A7 steps).
+- [x] As **pat**, **Reject** the Board task → **Expected:** status = `rejected`.
 
 ### A12 — PR immutability when terminal (Guard A)
-- [ ] On a `rejected` or `approved` PR, as the submitter try to edit any field and save.
-- [ ] **Expected:** blocked with the immutability message (single-record edit). *(Known D24 gap: bulk-update is not intercepted — single-record only.)*
+- [x] On a `rejected` or `approved` PR, as the submitter try to edit any field and save.
+- [x] **Expected:** blocked with the immutability message (single-record edit). *(Known D24 gap: bulk-update is not intercepted — single-record only.)*
 
 ---
 
@@ -131,93 +133,93 @@ Use **USD, fx_rate_to_usd = 1** on every PR/PO so `quoted_total_usd = quoted_tot
 > Send-zone math below, or approve a fresh one.
 
 ### B1 — Generate PO (number derivation)
-- [ ] As **pat**, open an `approved` PR (e.g. PR-26-00xx) → click **Generate PO**.
-- [ ] **Expected:** a new PO is created in `draft`; its `po_number` mirrors the PR number with `PR-`→`PO-` (e.g. PR-26-0001 → PO-26-0001). The PR's Generate-PO button disappears (already has a PO).
+- [x] As **pat**, open an `approved` PR (e.g. PR-26-00xx) → click **Generate PO**.
+- [x] **Expected:** a new PO is created in `draft`; its `po_number` mirrors the PR number with `PR-`→`PO-` (e.g. PR-26-0001 → PO-26-0001). The PR's Generate-PO button disappears (already has a PO).
 
 ### B2 — Create-PO guard (non-approved PR blocked)
-- [ ] Find a PR that is **not** `approved` (e.g. one in `pending_*`). The Generate-PO button should be hidden for non-approved / non-Procurement.
-- [ ] *(Server stop)* If you can trigger a PO create against a non-approved PR, **Expected:** blocked by the Create-PO guard with a message. (Button visibility already prevents the normal path.)
+- [x] Find a PR that is **not** `approved` (e.g. one in `pending_*`). The Generate-PO button should be hidden for non-approved / non-Procurement.
+- [x] *(Server stop)* If you can trigger a PO create against a non-approved PR, **Expected:** blocked by the Create-PO guard with a message. (Button visibility already prevents the normal path.)
 
 ### B3 — Send PO, Zone 1 (≤ PR USD)
-- [ ] On the B1 draft PO, as **pat** set `fx_rate_to_usd = 1` and `total = 5000` (= PR USD). Save.
-- [ ] Click **Send PO**.
-- [ ] **Expected:** status = `sent`, `sent_at` stamped (Zone 1, no comment needed).
+- [x] On the B1 draft PO, as **pat** set `fx_rate_to_usd = 1` and `total = 5000` (= PR USD). Save.
+- [x] Click **Send PO**.
+- [x] **Expected:** status = `sent`, `sent_at` stamped (Zone 1, no comment needed).
 
 ### B4 — Send PO, Zone 2 without comment → blocked
-- [ ] New approved PR with PR USD = 1000 → Generate PO. Set `total = 1050`, `fx_rate_to_usd = 1` (PO USD 1050; 1000 < 1050 ≤ 1100 → Zone 2). Leave `budget_override_comment` empty.
-- [ ] Click **Send PO** → **Expected:** blocked, message asks for an override comment; status stays `draft`.
+- [x] New approved PR with PR USD = 1000 → Generate PO. Set `total = 1050`, `fx_rate_to_usd = 1` (PO USD 1050; 1000 < 1050 ≤ 1100 → Zone 2). Leave `budget_override_comment` empty.
+- [x] Click **Send PO** → **Expected:** blocked, message asks for an override comment; status stays `draft`.
 
 ### B5 — Send PO, Zone 2 with comment → sent
-- [ ] On the same PO, fill `budget_override_comment`. **Send PO**.
-- [ ] **Expected:** status = `sent`.
+- [x] On the same PO, fill `budget_override_comment`. **Send PO**.
+- [x] **Expected:** status = `sent`.
 
 ### B6 — Send PO, Zone 3 (> 110%) → blocked
-- [ ] New approved PR with PR USD = 1000 → Generate PO. Set `total = 1200`, `fx_rate_to_usd = 1` (PO USD 1200 > 1100). **Send PO**.
-- [ ] **Expected:** blocked (Zone 3) regardless of comment; status stays `draft`.
+- [x] New approved PR with PR USD = 1000 → Generate PO. Set `total = 1200`, `fx_rate_to_usd = 1` (PO USD 1200 > 1100). **Send PO**.
+- [x] **Expected:** blocked (Zone 3) regardless of comment; status stays `draft`.
 
 ### B7 — Receiving, partial
-- [ ] On a `sent` PO with at least one line (add a line via the Line Items tab if needed: description + quantity_ordered, e.g. qty 10), as **pat** set `received_quantity = 4` on the line.
-- [ ] **Expected:** line `line_status = partially_received`; PO `status = partially_received`.
+- [x] On a `sent` PO with at least one line (add a line via the Line Items tab if needed: description + quantity_ordered, e.g. qty 10), as **pat** set `received_quantity = 4` on the line.
+- [x] **Expected:** line `line_status = partially_received`; PO `status = partially_received`.
 
 ### B8 — Receiving, full → received + notify
-- [ ] Set `received_quantity = 10` (= ordered) on every line.
-- [ ] **Expected:** each line `line_status = received`; PO `status = received`; **Pat** gets an in-app "ready to complete" notification.
+- [x] Set `received_quantity = 10` (= ordered) on every line.
+- [x] **Expected:** each line `line_status = received`; PO `status = received`; **Pat** gets an in-app "ready to complete" notification.
 
 ### B9 — Complete PO (happy path)
-- [ ] On the `received` PO, attach an **invoice** and set a positive `total_usd` (ensure `total` + `fx_rate_to_usd` give `total_usd > 0`).
-- [ ] Click **Complete** → **Expected:** status = `completed`, `completed_at` stamped.
+- [x] On the `received` PO, attach an **invoice** and set a positive `total_usd` (ensure `total` + `fx_rate_to_usd` give `total_usd > 0`).
+- [x] Click **Complete** → **Expected:** status = `completed`, `completed_at` stamped.
 
 ### B10 — Complete blocked: no invoice
-- [ ] Take another PO to `received` with **no invoice** attached. The Complete button should be hidden; if forced, **Expected:** server guard rejects with "invoice required".
+- [x] Take another PO to `received` with **no invoice** attached. The Complete button should be hidden; if forced, **Expected:** server guard rejects with "invoice required".
 
 ### B11 — Complete blocked: not received / zero USD total
-- [ ] On a `sent` (not received) PO, attempt Complete → **Expected:** blocked ("only for a fully-received PO with an invoice total").
-- [ ] On a `received` PO with `total_usd = 0`, attempt Complete → **Expected:** blocked by the server guard (`> 0`).
+- [x] On a `sent` (not received) PO, attempt Complete → **Expected:** blocked ("only for a fully-received PO with an invoice total").
+- [x] On a `received` PO with `total_usd = 0`, attempt Complete → **Expected:** blocked by the server guard (`> 0`).
 
 ### B12 — Close PO from a non-terminal state
-- [ ] On a `sent` (or `draft`/`confirmed`/`partially_received`) PO, click **Close**, fill `close_reason` (+ comment), Submit.
-- [ ] **Expected:** status = `closed`, `closed_at` stamped.
+- [x] On a `sent` (or `draft`/`confirmed`/`partially_received`) PO, click **Close**, fill `close_reason` (+ comment), Submit.
+- [x] **Expected:** status = `closed`, `closed_at` stamped.
 
 ### B13 — Close guard: blocked on `received`
-- [ ] On a `received` PO, click **Close**, fill `close_reason`, Submit.
-- [ ] **Expected:** blocked with a message (the Close Guard); `close_reason` is **not** persisted, status stays `received`. *(To bail a received PO, revert a line down to `partially_received` first.)*
+- [x] On a `received` PO, click **Close**, fill `close_reason`, Submit.
+- [x] **Expected:** blocked with a message (the Close Guard); `close_reason` is **not** persisted, status stays `received`. *(To bail a received PO, revert a line down to `partially_received` first.)*
 
 ### B14 — Immutability: header edit on a terminal PO
-- [ ] On a `completed` (B9) or `closed` (B12) PO, edit any header field and save.
-- [ ] **Expected:** blocked ("This PO is finalized and can no longer be edited").
+- [x] On a `completed` (B9) or `closed` (B12) PO, edit any header field and save.
+- [x] **Expected:** blocked ("This PO is finalized and can no longer be edited").
 
 ### B15 — Immutability: line edit on a terminal PO
-- [ ] On a `completed`/`closed` PO, try to edit or delete a line.
-- [ ] **Expected:** blocked ("Lines of a finalized PO can no longer be edited").
+- [x] On a `completed`/`closed` PO, try to edit or delete a line.
+- [x] **Expected:** blocked ("Lines of a finalized PO can no longer be edited").
 
 ### B16 — Immutability: add a NEW line to a terminal PO (D45)
-- [ ] On a `completed`/`closed` PO, open the Line Items tab and try to **add** a new line via the add-line form.
-- [ ] **Expected:** rejected — "Cannot add a line to a finalized (completed or closed) PO" (guard `polncreateg1`; the form's Submit assigns `purchase_order = {{ ctx.popup.record.id }}` so the guard sees the parent — D45).
-- [ ] On a `draft`/`sent` PO, add a line the same way → **Expected:** line is created normally (no false block).
+- [x] On a `completed`/`closed` PO, open the Line Items tab and try to **add** a new line via the add-line form.
+- [x] **Expected:** rejected — "Cannot add a line to a finalized (completed or closed) PO" (guard `polncreateg1`; the form's Submit assigns `purchase_order = {{ ctx.popup.record.id }}` so the guard sees the parent — D45).
+- [x] On a `draft`/`sent` PO, add a line the same way → **Expected:** line is created normally (no false block).
 
 ---
 
 ## Section C — ACL / permissions
 
 ### C1 — member is view-only
-- [ ] As **alice** but **switch to the bare `member` role** (if available in the switcher), confirm you can view but not create/edit PRs or POs.
-- [ ] **Expected:** no New/Edit actions where `member` has only `view`.
+- [x] As **alice** but **switch to the bare `member` role** (if available in the switcher), confirm you can view but not create/edit PRs or POs.
+- [x] **Expected:** no New/Edit actions where `member` has only `view`.
 
 ### C2 — operations create + edit-own window
-- [ ] As **alice** (operations), confirm you **can** create a PR and edit your **own** PR while `draft`/`info_requested`.
-- [ ] **Expected:** you **cannot** edit a PR once it's `pending_*`/`approved`/`rejected`, and cannot edit someone else's PR.
+- [x] As **alice** (operations), confirm you **can** create a PR and edit your **own** PR while `draft`/`info_requested`.
+- [x] **Expected:** you **cannot** edit a PR once it's `pending_*`/`approved`/`rejected`, and cannot edit someone else's PR.
 
 ### C3 — procurement cannot create a PR
-- [ ] As **pat**, go to Purchase Requests.
-- [ ] **Expected:** no "New PR" create action (D25 — procurement create/import removed). Pat can still view all PRs and act on Procurement tasks.
+- [x] As **pat**, go to Purchase Requests.
+- [x] **Expected:** no "New PR" create action (D25 — procurement create/import removed). Pat can still view all PRs and act on Procurement tasks.
 
 ### C4 — workflow-managed fields are read-only
-- [ ] As any non-admin, confirm `status`, `po_number`, `approved_at`, stamps, `line_status` are **not** user-editable on forms (and a direct API PATCH of `status` is rejected by the field whitelist).
-- [ ] **Expected:** these columns are display-only; status only changes via the workflows.
+- [x] As any non-admin, confirm `status`, `po_number`, `approved_at`, stamps, `line_status` are **not** user-editable on forms (and a direct API PATCH of `status` is rejected by the field whitelist).
+- [x] **Expected:** these columns are display-only; status only changes via the workflows.
 
 ### C5 — director / finance see approvals and the form renders
-- [ ] As **dana** (director) confirm the Director approval ProcessForm **renders fully** (not blank) when a task is open.
-- [ ] As **fiona** (finance) confirm desktop routes are present and PRs are viewable (no finance approval stage exists yet — view + render-enabler only).
+- [x] As **dana** (director) confirm the Director approval ProcessForm **renders fully** (not blank) when a task is open.
+- [x] As **fiona** (finance) confirm desktop routes are present and PRs are viewable (no finance approval stage exists yet — view + render-enabler only).
 
 ---
 
