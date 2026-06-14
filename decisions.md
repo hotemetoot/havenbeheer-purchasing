@@ -645,3 +645,62 @@ See auto-memory `feedback_request_interception_assoc_create_no_source`.
 
 **Affects:** PO line immutability (MVP9d). No flow-logic change to existing workflows.
 **Status:** effective + **fully verified 2026-06-13** — flow-nodes test + live direct-create probe + live association replay (completed→block, draft→allow); **user confirmed the real add-line form blocks on a terminal PO and allows on a draft PO** (`{{ ctx.popup.record.id }}` resolves). Fixtures cleaned up.
+
+## D46 — PO rework: Issue-gated lifecycle, Send/budget-zones retired, print gated, PR-copied fields locked (2026-06-14)
+
+Reworked the PO process. **New lifecycle:** `draft → issued → (partially_received) → received →
+completed`; **close from `{draft, issued, partially_received}`** (a fully `received` PO can no longer
+be closed — it completes). New status value **`issued`** (the user rejected `printed`) + stamp
+`issued_at`. **Supersedes** the `draft → sent` Send step and its budget-overrun zones (MVP9b).
+
+**Why / what changed:**
+- The PO already copies supplier / price / currency / fx-rate / total from the approved PR
+  (Generate-PO). **Procurement may no longer edit those** — removed `supplier`, `total`, `currency`,
+  `fx_rate_to_usd` (plus the auto-added `issued_at` stamp) from procurement's `purchase_orders`
+  **update** field whitelist (D38 ACL-whitelist enforcement; the user separately sets them `readPretty`
+  on the form). Procurement still edits lines, `delivery_address`, `supplier_note`, `internal_notes`.
+- **Send is gone, sending happens outside the system.** The Send button was **repurposed** into an
+  **"Issue PO"** button (same `RecordTriggerWorkflowActionModel` uid `slybgc23q1i`, same linkage
+  hide-unless-`draft`+Procurement) rebound from `send_po` to the new **`issue_po`** custom-action
+  workflow. `send_po` (and its budget zones 1/2/3) **disabled** — budget-overrun checking is retired.
+- **"Issue PO" is the completeness gate.** `issue_po` (custom-action, sync) guards: `status==draft`
+  AND `supplierId`/`deliveryAddressId`/`currency` not null AND `total>0` AND ≥1 line
+  (math.js `count({{$context.data.lines}})`); pass → `status=issued`, `issued_at=now`; fail → reject +
+  message (mirrors Send/Complete inline-guard shape). The **Print** button (`templatePrint`,
+  unchanged) got a linkage rule **hiding it until `status ∈ {issued, partially_received, received,
+  completed}`**. Because `issued` is only reachable through the Issue guard, "you can't print an
+  incomplete PO" is a **hard** guarantee achieved via the status gate.
+- **Why not gate/advance on print directly:** the spike (see auto-memory
+  `feedback_noncrud_action_workflow_triggers`) proved `templatePrint` is **not** workflow-triggerable —
+  post-action fires only on create/update; global request-interception is CRUD-only. So a status-
+  advancing custom-action button is the mechanism. Also re-confirmed: template-print **streams the PDF
+  to the browser only** (no save-to-record/attach), so the "auto-attach PDF to the PO" idea was dropped
+  — procurement downloads + emails (and may manually attach).
+- **Receiving/close rewired** (same-key revisions): Receive Guard `mhfp4d15uee`
+  (`368072131870720`→`369914942128128`→**`369970105614336`**) adds `issued` to the receivable set;
+  Close PO `f8gpu17s6hq` (`368791950131200`→**`369914944225280`**) and Close Guard `b6brl8r9c58`
+  (`368982201729024`→`369914946322432`→**`369970388729856`**) closeable set →
+  `{draft, issued, partially_received}`. Receiving recompute `ork27v016yo` unchanged (sets header from
+  quantities). Complete path unchanged. **Message fix (2nd revision each):** the Receive Guard and
+  Close Guard rejection messages still said "sent"/"sent, confirmed" — corrected to "issued"
+  wording. (Node edits 400 with "Nodes in executed workflow could not be reconfigured" — must
+  revision to a fresh unexecuted version, edit while disabled, then enable.)
+
+**How applied:** new workflow `issue_po` (id `369914017284096`, 8 nodes, mirrors Complete's
+guard/count/reject/update shape; `count` via math.js, scalar/null checks via basic — D34 engine split).
+Status enum gained `issued` (geekblue) after `draft`; `sent`/`confirmed` kept inert for history.
+
+**Build notes (reusable):** generic `flow_nodes:create` does NOT auto-maintain `downstreamId` — set it
+explicitly on sequential (non-branch-head) nodes; branch heads use `upstreamId`+`branchIndex`. Patching
+an **already-registered** flowModel (the Send button → Issue PO; the Print linkage) via raw
+`flowModels:update` is fine (the no-render caveat is only for raw *create*).
+
+**Affects:** MVP9b (Send/zones retired), MVP9c (receiving from `issued`), MVP9d (close set), MVP9e
+(print gated). No PR-side impact.
+**Status:** **built + user-verified end-to-end 2026-06-14.** Logic validated via `flow-nodes test` +
+config readbacks; the user then confirmed the full checklist live: Issue button renders/clicks
+(incomplete→rejected with message, complete→`issued`+`issued_at`), Print appears only once issued,
+procurement ACL blocks editing supplier/total/currency/fx-rate (lines/address/notes still editable),
+receiving from `issued` works, and close from `{draft, issued, partially_received}` (received→blocked).
+E2E also surfaced two stale "sent" rejection messages (Receive Guard + Close Guard) — corrected (see
+revision note above). The user set the 4 PR-copied fields `readPretty` on the PO form.
