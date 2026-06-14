@@ -782,3 +782,21 @@ receiving advances status, `needs_reprint` flips on post-issue edit, interceptio
 user UI walkthrough:** the `issue_po` all-priced gate (custom-action can't be driven headless), the
 `needs_reprint` indicator + "Mark reprinted" button placement, and adding `unit_price`/`line_total`/
 `lines_total` columns to the print template.
+
+**Update 2026-06-14 (later same day) — reprint feature fully removed.** After UI testing, the reprint
+mechanism kept mis-refreshing and the user dropped it entirely. Sequence of facts learned + actions:
+- A plain `updateRecord` button + `refreshTargetBlocks` eventflow does **not** refresh its host block
+  (no `afterSuccess` cycle); only `RecordTriggerWorkflowActionModel` refreshes — see
+  `feedback_updaterecord_no_block_refresh`. The fix attempt (trigger-workflow button bound to a tiny
+  "clear flag" workflow) worked mechanically but the user chose to remove the whole feature.
+- **Removed:** banner + "Mark reprinted" button (UI); clear-flag workflow **destroyed**; `needs_reprint`
+  field **dropped** (ACL auto-scrubbed). Recompute A/B **revised** to drop their condition+flag nodes →
+  now `lines_total`-only (`5ukanitoy74` v`370047322750976`, `pnvp0dtitum` v`370047503106048`).
+  `issue_po` **revised** to v`370047775735808` to drop the `needs_reprint=false` write (all-priced check
+  retained). Swept all current workflows: no node references `needs_reprint`.
+- **Print template** trimmed to a single **Order Total** (`lines_total`); Invoice Total + Invoice Total
+  (USD) rows removed; line columns right-aligned except Description. Live print binding reads a **hashed**
+  filename in `printingTemplates`, not the friendly name — see `feedback_template_print_hashed_filename`.
+- **Unchanged / still active:** the per-line budget guards (`8u81nd3vxhc` create, `c9c14tyn876` update)
+  and the `lines_total` recompute — i.e. the budget hard-block (the core of D47) stands. Only the
+  reprint-snapshot affordance is gone; post-issue line edits are simply allowed with no flag.
