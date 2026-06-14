@@ -191,9 +191,9 @@ Use **USD, fx_rate_to_usd = 1** on every PR/PO so `quoted_total_usd = quoted_tot
 - [ ] **Expected:** blocked ("Lines of a finalized PO can no longer be edited").
 
 ### B16 — Immutability: add a NEW line to a terminal PO (D45)
-- [ ] On a `completed`/`closed` PO, try to **add** a new line item.
-- [ ] **Expected (UI):** the add-line form is hidden on terminal POs (frontend control).
-- [ ] **Expected (server, direct API):** a direct `po_lines:create` naming a finalized PO is rejected — "Cannot add a line to a finalized (completed or closed) PO" (guard `polncreateg1`). *Note: the association add-line route is covered by the hidden form, not the guard — see D45.*
+- [ ] On a `completed`/`closed` PO, open the Line Items tab and try to **add** a new line via the add-line form.
+- [ ] **Expected:** rejected — "Cannot add a line to a finalized (completed or closed) PO" (guard `polncreateg1`; the form's Submit assigns `purchase_order = {{ ctx.popup.record.id }}` so the guard sees the parent — D45).
+- [ ] On a `draft`/`sent` PO, add a line the same way → **Expected:** line is created normally (no false block).
 
 ---
 

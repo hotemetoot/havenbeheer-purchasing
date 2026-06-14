@@ -621,20 +621,27 @@ the deliberate block ends `-1` (via the end-process `endStatus:-1` node). Manife
 ## D45 — PO line-create guard for terminal POs (2026-06-13)
 Added request-interception guard `polncreateg1` blocking `po_lines:create` when the parent PO is
 `completed`/`closed`. Closes the gap left by the update/destroy-only Line Immutability guard
-(`f3dkb37te22`). Covers the **direct** `po_lines:create` route; the **association** route
-(`purchase_orders.lines:create`, used by the add-line form) is controlled by hiding the form in
-the frontend.
+(`f3dkb37te22`). Reads the parent FK from `{{$context.params.values.purchase_order}}` → covers both
+create routes (see resolution).
 
 **Why:** new lines could still be appended to a finalized PO. A guard is the server backstop.
-The association route can't be guarded by query-the-parent: request-interception fires but the
-source PO id is not exposed in the workflow context (proven by live probe — `values.purchase_order`,
-`purchaseOrderId`, `filterByTk`, `associatedIndex`, `sourceId` all empty; FK injected after the
-guard). User chose "form-hide is enough" over rebuilding the form to the direct route.
+Initial finding (live probe): the **association** route `purchase_orders.lines:create` (add-line
+form) doesn't expose the source PO id to request-interception — `values.purchase_order`,
+`purchaseOrderId`, `filterByTk`, `associatedIndex`, `sourceId` all empty (FK injected after the
+guard) — so a query-the-parent guard couldn't see it on that route.
 
-**How to apply:** for create-interception, read the FK from `{{$context.params.values.<fk>}}`
-(direct route only). Association sub-resource creates are not coverable this way — close them in the
-UI. The guard fails open when no FK is present, so it never false-blocks legit draft-PO line adds.
+**Resolution (user, 2026-06-13):** rather than relying on a frontend form-hide, set the add-line
+form Submit button's **assign-field-values** to inject `purchase_order = {{ ctx.popup.record.id }}`
+(button `8373f6c1297`, form `fd22f7bcaed`). That puts the parent PO id into the submitted `values`,
+so the same guard query resolves on the association route too. Verified server-side (association
+replay with the FK in values → block on a completed PO). Form-hide on terminal POs is now optional
+UX, not the control.
+
+**How to apply:** create-interception can only read the FK from `{{$context.params.values.<fk>}}`.
+To guard a sub-table/association create by parent status, add the parent FK to the form action's
+assign-field-values (`{{ ctx.popup.record.id }}`) so it lands in the body. Keep the guard query
+`failOnEmpty:false` + condition `rejectOnFalse:false` so a missing FK fails open (no false block).
 See auto-memory `feedback_request_interception_assoc_create_no_source`.
 
 **Affects:** PO line immutability (MVP9d). No flow-logic change to existing workflows.
-**Status:** effective — verified via flow-nodes test + live direct-create probe (completed→block, draft→allow); throwaway fixtures cleaned up.
+**Status:** effective — flow-nodes test + live direct-create probe + live association replay (completed→block, draft→allow) pass; fixtures cleaned up. Open: client-side confirm `{{ ctx.popup.record.id }}` resolves on a real form submit.
