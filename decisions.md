@@ -704,3 +704,81 @@ procurement ACL blocks editing supplier/total/currency/fx-rate (lines/address/no
 receiving from `issued` works, and close from `{draft, issued, partially_received}` (received→blocked).
 E2E also surfaced two stale "sent" rejection messages (Receive Guard + Close Guard) — corrected (see
 revision note above). The user set the 4 PR-copied fields `readPretty` on the PO form.
+
+## D47 — PO line pricing + per-line budget hard-block in PR currency (2026-06-14)
+
+Re-introduced line-level pricing on the PO (partly **reverses D27**, which had dropped line pricing)
+and a **per-line budget hard-block** that prevents the sum of PO lines from exceeding the **approved PR
+amount, in the PR's own currency** (partly **reverses D46**, which retired budget checking). Enforcement
+is **per line at create/update** (not at the Issue gate) so the invariant `Σ(line_total) ≤
+PR.quoted_total` holds continuously and **no line-freeze is needed** — lines stay editable for
+corrections; only an edit that actually breaches the ceiling is blocked.
+
+**Why per-line (not Issue-gate + freeze):** a check only at Issue would let lines be added after issuing
+and an over-budget PO printed, forcing a line-freeze after issue — which makes legitimate corrections
+(wrong description, small price fix) impossible without revert-to-draft churn. Per-line enforcement keeps
+the PO correctable. The cost — "printed == final snapshot" is given up — is handled with a
+**`needs_reprint`** flag instead of locking.
+
+**Currency is same-by-construction:** PO `currency`/`fx_rate_to_usd` are PR-copied and ACL-locked (D46),
+so `PO.currency == PR.quoted_currency` always. The check is a **pure same-currency numeric compare**
+(`Σ(line_total)` vs `PR.quoted_total`) — **no USD/FX**. Ceiling is `quoted_total` (PR amount in its own
+currency), NOT `quoted_total_usd`. Verified live: SRD 10000 PR blocks at "10400 SRD over 10000 SRD".
+
+**Data model:**
+- `po_lines.unit_price` (double, in PO currency; auto-added to procurement create/update whitelist).
+- `po_lines.line_total` (formula.js `ROUND({{quantity_ordered}} * {{unit_price}}, 2)`, double) — a
+  same-record formula, so it computes and **persists to a real column** (confirmed aggregatable).
+- `purchase_orders.lines_total` (double, **new** — sum of lines; workflow-maintained, read-only). The
+  existing `total` (titled "Invoice Total") is **left untouched** — invoiced vs ordered-from-lines are
+  intentionally distinct. `lines_total` removed from procurement's PO create/update whitelist.
+- `purchase_orders.needs_reprint` (boolean, default false; workflow-maintained, removed from procurement
+  create/update whitelist).
+
+**Workflows (all new unless noted):**
+- **Recompute A** `5ukanitoy74` (collection, sync, mode 3 = create+update, `changed:[quantity_ordered,
+  unit_price]`) and **Recompute B** `pnvp0dtitum` (collection, sync, mode 4 = delete). Two workflows
+  because the collection-trigger `mode` only accepts `[1,2,4,3]` — no triple combo. Each: query PO →
+  aggregate `sum(line_total)` for the PO → write `lines_total`; if PO `status != draft` → set
+  `needs_reprint=true`. Keyed off `purchaseOrderId` scalar (delete-safe; appends unreliable on delete).
+- **Budget create guard** `8u81nd3vxhc` (request-interception, `po_lines:create`, sync, global): gate on
+  price+qty present → query PO+PR → `aggregate sum(line_total)` existing → `N(sum)+qty*price` (formula.js
+  `N()` coalesces the empty-set null to 0 — the first-line case) → if `> quoted_total` reject with a
+  dynamic PR-currency message + `end(-1)`.
+- **Budget update guard** `c9c14tyn876` (request-interception, `po_lines:update`, sync, global): **skip
+  unless `quantity_ordered` or `unit_price` is in the payload** (so `received_quantity`/receiving writes
+  pass straight through) → query line+PO+PR → `aggregate sum(line_total)` over **other** lines
+  (`id != filterByTk`) → coalesce effective qty/price via `IF(ISBLANK({{values.x}}), stored, {{values.x}})`
+  (handles partial updates) → `N(sum)+eff_qty*eff_price` → reject if over.
+- **`issue_po`** revised (same-key revision `370019772465152`, old `369914017284096` retired): kept all
+  completeness checks; **added "every line priced"** — `aggregate count(unit_price>0)` must equal
+  `count(lines)`, else reject; and `issue_update` now also sets `needs_reprint=false`. No budget check in
+  the gate (per-line guards already guarantee the ceiling).
+
+**Reprint affordance:** post-issue line edits set `needs_reprint=true`; cleared via a **"Mark reprinted"**
+button (manual ack — `templatePrint` is non-CRUD/unhookable, see
+`feedback_noncrud_action_workflow_triggers`, so it can't auto-clear on print). *(UI surfaces + print
+template price columns: see Status.)*
+
+**Build notes (reusable):**
+- Collection-trigger `mode` rejects combined create+update+delete (7) — only `[1,2,4,3]`; split delete
+  into its own workflow.
+- `ISBLANK("")` is **false** in this formula.js (empty string ≠ blank), but `ISBLANK(null)` is true and
+  `N(null)=0`; use `N()` to coalesce a null aggregate sum, and `IF(ISBLANK(...))` to coalesce a possibly-
+  absent `$context.params.values.<field>` to its stored value.
+- `response-message` **supports variable templates** (`{{$jobsMapByNodeKey...}}`, nested assoc paths) —
+  used to echo the over-budget amount + PR currency.
+- Two request-interception workflows **stack** on the same `resource:action` (terminal guard + budget
+  guard both fire on `po_lines:create`; first to `end(-1)` wins) — verified live.
+- NocoBase **auto-adds new fields to existing role field-whitelists** on field create; scrub
+  workflow-managed fields (`lines_total`, `needs_reprint`) out of procurement's PO create/update lists.
+
+**Affects:** MVP9a (PO line pricing back), MVP9b (budget block returns, per-line + PR currency, replaces
+the retired zones), MVP9e (print template needs price columns), any future Payment MVP.
+**Status:** **core built + verified live via CLI (root) 2026-06-14** — formula compute, recompute A/B
+(create/update/delete), create-guard block+allow incl. first-line null coalesce, update-guard
+block+allow incl. partial-update coalesce + exclude-self, `received_quantity` skips the guard while
+receiving advances status, `needs_reprint` flips on post-issue edit, interception stacking. **Pending
+user UI walkthrough:** the `issue_po` all-priced gate (custom-action can't be driven headless), the
+`needs_reprint` indicator + "Mark reprinted" button placement, and adding `unit_price`/`line_total`/
+`lines_total` columns to the print template.
