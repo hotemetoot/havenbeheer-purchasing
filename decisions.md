@@ -617,3 +617,24 @@ the deliberate block ends `-1` (via the end-process `endStatus:-1` node). Manife
 
 **Affects:** none downstream — retention/observability only, no flow-logic change.
 **Status:** effective — live-verified: all 6 options carry `[1]`; 32 guard executions remain (27×-1, 5×-2), 0 resolved.
+
+## D45 — PO line-create guard for terminal POs (2026-06-13)
+Added request-interception guard `polncreateg1` blocking `po_lines:create` when the parent PO is
+`completed`/`closed`. Closes the gap left by the update/destroy-only Line Immutability guard
+(`f3dkb37te22`). Covers the **direct** `po_lines:create` route; the **association** route
+(`purchase_orders.lines:create`, used by the add-line form) is controlled by hiding the form in
+the frontend.
+
+**Why:** new lines could still be appended to a finalized PO. A guard is the server backstop.
+The association route can't be guarded by query-the-parent: request-interception fires but the
+source PO id is not exposed in the workflow context (proven by live probe — `values.purchase_order`,
+`purchaseOrderId`, `filterByTk`, `associatedIndex`, `sourceId` all empty; FK injected after the
+guard). User chose "form-hide is enough" over rebuilding the form to the direct route.
+
+**How to apply:** for create-interception, read the FK from `{{$context.params.values.<fk>}}`
+(direct route only). Association sub-resource creates are not coverable this way — close them in the
+UI. The guard fails open when no FK is present, so it never false-blocks legit draft-PO line adds.
+See auto-memory `feedback_request_interception_assoc_create_no_source`.
+
+**Affects:** PO line immutability (MVP9d). No flow-logic change to existing workflows.
+**Status:** effective — verified via flow-nodes test + live direct-create probe (completed→block, draft→allow); throwaway fixtures cleaned up.

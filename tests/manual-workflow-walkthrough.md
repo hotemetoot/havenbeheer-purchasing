@@ -190,6 +190,11 @@ Use **USD, fx_rate_to_usd = 1** on every PR/PO so `quoted_total_usd = quoted_tot
 - [ ] On a `completed`/`closed` PO, try to edit or delete a line.
 - [ ] **Expected:** blocked ("Lines of a finalized PO can no longer be edited").
 
+### B16 — Immutability: add a NEW line to a terminal PO (D45)
+- [ ] On a `completed`/`closed` PO, try to **add** a new line item.
+- [ ] **Expected (UI):** the add-line form is hidden on terminal POs (frontend control).
+- [ ] **Expected (server, direct API):** a direct `po_lines:create` naming a finalized PO is rejected — "Cannot add a line to a finalized (completed or closed) PO" (guard `polncreateg1`). *Note: the association add-line route is covered by the hidden form, not the guard — see D45.*
+
 ---
 
 ## Section C — ACL / permissions
@@ -227,4 +232,5 @@ UoM, delivery addresses) are untouched by that wipe.
 > $300 floor / $15k board / return / reject / immutability). B1–B15 = Generate PO `2izsx8uv50r`,
 > Create-PO guard `vgv8hcrtjvx`, Send PO `send_po`, Receiving `ork27v016yo` + Receive guard
 > `mhfp4d15uee`, Complete `qh7b3hc5q1r`, Close `f8gpu17s6hq` + Close guard `b6brl8r9c58`,
-> immutability guards `xvcsdv07c5j` / `f3dkb37te22`. C1–C5 = role hardening (D38–D40).
+> immutability guards `xvcsdv07c5j` / `f3dkb37te22` / line-create `polncreateg1` (D45).
+> C1–C5 = role hardening (D38–D40).

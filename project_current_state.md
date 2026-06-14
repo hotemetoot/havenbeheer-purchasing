@@ -306,6 +306,15 @@ The four MVP8 fields (`expenditure_type`, `is_emergency`, `needed_by`, `other_at
 - **Nodes (4):** `line_imm_query` (query po_lines, multiple=false, filter id=`{{$context.params.filterByTk}}`, **appends `[purchase_order]`**, failOnEmpty=false) → `line_imm_cond` (condition, basic, OR `equal {{$jobsMapByNodeKey.line_imm_query.purchase_order.status}}` against `completed`/`closed`, rejectOnFalse=false) → br=1: `line_imm_msg` (response-message, "Lines of a finalized PO can no longer be edited.") → `line_imm_end` (end, -1).
 - Workflow-internal updates (9c receiving recompute) bypass request-interception (`feedback_request_interception_scope`), so receiving is unaffected.
 
+### Guard: PO Line Create (D45, 2026-06-13) — block adding a line to a terminal PO
+- **Key:** `polncreateg1` · title "Guard: PO Line Create — block on terminal PO"
+- **Active version ID:** `369880930516992` (enabled=true, current=true).
+- **Why:** the Line Immutability guard `f3dkb37te22` covers only `update`/`destroy`, so a **new** line could still be created on a `completed`/`closed` PO. This closes the create gap.
+- **Type:** request-interception (Pre-action Event), global, sync; actions: `create` on `po_lines`.
+- **Nodes (4):** `plc_query` (query purchase_orders, multiple=false, filter id=`{{$context.params.values.purchase_order}}`, failOnEmpty=false) → `plc_cond` (condition, basic, OR `equal {{$jobsMapByNodeKey.plc_query.status}}` against `completed`/`closed`, rejectOnFalse=false) → br=1: `plc_msg` (response-message "Cannot add a line to a finalized (completed or closed) PO.") → `plc_end` (end, -1).
+- **Route coverage (D45 — proven by live probe):** catches the **direct** `po_lines:create` route, where the parent FK is in `{{$context.params.values.purchase_order}}`. It does **NOT** cover the **association** route `purchase_orders.lines:create` (the add-line form): request-interception fires there but the parent PO id is unreachable — `values.purchase_order`/`purchaseOrderId`, `filterByTk`, `associatedIndex`, `sourceId` are all empty (FK injected after the guard). The association route is controlled by **hiding the add-line form in the frontend** (user, 2026-06-13). The query fails open (status null → allow) when no FK is present, so legit draft-PO line-adding via the form is never false-blocked. See auto-memory `feedback_request_interception_assoc_create_no_source`.
+- **Verified 2026-06-13:** `flow-nodes test` (completed/closed→block, draft/empty→allow) + live direct-create probe (completed PO → blocked with message; draft PO → line created). D24 bulk-create caveat: a bulk/`filter.$in` create isn't intercepted (same `filterByTk`-class limitation).
+
 ### Receive Guard (MVP9c) — block receiving against a non-receivable PO
 - **Key:** `mhfp4d15uee`
 - **Active version ID:** `368072131870720` (enabled=true, current=true) — built + verified 2026-06-07 (R4 passed).
