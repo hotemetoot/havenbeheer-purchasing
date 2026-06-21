@@ -1,0 +1,57 @@
+<svg width="680" height="566" viewBox="0 0 680 566" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>The approval ladder by amount</title>
+<desc>A submitted PR goes to the department head (skipped if you are the head), then Procurement review which always happens and adds the quote, then the Director only if 300 USD or more or not a regular buy, then the Board only if 15000 USD or more with a signed approval, then Approved and becomes a Purchase Order. At any stage an approver can return it for more info, or reject it.</desc>
+<style>
+  text { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .th { font-size: 14px; font-weight: 500; }
+  .ts { font-size: 12px; font-weight: 400; }
+  .prim { fill: #2C2C2A; }
+  .sec  { fill: #5F5E5A; }
+</style>
+
+<rect x="0" y="0" width="680" height="566" fill="#FFFFFF"/>
+
+<text class="th prim" x="40" y="30">How high a request climbs depends on the amount</text>
+
+<!-- b1 -->
+<rect x="210" y="48" width="260" height="50" rx="8" fill="#FAEEDA" stroke="#854F0B"/>
+<text class="th" x="340" y="70" text-anchor="middle" fill="#633806">Submit a request (PR)</text>
+<text class="ts" x="340" y="88" text-anchor="middle" fill="#854F0B">Anyone, any amount</text>
+<!-- b2 -->
+<rect x="210" y="136" width="260" height="50" rx="8" fill="#FAEEDA" stroke="#854F0B"/>
+<text class="th" x="340" y="158" text-anchor="middle" fill="#633806">Department head</text>
+<text class="ts" x="340" y="176" text-anchor="middle" fill="#854F0B">Skipped if you are the head</text>
+<!-- b3 -->
+<rect x="210" y="224" width="260" height="50" rx="8" fill="#FAEEDA" stroke="#854F0B"/>
+<text class="th" x="340" y="246" text-anchor="middle" fill="#633806">Procurement review</text>
+<text class="ts" x="340" y="264" text-anchor="middle" fill="#854F0B">Always — checks and quotes</text>
+<!-- b4 -->
+<rect x="210" y="312" width="260" height="50" rx="8" fill="#FAEEDA" stroke="#854F0B"/>
+<text class="th" x="340" y="334" text-anchor="middle" fill="#633806">Director</text>
+<text class="ts" x="340" y="352" text-anchor="middle" fill="#854F0B">Final sign-off on bigger spend</text>
+<!-- b5 -->
+<rect x="210" y="400" width="260" height="50" rx="8" fill="#FAEEDA" stroke="#854F0B"/>
+<text class="th" x="340" y="422" text-anchor="middle" fill="#633806">Board</text>
+<text class="ts" x="340" y="440" text-anchor="middle" fill="#854F0B">Signed hard-copy approval</text>
+<!-- b6 -->
+<rect x="210" y="488" width="260" height="50" rx="8" fill="#EAF3DE" stroke="#3B6D11"/>
+<text class="th" x="340" y="510" text-anchor="middle" fill="#27500A">Approved</text>
+<text class="ts" x="340" y="528" text-anchor="middle" fill="#3B6D11">Becomes a Purchase Order</text>
+
+<!-- arrows -->
+<g stroke="#7c7b75" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+<path d="M340,100 V132 M335,127 L340,132 L345,127"/>
+<path d="M340,188 V220 M335,215 L340,220 L345,215"/>
+<path d="M340,276 V308 M335,303 L340,308 L345,303"/>
+<path d="M340,364 V396 M335,391 L340,396 L345,391"/>
+<path d="M340,452 V484 M335,479 L340,484 L345,479"/>
+</g>
+
+<!-- step labels -->
+<text class="ts sec" x="352" y="120">always</text>
+<text class="ts sec" x="352" y="208">always</text>
+<text class="ts sec" x="352" y="296">if ≥ $300, or not a regular buy</text>
+<text class="ts sec" x="352" y="384">if ≥ $15,000</text>
+
+<text class="ts sec" x="40" y="558">At any stage an approver can return it for more info, or reject it.</text>
+</svg>
