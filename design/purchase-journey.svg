@@ -1,0 +1,84 @@
+<svg width="680" height="478" viewBox="0 0 680 478" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>The journey of a purchase across its two documents</title>
+<desc>Five stages flow left to right with arrows: Request and Approval belong to the Purchase Request; Order, Receiving and Completed belong to the Purchase Order. The Purchase Request gets approval to buy and carries title and description, justification, quotation with amount currency and FX, attached quote, department and submitter. When approved it becomes exactly one Purchase Order, run by Procurement, carrying PO lines with item quantity and unit price, line and PO totals, supplier and delivery address, received quantity per line, and invoice and payment status.</desc>
+<style>
+  text { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .th { font-size: 14px; font-weight: 500; }
+  .ts { font-size: 12px; font-weight: 400; }
+  .prim { fill: #2C2C2A; }
+  .sec  { fill: #5F5E5A; }
+</style>
+
+<rect x="0" y="0" width="680" height="478" fill="#FFFFFF"/>
+
+<text class="th prim" x="40" y="28">The journey of a purchase, across its two documents</text>
+<text class="ts sec" x="40" y="48">Five steps — the first two are the Request, the last three are the Order</text>
+
+<!-- PR stages -->
+<rect x="40" y="82" width="120" height="54" rx="8" fill="#E6F1FB" stroke="#185FA5"/>
+<text class="th" x="100" y="128" text-anchor="middle" fill="#0C447C">Request</text>
+<rect x="190" y="82" width="120" height="54" rx="8" fill="#E6F1FB" stroke="#185FA5"/>
+<text class="th" x="250" y="128" text-anchor="middle" fill="#0C447C">Approval</text>
+<!-- PO stages -->
+<rect x="340" y="82" width="80" height="54" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+<text class="th" x="380" y="128" text-anchor="middle" fill="#3C3489">Order</text>
+<rect x="450" y="82" width="80" height="54" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+<text class="th" x="490" y="128" text-anchor="middle" fill="#3C3489">Receiving</text>
+<rect x="560" y="82" width="80" height="54" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+<text class="th" x="600" y="128" text-anchor="middle" fill="#3C3489">Completed</text>
+
+<!-- stage icons -->
+<g fill="none" stroke="#378ADD" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+<rect x="93" y="90" width="14" height="18" rx="2"/><path d="M96,96 H104 M96,100 H104 M96,104 H101"/>
+<polyline points="243,100 248,106 258,92"/>
+</g>
+<g fill="none" stroke="#7F77DD" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+<rect x="372" y="92" width="16" height="13" rx="1.5"/><path d="M372,92 L380,99 L388,92"/>
+<rect x="482" y="92" width="16" height="14" rx="1.5"/><path d="M482,98 H498 M490,92 V106"/>
+<circle cx="600" cy="99" r="9"/><polyline points="595,99 599,104 606,93"/>
+</g>
+
+<!-- flow arrows between stages -->
+<g stroke="#7c7b75" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+<path d="M166,109 H184 M179,105 L184,109 L179,113"/>
+<path d="M316,109 H334 M329,105 L334,109 L329,113"/>
+<path d="M426,109 H444 M439,105 L444,109 L439,113"/>
+<path d="M536,109 H554 M549,105 L554,109 L549,113"/>
+</g>
+
+<!-- PR panel -->
+<rect x="40" y="160" width="270" height="250" rx="10" fill="#F7F6F1" stroke="#D3D1C7"/>
+<path d="M50,160 H300 Q310,160 310,170 V206 H40 V170 Q40,160 50,160 Z" fill="#185FA5"/>
+<text class="th" x="56" y="186" font-size="18" font-weight="700" fill="#FFFFFF">Purchase Request (PR)</text>
+<text class="ts" x="56" y="200" fill="#FFFFFF" fill-opacity="0.9">Its job: get approval to buy</text>
+<text class="th prim" x="56" y="234">Key fields</text>
+<text class="ts sec" x="58" y="258">• Title &amp; description — what and why</text>
+<text class="ts sec" x="58" y="280">• Justification — the business case</text>
+<text class="ts sec" x="58" y="302">• Quotation — amount, currency, FX</text>
+<text class="ts sec" x="58" y="324">• Quotation document attached</text>
+<text class="ts sec" x="58" y="346">• Department &amp; submitter</text>
+<line x1="56" y1="368" x2="294" y2="368" stroke="#378ADD" stroke-width="1"/>
+<text class="ts sec" x="56" y="390">Anyone submits · approvers decide</text>
+
+<!-- handoff arrow between panels -->
+<g stroke="#5F5E5A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+<path d="M314,285 H334 M328,280 L334,285 L328,290"/>
+</g>
+
+<!-- PO panel -->
+<rect x="340" y="160" width="300" height="250" rx="10" fill="#F7F6F1" stroke="#D3D1C7"/>
+<path d="M350,160 H630 Q640,160 640,170 V206 H340 V170 Q340,160 350,160 Z" fill="#534AB7"/>
+<text class="th" x="356" y="186" font-size="18" font-weight="700" fill="#FFFFFF">Purchase Order (PO)</text>
+<text class="ts" x="356" y="200" fill="#FFFFFF" fill-opacity="0.9">Its job: order, receive and pay</text>
+<text class="th prim" x="356" y="234">Key fields</text>
+<text class="ts sec" x="358" y="258">• PO lines — item, quantity, unit price</text>
+<text class="ts sec" x="358" y="280">• Line totals &amp; PO total</text>
+<text class="ts sec" x="358" y="302">• Supplier &amp; delivery address</text>
+<text class="ts sec" x="358" y="324">• Received quantity, per line</text>
+<text class="ts sec" x="358" y="346">• Invoice &amp; payment status</text>
+<line x1="356" y1="368" x2="624" y2="368" stroke="#7F77DD" stroke-width="1"/>
+<text class="ts sec" x="356" y="390">Run by Procurement</text>
+
+<text class="ts sec" x="340" y="440" text-anchor="middle">An approved PR becomes exactly one PO (1:1).</text>
+<text class="ts sec" x="340" y="460" text-anchor="middle">The why and the approval live in the PR; the goods and the payment live in the PO.</text>
+</svg>
