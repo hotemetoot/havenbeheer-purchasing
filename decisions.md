@@ -800,3 +800,51 @@ mechanism kept mis-refreshing and the user dropped it entirely. Sequence of fact
 - **Unchanged / still active:** the per-line budget guards (`8u81nd3vxhc` create, `c9c14tyn876` update)
   and the `lines_total` recompute — i.e. the budget hard-block (the core of D47) stands. Only the
   reprint-snapshot affordance is gone; post-issue line edits are simply allowed with no flag.
+
+## D48 — USD auto-sets fx_rate_to_usd = 1 and hides the rate field on all PR forms (2026-06-21)
+
+When `quoted_currency == 'USD'`, `fx_rate_to_usd` must be `1` (the USD formula divides by it —
+`quoted_total / fx_rate_to_usd`, rate is local-per-USD per `feedback_currency_rate_convention`). Users
+previously typed the `1` by hand. Now the FX-rate field is **auto-set to 1 and hidden** on USD, and
+**shown + required** on SRD/EUR — applied as **form linkage rules** (not a workflow), on all three
+surfaces where currency is set: the **create form** (`e76c40c8c79`, grid `5c325101ecc`), the
+**Procurement ProcessForm** (grid `x30gs70f47k`) and the **Dept Owner ProcessForm** (grid
+`pqflpr2l3u4`). The PO side needs nothing — PO currency/fx is PR-copied and ACL-locked (D46), so
+currency is only ever set on these three PR forms.
+
+**Why linkage, not a server workflow:** currency can only be set on these three forms, so per-form
+linkage covers every path with no extra workflow to version. Confirmed by the user that linkage on
+approval ProcessForms persists across workflow revisions (a revision **copies** the forms with new
+uids, carrying their `eventSettings.linkageRules` along) — so the rules survive future PR-Approval
+revisions. (My initial worry that revisions wipe approval-form linkage was wrong.)
+
+**How built (each grid, native `stepParams.eventSettings.linkageRules.value`, raw `flowModels` update —
+NOT the `set-field-linkage-rules` CLI, which uses a different `when`/`then` shape and would force a
+translation of the existing rules):**
+- Rule "USD FX rate = 1 (hide)" — when `quoted_currency $eq USD`: `linkageAssignField fx_rate_to_usd=1`
+  + `linkageSetFieldProps state=hiddenReservedValue` + `state=notRequired`.
+- Rule "Non-USD FX rate (show + require)" — when `quoted_currency $or {SRD,EUR}`:
+  `linkageSetFieldProps state=visible` + `state=required`.
+- The two approval forms already had a user-built "USD FX" assign-1 rule; those were **extended in
+  place** (hide + notRequired actions added) rather than duplicated. The create form had neither rule.
+
+**Two gotchas hit + fixed:**
+1. `linkageSetFieldProps.fields` references the field's **ItemModel uid** (create `b199fc86a08`, proc
+   `evq2pdr51us`, dept `xgar21mj94z`), not the field name; `linkageAssignField.targetPath` uses the
+   field **name** (`fx_rate_to_usd`).
+2. **`hiddenReservedValue`** (not plain `hidden`) is the hide state that still submits the value — so
+   the hidden USD field's `1` persists on save.
+3. **Assign `mode`**: `mode:"default"` writes the field's *initialValue* (only fills when empty) — so a
+   value typed under SRD survived a switch to USD (the bug the user caught). **`mode:"assign"`** writes
+   `{value}` and overwrites unconditionally. All three USD assign items use `mode:"assign"`. See
+   auto-memory `feedback_linkage_assign_field_mode`.
+
+**New behaviour:** `fx_rate_to_usd` is now **required** when SRD/EUR is selected (was optional). Intended
+correctness win, user-accepted.
+
+**Reversibility:** original linkage JSON for all three grids backed up to
+`backups/linkage-{create,proc,dept}-*-20260621.json`; rollback = re-write those `linkageRules`.
+
+**Affects:** MVP3 (currency/FX entry), MVP1/MVP4 (the dept + procurement approval forms). No workflow,
+collection, or ACL change. **Status:** built + **user-verified in the UI 2026-06-21** (USD hides + sets
+1; SRD→10→switch-to-USD now correctly overwrites to 1; SRD/EUR show + require).
