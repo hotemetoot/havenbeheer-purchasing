@@ -1,0 +1,102 @@
+<svg width="940" height="700" viewBox="0 0 940 700" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Purchase Request status flow</title>
+<desc>A user creates and submits a purchase request, which goes to pending department approval. The department head, or a chosen custom approver, approves it to pending purchasing review. The procurement head reviews it; if it is under 300 US dollars and a regular buy it is approved straight away, otherwise it goes to pending director approval. The director approves it; if it is under 15000 US dollars it is approved, otherwise it goes to pending board approval, where the board signs off outside the system and it becomes approved. At any approval step it can be sent back as info requested, where the submitter revises and resubmits, or rejected, which ends it.</desc>
+<defs>
+  <marker id="ar" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#7c7b75" stroke-width="1.6"/></marker>
+  <marker id="arG" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#3B6D11" stroke-width="1.6"/></marker>
+  <marker id="arA" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#B07A1E" stroke-width="1.6"/></marker>
+  <marker id="arR" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#A1331E" stroke-width="1.6"/></marker>
+</defs>
+<style>
+  text { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .tt { font-size: 16px; font-weight: 700; }
+  .th { font-size: 14px; font-weight: 600; }
+  .ts { font-size: 12px; font-weight: 400; }
+  .ta { font-size: 11.5px; font-weight: 600; }
+  .sec { fill: #5F5E5A; }
+  .prim { fill: #2C2C2A; }
+</style>
+
+<rect x="0" y="0" width="940" height="700" fill="#FFFFFF"/>
+<text class="tt prim" x="40" y="32">Purchase Request — who acts, and where the amount sends it</text>
+<text class="ts sec" x="40" y="53">Centre = the approval chain. Beside each arrow: who acts. Right = fast-tracks by amount. Left = sent back or stopped.</text>
+
+<!-- ===================== centre spine boxes ===================== -->
+<!-- Start -->
+<rect x="320" y="66" width="300" height="46" rx="8" fill="#F1F0EC" stroke="#6B6A64"/>
+<text class="th" x="336" y="86" fill="#3A3A37">User submits the PR</text>
+<text class="ts" x="336" y="103" fill="#5F5E5A">The submitter fills it in and sends it</text>
+<!-- Pending Dept -->
+<rect x="320" y="158" width="300" height="46" rx="8" fill="#E6F1FB" stroke="#185FA5"/>
+<text class="th" x="336" y="178" fill="#0C447C">Pending Department Approval</text>
+<text class="ts" x="336" y="195" fill="#185FA5">Waiting for the department</text>
+<!-- Pending Purchasing -->
+<rect x="320" y="262" width="300" height="46" rx="8" fill="#E6F1FB" stroke="#185FA5"/>
+<text class="th" x="336" y="282" fill="#0C447C">Pending Purchasing Review</text>
+<text class="ts" x="336" y="299" fill="#185FA5">Procurement checks and quotes</text>
+<!-- Pending Director -->
+<rect x="320" y="366" width="300" height="46" rx="8" fill="#E6F1FB" stroke="#185FA5"/>
+<text class="th" x="336" y="386" fill="#0C447C">Pending Director Approval</text>
+<text class="ts" x="336" y="403" fill="#185FA5">Waiting for the Director</text>
+<!-- Pending Board -->
+<rect x="320" y="470" width="300" height="46" rx="8" fill="#E6F1FB" stroke="#185FA5"/>
+<text class="th" x="336" y="490" fill="#0C447C">Pending Board Approval</text>
+<text class="ts" x="336" y="507" fill="#185FA5">Waiting for the Board</text>
+<!-- Approved -->
+<rect x="320" y="574" width="300" height="48" rx="8" fill="#EAF3DE" stroke="#3B6D11"/>
+<text class="th" x="336" y="594" fill="#27500A">Approved</text>
+<text class="ts" x="336" y="611" fill="#3B6D11">Green-lit — becomes a Purchase Order</text>
+
+<!-- ===================== spine arrows + actors ===================== -->
+<g>
+<path d="M470,112 V154" stroke="#7c7b75" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+<path d="M470,204 V258" stroke="#7c7b75" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+<path d="M470,308 V362" stroke="#7c7b75" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+<path d="M470,412 V466" stroke="#7c7b75" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+<path d="M470,516 V570" stroke="#7c7b75" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+</g>
+<!-- actor labels (right of each arrow) -->
+<text class="ta" x="482" y="138" fill="#2C2C2A">submitted</text>
+<text class="ta" x="482" y="227" fill="#2C2C2A">Department head</text>
+<text class="ts sec" x="482" y="243">(or custom approver)</text>
+<text class="ta" x="482" y="331" fill="#2C2C2A">Procurement head</text>
+<text class="ts sec" x="482" y="347">if ≥ $300, or not a regular buy</text>
+<text class="ta" x="482" y="435" fill="#2C2C2A">Director</text>
+<text class="ts sec" x="482" y="451">if ≥ $15,000</text>
+<text class="ta" x="482" y="539" fill="#2C2C2A">Board signs off</text>
+<text class="ts sec" x="482" y="555">(outside the system)</text>
+
+<!-- ===================== right: fast-track bypasses ===================== -->
+<!-- Purchasing -> Approved (under 300 & regular) -->
+<path d="M620,285 H668 V592 H624" stroke="#3B6D11" stroke-width="1.7" fill="none" stroke-dasharray="6 4" marker-end="url(#arG)"/>
+<text class="ta" x="678" y="276" fill="#27500A">Fast-track to Approved</text>
+<text class="ts sec" x="678" y="293">If under $300 and a “regular</text>
+<text class="ts sec" x="678" y="309">buy” — skips Director &amp; Board</text>
+<!-- Director -> Approved (under 15000) -->
+<path d="M620,389 H744 V604 H624" stroke="#3B6D11" stroke-width="1.7" fill="none" stroke-dasharray="6 4" marker-end="url(#arG)"/>
+<text class="ta" x="754" y="392" fill="#27500A">Approved after Director</text>
+<text class="ts sec" x="754" y="409">If under $15,000 —</text>
+<text class="ts sec" x="754" y="425">skips the Board</text>
+
+<!-- ===================== left: returned / rejected ===================== -->
+<!-- Info Requested -->
+<rect x="40" y="250" width="232" height="70" rx="8" fill="#FAEEDA" stroke="#854F0B"/>
+<text class="th" x="56" y="274" fill="#633806">Info Requested</text>
+<text class="ts" x="56" y="293" fill="#854F0B">Sent back for more detail —</text>
+<text class="ts" x="56" y="309" fill="#854F0B">the submitter revises and resubmits</text>
+<!-- Rejected -->
+<rect x="40" y="404" width="232" height="58" rx="8" fill="#FBE9E7" stroke="#A1331E"/>
+<text class="th" x="56" y="428" fill="#7A2616">Rejected</text>
+<text class="ts" x="56" y="447" fill="#A1331E">Declined — this is the end</text>
+<!-- connectors from spine to left exits -->
+<path d="M320,285 H276" stroke="#B07A1E" stroke-width="1.6" fill="none" stroke-dasharray="5 4" marker-end="url(#arA)"/>
+<path d="M320,389 C300,389 290,433 276,433" stroke="#A1331E" stroke-width="1.6" fill="none" stroke-dasharray="5 4" marker-end="url(#arR)"/>
+<text class="ts sec" x="282" y="278">returned</text>
+<text class="ts sec" x="282" y="368">rejected</text>
+<!-- resubmit loop back to start -->
+<path d="M156,250 C156,150 250,100 314,92" stroke="#B07A1E" stroke-width="1.6" fill="none" stroke-dasharray="5 4" marker-end="url(#arA)"/>
+<text class="ts sec" x="170" y="150">resubmit →</text>
+
+<text class="ts sec" x="40" y="640">From any approval step (department, purchasing, director or board) the request can be sent back for info or rejected.</text>
+<text class="ts sec" x="40" y="660">The final Board sign-off happens on paper, outside the system; the result is recorded here as Approved.</text>
+</svg>

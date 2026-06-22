@@ -1,0 +1,89 @@
+<svg width="860" height="680" viewBox="0 0 860 680" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Purchase Order status flow</title>
+<desc>A purchase order starts as a draft while procurement builds it. Before it can be issued the system checks that it has at least one line, a supplier, a delivery address, a currency, and a price on every line. Once issued it goes to the supplier. As goods arrive it becomes partially received, then received when everything is in, then completed once the invoice is attached. If everything arrives at once it can go straight from issued to received. From draft, issued or partially received it can instead be closed early, for example no longer needed, a duplicate, or the supplier cannot fulfil it, with a reason always recorded. Once completed or closed it is locked.</desc>
+<defs>
+  <marker id="ar" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#7c7b75" stroke-width="1.6"/></marker>
+  <marker id="arC" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#6B6A64" stroke-width="1.6"/></marker>
+</defs>
+<style>
+  text { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .tt { font-size: 16px; font-weight: 700; }
+  .th { font-size: 14px; font-weight: 600; }
+  .ts { font-size: 12px; font-weight: 400; }
+  .sec { fill: #5F5E5A; }
+  .prim { fill: #2C2C2A; }
+</style>
+
+<rect x="0" y="0" width="860" height="680" fill="#FFFFFF"/>
+<text class="tt prim" x="40" y="32">Purchase Order — from draft to completed</text>
+<text class="ts sec" x="40" y="53">The purple path is the normal route, run by Procurement. “Issued” is the gate that checks the PO is complete.</text>
+
+<!-- ===================== spine boxes ===================== -->
+<rect x="60" y="72" width="300" height="48" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+<text class="th" x="76" y="92" fill="#3C3489">Draft</text>
+<text class="ts" x="76" y="110" fill="#534AB7">Procurement builds it: lines, supplier, prices</text>
+
+<rect x="60" y="170" width="300" height="48" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+<text class="th" x="76" y="190" fill="#3C3489">Issued</text>
+<text class="ts" x="76" y="208" fill="#534AB7">Checked, finalised and sent to the supplier</text>
+
+<rect x="60" y="268" width="300" height="48" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+<text class="th" x="76" y="288" fill="#3C3489">Partially Received</text>
+<text class="ts" x="76" y="306" fill="#534AB7">Some of the goods have arrived</text>
+
+<rect x="60" y="366" width="300" height="48" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+<text class="th" x="76" y="386" fill="#3C3489">Received</text>
+<text class="ts" x="76" y="404" fill="#534AB7">Everything ordered has been received</text>
+
+<rect x="60" y="464" width="300" height="48" rx="8" fill="#EAF3DE" stroke="#3B6D11"/>
+<text class="th" x="76" y="484" fill="#27500A">Completed</text>
+<text class="ts" x="76" y="502" fill="#3B6D11">Invoice attached — the order is done</text>
+
+<!-- ===================== spine arrows ===================== -->
+<g>
+<path d="M210,120 V166" stroke="#7c7b75" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+<path d="M210,218 V264" stroke="#7c7b75" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+<path d="M210,316 V362" stroke="#7c7b75" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+<path d="M210,414 V460" stroke="#7c7b75" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+</g>
+<text class="ts sec" x="222" y="148">issue to supplier</text>
+<text class="ts sec" x="222" y="246">as deliveries arrive</text>
+<text class="ts sec" x="222" y="344">when everything is in</text>
+<text class="ts sec" x="222" y="442">invoice attached</text>
+
+<!-- skip arrow: issued straight to received -->
+<path d="M60,194 C26,194 26,390 56,390" stroke="#7c7b75" stroke-width="1.5" fill="none" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+<text class="ts sec" x="20" y="292" transform="rotate(-90 20 292)" text-anchor="middle">if it all arrives at once</text>
+
+<!-- ===================== Issued checks callout ===================== -->
+<rect x="430" y="92" width="390" height="128" rx="10" fill="#F4F3FB" stroke="#7F77DD"/>
+<text class="th" x="448" y="116" fill="#3C3489">Before a PO can be Issued, the system checks:</text>
+<text class="ts sec" x="448" y="140">✓ at least one PO line</text>
+<text class="ts sec" x="448" y="160">✓ a supplier is chosen</text>
+<text class="ts sec" x="448" y="180">✓ a delivery address is set</text>
+<text class="ts sec" x="640" y="140">✓ a currency is set</text>
+<text class="ts sec" x="640" y="160">✓ every line has a price</text>
+<text class="ts sec" x="448" y="206" fill="#534AB7">If anything is missing, Issue is blocked with a message.</text>
+<path d="M430,156 C400,156 390,190 364,192" stroke="#7F77DD" stroke-width="1.5" fill="none" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+
+<!-- ===================== Closed (ended early) ===================== -->
+<rect x="430" y="300" width="390" height="118" rx="10" fill="#F1F0EC" stroke="#6B6A64"/>
+<text class="th" x="448" y="326" fill="#3A3A37">Closed — ended early</text>
+<text class="ts sec" x="448" y="350">Stopped before completion. Reasons include:</text>
+<text class="ts sec" x="448" y="372">no longer needed · duplicate ·</text>
+<text class="ts sec" x="448" y="392">supplier can’t fulfil · replaced by a new PO …</text>
+<text class="ts sec" x="448" y="412" fill="#3A3A37">A reason is always recorded.</text>
+<!-- connectors to Closed -->
+<path d="M360,96 C400,96 404,330 426,338" stroke="#6B6A64" stroke-width="1.5" fill="none" stroke-dasharray="5 4" marker-end="url(#arC)"/>
+<path d="M360,194 C400,194 404,350 426,352" stroke="#6B6A64" stroke-width="1.5" fill="none" stroke-dasharray="5 4" marker-end="url(#arC)"/>
+<path d="M360,292 C400,292 404,366 426,366" stroke="#6B6A64" stroke-width="1.5" fill="none" stroke-dasharray="5 4" marker-end="url(#arC)"/>
+<text class="ts sec" x="372" y="250">can be closed early from</text>
+<text class="ts sec" x="372" y="266">draft, issued or partially received</text>
+
+<!-- ===================== footer legend ===================== -->
+<rect x="60" y="556" width="14" height="14" rx="3" fill="#EAF3DE" stroke="#3B6D11"/>
+<text class="ts sec" x="80" y="567">Completed = the happy ending (goods in, invoiced)</text>
+<rect x="60" y="578" width="14" height="14" rx="3" fill="#F1F0EC" stroke="#6B6A64"/>
+<text class="ts sec" x="80" y="589">Closed = stopped early, for a recorded reason</text>
+<text class="ts sec" x="40" y="622">Once a PO is Completed or Closed it is locked — no more edits.</text>
+</svg>
