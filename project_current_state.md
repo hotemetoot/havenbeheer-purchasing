@@ -459,6 +459,17 @@ These **stack** on the existing terminal guards (`polncreateg1` create, `f3dkb37
 
 Approval form surface IDs on the active version: see "Approval surfaces" above.
 
+### Theme (theme-editor plugin, set live 2026-06-24)
+- **Active theme:** `themeConfig` record `id 6`, uid `h5le3tm19gc`, name **"Havenbeheer"**, `default: true`, `isBuiltIn: false`. Built-in Default (`id 1`) left untouched. Edit via `nb api resource update --resource themeConfig --filter-by-tk 6 --values '{"config":{...}}'` (the dedicated `nb api theme-editor theme-config update --id` does NOT map id→filterByTk — it errors "filter or filterByTk is required"; use the generic `resource update` instead). Read all themes: `nb api theme-editor theme-config list`.
+- **Tokens (AntD seeds, derived from Havenbeheer Suriname brand — vibrant grass green + deep forest green on white):**
+  - `colorPrimary` `#1F7A43` (legible "haven green", ≈4.6:1 on white — chosen over the brand vibrant `#43A82F` which fails white-text contrast, and over the old `#004d39` which read near-black)
+  - `colorPrimaryBg` `#E3F0E8`
+  - `colorSuccess` `#43A82F` (brand grass green), `colorWarning` `#D89A0C`, `colorError` `#C0392B`, `colorInfo` `#2B7BB9` (kept blue so "info" ≠ a status green)
+  - `colorTextBase` `#1D2A23`; sizing `fontSize 15`, `controlHeight 36`, `borderRadius 6`; `motionUnit 0.03`
+  - Header/sider chrome: `colorBgHeader` `#16442E`, `colorPrimaryHeader` `#001529`, header-menu text/hover tints `#ffffffa6`/`#ffffff`, `colorBgSiderMenuActive` `#cbdcd5`
+  - Config-mode accent (left at NocoBase default): `colorSettings` `#F18B62` + its hover tints
+- **NOTE — status tags don't read theme tokens.** The Approved/Pending/Rejected tags in the PR status column come from per-option `color` values on the `purchase_requests.status` select field (AntD preset tag palette: green/gold/red/etc.), NOT from `colorSuccess`/`colorWarning`/`colorError`. To brand them, edit each option's color in the field config — not the theme.
+
 ### Purchase Orders page (MVP9a/9b)
 - **Page UID:** `liwmklclbnc`
 - **Table block:** `vldbcvf41r6`
