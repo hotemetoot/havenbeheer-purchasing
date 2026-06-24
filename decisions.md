@@ -14,8 +14,8 @@ Only the original submitter can cancel a PR. Simpler Guard C. **Affects:** MVP2.
 ## D2 — Procurement-originated PRs always go to director
 No threshold check on this path. **Affects:** MVP6 (moot under D25 — kept for historical context).
 
-## D5 — Projects + project-budget bypass removed from v1
-No `projects` collection, no `charge_to` field, no Guards B/D, no project-budget routing. Every PR follows the same flow. Deferred to v2. **Affects:** all MVPs.
+## D5 — Projects + project-budget bypass removed from v1 — **SUPERSEDED by D49 (2026-06-23)**
+No `projects` collection, no `charge_to` field, no Guards B/D, no project-budget routing. Every PR follows the same flow. Deferred to v2. **Affects:** all MVPs. **Reversed by D49 (MVP014)** — projects + budget drawdown are now being built (USD envelope, separate approval ladder, hard-block guards).
 
 ## D6 — Supplier `current_rating` is manually maintained
 Procurement edits on the supplier record. No computation. **Affects:** MVP7.
@@ -848,3 +848,35 @@ correctness win, user-accepted.
 **Affects:** MVP3 (currency/FX entry), MVP1/MVP4 (the dept + procurement approval forms). No workflow,
 collection, or ACL change. **Status:** built + **user-verified in the UI 2026-06-21** (USD hides + sets
 1; SRD→10→switch-to-USD now correctly overwrites to 1; SRD/EUR show + require).
+
+## D49 — Projects + project-budget drawdown (2026-06-23, partial build) — REVERSES D5
+Reverses D5's v1 deferral (this is v2). A new **`projects`** collection holds a **USD budget envelope**
+approved via its own ladder; PRs linked to an approved project draw against it, **skip director + board**
+(Procurement is final) but **still require dept-owner approval**, and are **hard-blocked** from collectively
+exceeding `budget_usd`.
+
+**Decisions locked (brainstorm 2026-06-21):** (1) USD-only budget — single `budget_usd`, multi-currency
+deferred. (2) Over-budget = **hard block at submit** (request-interception, D47 pattern) with a dynamic
+remaining-budget message; drawdown counts **all child PRs except rejected/cancelled** (reserve-on-submit,
+≤ budget allowed). (3) Drawdown PR ladder = dept-owner still applies; director + board skipped. (4) Project
+Approval is a **separate** workflow reusing the PR-ladder spine + D32 board threshold, **dropping** the D36
+custom-approver branch and the D37 is_regular/$300 nuance — director always reviews an envelope. (5) Close
+is **manual** (a Close Project button); no auto-close on exhaustion. (6) The envelope passes through the
+Procurement stage (full mirror). (7) `project_number` = `PRJ-YY-NNNN` (D31 pattern).
+
+**Built + CLI-verified this session (014.1, 014.3):** `projects` collection, `purchase_requests.project`
+m2o (FK `projectId`, nullable) + reverse o2m, `committed_usd` recompute workflows A `j2fp3wa4o1k` / B
+`0mckvnf319y`, PR budget create guard `lylobzvlh5p` + update guard `ebq41ibq60r` (all enabled). **Built but
+DISABLED (014.2a):** Project Approval workflow `hzykothf9cx` (22-node logic; needs surfaces). **Pending:**
+014.2b/c approval surfaces + comment models + ACL; 014.4 PR-Approval drawdown skip-branch (insert a
+"Project drawdown?" condition on `ec2h8cqal32` br=2 before `bizoy1sj87j`: `project.id != null` AND
+`project.status == approved` → approved, else existing director logic) + add `project` to PR-Approval
+trigger appends; 014.5 UI (Projects page/forms/Close, PR `project` picker) + PR/projects ACL whitelists;
+014.6 user E2E (A1–F2).
+
+**Doc-lag noted:** live active PR Approval = `370060903907328` (not the doc-recorded `369536223739904`);
+its `executed` counter is 0 only because the user pruned execution history — the version HAS run, so 014.4
+is a same-key revision, not an in-place edit.
+
+**Affects:** **MVP014** (new). Downstream: any future PR-routing or budget MVP must account for the project
+drawdown branch on PR Approval (`cv237r8h7k9`) and the two global PR budget guards. Supersedes **D5**.
