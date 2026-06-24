@@ -880,3 +880,29 @@ is a same-key revision, not an in-place edit.
 
 **Affects:** **MVP014** (new). Downstream: any future PR-routing or budget MVP must account for the project
 drawdown branch on PR Approval (`cv237r8h7k9`) and the two global PR budget guards. Supersedes **D5**.
+
+---
+
+## D50 — Notify on PR approval (requester always; head of procurement only on the director path)
+
+**Decision:** When a PR reaches `approved`, send an in-app notification `PR-26-NNNN "Title" has been
+approved.` to the **original requester** (`createdBy`) on every path. Additionally notify the **head of
+procurement** (Pat, via the root query node `yrl9kgkrb3x`) **only on the Director-approved path** — NOT
+when Procurement itself is the final approver (regular < $300) and NOT on the Board-approved path.
+
+**Why:** Previously nothing notified anyone on approval (user feedback gap). Procurement should not be
+pinged when they are the final approver (they already know) nor for board sign-off (the board stage is the
+requester's concern; procurement already passed it through their own review stage).
+
+**How to apply:** Three in-app notification nodes on PR Approval `cv237r8h7k9`, one appended as the
+downstream of each terminal `status=approved` node — `jy1365pvsce` (requester only), `kj1zcmujub8`
+(requester + procurement), `8gqeq6djrfj` (requester only). Channel `approval-todo-in-app-message` (only
+configured channel; email deferred — needs SMTP). Requester = `{{$context.data.createdById}}`; head of
+procurement = `{{$jobsMapByNodeKey.yrl9kgkrb3x.main_approver.id}}`. Required a same-key revision (workflow
+has executed). As-built version + node keys in [chunks/015-pr-approved-notifications.md](chunks/015-pr-approved-notifications.md)
+and `project_current_state.md`.
+
+**Affects:** **MVP015** (new). Downstream: any future change to PR-Approval terminal `approved` nodes, or a
+14.4 drawdown branch that adds a fourth approved path, must add the matching notification.
+
+**Status:** effective (live walkthrough A1–A5 pending).
