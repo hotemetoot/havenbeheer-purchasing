@@ -1,6 +1,6 @@
 # 015 — "PR approved" notifications
 
-Status: built (live walkthrough pending)
+Status: verified (user walkthrough 2026-06-24)
 
 > **Closes a feedback gap: today nothing notifies anyone when a PR reaches `approved`.** Adds in-app
 > notification nodes to the PR Approval workflow so that on final approval the **original requester** is
@@ -55,7 +55,7 @@ On `status → approved`, send an in-app notification reading `PR-26-NNNN "Title
   config (no `create` subcommand exists; `duplicate` clones a single node + gives a working config). ✓
 - **015.3** Verify wiring (each terminal node's downstream = its notification node) + configs. ✓
 - **015.4** Enable the new version (auto-disables predecessor). ✓
-- **015.5** User live walkthrough A1–A5 (CLI can't drive approval clicks). **PENDING.**
+- **015.5** User live walkthrough A1–A5 (CLI can't drive approval clicks). ✓ **PASSED 2026-06-24.**
 - **015.6** Docs: D50, roadmap row, `project_current_state.md` (new version + node keys), this As-built.
 
 ## Risks / known traps
@@ -83,5 +83,5 @@ On `status → approved`, send an in-app notification reading `PR-26-NNNN "Title
   `kag2bc9wrq7`/taskCardUid `uxw4q4agtye`; Procurement `li2jfcxa8dl`/`bpta19xtqk2`; Dept
   `a54gfhbawdy`/`hcpbe6rn93u`; Custom `qehdzrghvic`/`prs357bu9ih`; Director `80b19uw01we`/`82g9tfjkmj7`;
   Board `m3ajd5fxxt5`/`42dyyh3m3sg`.
-- **Verification:** node wiring + configs CLI-verified. **A1–A5 live walkthrough PENDING (user-driven).**
+- **Verification:** node wiring + configs CLI-verified. **A1–A5 user walkthrough PASSED 2026-06-24** (requester-only on regular<$300 + board paths, requester+Pat on director path, approval forms render with customizations, no 403).
 - **Decision:** D50.

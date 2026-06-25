@@ -905,4 +905,4 @@ and `project_current_state.md`.
 **Affects:** **MVP015** (new). Downstream: any future change to PR-Approval terminal `approved` nodes, or a
 14.4 drawdown branch that adds a fourth approved path, must add the matching notification.
 
-**Status:** effective (live walkthrough A1–A5 pending).
+**Status:** effective (user walkthrough A1–A5 passed 2026-06-24).
