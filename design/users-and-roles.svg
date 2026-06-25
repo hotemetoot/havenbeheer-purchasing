@@ -1,0 +1,78 @@
+<svg width="920" height="512" viewBox="0 0 920 512" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Who uses the system and what each person can do</title>
+<desc>Four everyday users and their roles. Alice Member and Oliver Owner are in Operations; Alice requests, Oliver is the department head who also gives first approval. Pat Procurement is the head of procurement who reviews every request, adds the quote, and builds purchase orders. Dana Director signs off bigger spend. Approval climbs by amount: department head, then procurement always, then director if 300 USD or more, then board if 15000 USD or more. Super Admin configures the system and is not a day-to-day user. Every role can view; only these roles change anything.</desc>
+<style>
+  text { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .h  { font-size: 16px; font-weight: 600; }
+  .hs { font-size: 12.5px; font-weight: 400; }
+  .nm { font-size: 16px; font-weight: 600; }
+  .sub{ font-size: 12px; font-weight: 400; }
+  .cap{ font-size: 12.5px; font-weight: 400; }
+  .chip{ font-size: 14px; font-weight: 700; }
+  .ft { font-size: 12px; font-weight: 400; }
+  .prim { fill: #2C2C2A; }
+  .sec  { fill: #5F5E5A; }
+</style>
+
+<rect x="0" y="0" width="920" height="512" fill="#FFFFFF"/>
+
+<text class="h prim" x="40" y="34">Who uses the system — the people and what each can do</text>
+<text class="hs sec" x="40" y="54">Four everyday users. Every role can view; only the roles below can change anything.</text>
+
+<!-- ============ ALICE (Operations · requester) ============ -->
+<rect x="40" y="74" width="410" height="160" rx="9" fill="#FAEEDA" stroke="#854F0B"/>
+<rect x="40" y="74" width="7" height="160" rx="3.5" fill="#854F0B"/>
+<text class="nm" x="64" y="106" fill="#633806">Alice Member</text>
+<text class="sub" x="64" y="126" fill="#854F0B">Operations department</text>
+<rect x="322" y="89" width="104" height="30" rx="15" fill="#F3DCB4" stroke="#C98A2E"/>
+<text class="chip" x="374" y="109" text-anchor="middle" fill="#633806">Requester</text>
+<g class="cap prim">
+  <circle cx="68" cy="156" r="2.2" fill="#854F0B"/><text x="79" y="160">Create and submit purchase requests</text>
+  <circle cx="68" cy="182" r="2.2" fill="#854F0B"/><text x="79" y="186">Follow her requests through approval</text>
+  <circle cx="68" cy="208" r="2.2" fill="#854F0B"/><text x="79" y="212">View-only everywhere else</text>
+</g>
+
+<!-- ============ OLIVER (Operations · head) ============ -->
+<rect x="470" y="74" width="410" height="160" rx="9" fill="#FAEEDA" stroke="#854F0B"/>
+<rect x="470" y="74" width="7" height="160" rx="3.5" fill="#854F0B"/>
+<text class="nm" x="494" y="106" fill="#633806">Oliver Owner</text>
+<text class="sub" x="494" y="126" fill="#854F0B">Operations department · head</text>
+<rect x="706" y="89" width="150" height="30" rx="15" fill="#F3DCB4" stroke="#C98A2E"/>
+<text class="chip" x="781" y="109" text-anchor="middle" fill="#633806">Department head</text>
+<g class="cap prim">
+  <circle cx="498" cy="156" r="2.2" fill="#854F0B"/><text x="509" y="160">Everything a requester can do, plus…</text>
+  <circle cx="498" cy="182" r="2.2" fill="#854F0B"/><text x="509" y="186">First approval of his department's requests</text>
+  <circle cx="498" cy="208" r="2.2" fill="#854F0B"/><text x="509" y="212">Return for more info, or reject</text>
+</g>
+
+<!-- ============ PAT (Procurement · the hub) ============ -->
+<rect x="40" y="258" width="410" height="160" rx="9" fill="#FAEEDA" stroke="#1C6B66"/>
+<rect x="40" y="258" width="7" height="160" rx="3.5" fill="#1C6B66"/>
+<text class="nm" x="64" y="290" fill="#13433F">Pat Procurement</text>
+<text class="sub" x="64" y="310" fill="#1C6B66">Head of procurement · runs the workflow</text>
+<rect x="306" y="273" width="120" height="30" rx="15" fill="#D7ECEA" stroke="#1C6B66"/>
+<text class="chip" x="366" y="293" text-anchor="middle" fill="#13433F">Procurement</text>
+<g class="cap prim">
+  <circle cx="68" cy="340" r="2.2" fill="#1C6B66"/><text x="79" y="344">Reviews every request and adds the quote</text>
+  <circle cx="68" cy="366" r="2.2" fill="#1C6B66"/><text x="79" y="370">Turns approved requests into Purchase Orders</text>
+  <circle cx="68" cy="392" r="2.2" fill="#1C6B66"/><text x="79" y="396">Issues to supplier, records goods receiving</text>
+</g>
+
+<!-- ============ DANA (Director) ============ -->
+<rect x="470" y="258" width="410" height="160" rx="9" fill="#FAEEDA" stroke="#4A3B8A"/>
+<rect x="470" y="258" width="7" height="160" rx="3.5" fill="#4A3B8A"/>
+<text class="nm" x="494" y="290" fill="#352868">Dana Director</text>
+<text class="sub" x="494" y="310" fill="#4A3B8A">Senior management</text>
+<rect x="764" y="273" width="92" height="30" rx="15" fill="#E4DFF3" stroke="#4A3B8A"/>
+<text class="chip" x="810" y="293" text-anchor="middle" fill="#352868">Director</text>
+<g class="cap prim">
+  <circle cx="498" cy="340" r="2.2" fill="#4A3B8A"/><text x="509" y="344">Signs off bigger spend (≥ $300 or non-regular)</text>
+  <circle cx="498" cy="366" r="2.2" fill="#4A3B8A"/><text x="509" y="370">Approve, return, or reject</text>
+  <circle cx="498" cy="392" r="2.2" fill="#4A3B8A"/><text x="509" y="396">View-only elsewhere</text>
+</g>
+
+<!-- ============ footer ============ -->
+<line x1="40" y1="450" x2="880" y2="450" stroke="#E3DECF" stroke-width="1.4"/>
+<text class="ft prim" x="40" y="476"><tspan font-weight="600">Approval climbs by amount: </tspan>Department head  →  Procurement (always)  →  Director if ≥ $300  →  Board if ≥ $15,000.</text>
+<text class="ft sec" x="40" y="500">Super Admin configures the system and is not a day-to-day user.</text>
+</svg>
