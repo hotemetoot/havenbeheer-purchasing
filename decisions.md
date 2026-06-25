@@ -906,3 +906,33 @@ and `project_current_state.md`.
 14.4 drawdown branch that adds a fourth approved path, must add the matching notification.
 
 **Status:** effective (user walkthrough A1–A5 passed 2026-06-24).
+
+## D51 — Duplicate a finalized PR (Duplicate-to-form, approved/rejected only) (2026-06-25)
+
+**Decision:** A PR in a **final state** (`approved` or `rejected`) can be duplicated into a new PR via a
+**Duplicate** record action on the PR detail popup `2b367dbd157`, configured in **"Duplicate to form"** mode
+(the built-in `@nocobase/plugin-action-duplicate`). It opens a pre-filled create form; the user edits, then
+submits to create a brand-new PR. A linkage rule hides the button in every non-final state.
+
+**Why:** Two recurring needs surfaced — (1) **repetitive purchases** (re-order the same thing without
+re-typing), and (2) **re-applying a rejected PR after changes** (a rejected PR is immutable/terminal, so the
+practical path is to clone it, fix the issue, and resubmit). Restricting to approved/rejected keeps the button
+out of in-flight PRs where a duplicate would just create confusion. "Duplicate to form" (not "Direct
+duplicate") is deliberate: the new PR must be reviewed/edited before it exists, never created silently with a
+stale copy of the original's values.
+
+**How it behaves:** the duplicate action auto-excludes primary/foreign keys, unique fields (`pr_number`),
+sequence fields, and timestamp/user-tracking fields, so the clone gets a fresh `pr_number`, default `status`,
+and new audit stamps. m2o pickers (`supplier`, `department`, `custom_approver`, `project`) are copied as
+**references** (link to the same targets); the PR collection has no sub-form/sub-table fields, so nothing is
+deep-copied. The new PR then enters the normal PR Approval flow from the top like any fresh submission.
+
+**Scope:** PR only. POs are not hand-duplicated (they're workflow-generated from approved PRs), so no
+equivalent action on the PO block.
+
+**Affects:** none structurally (UI-only, no collection/field/workflow/ACL change). Forward note: if a future
+MVP adds new unique or system-managed PR fields, confirm the duplicate template still excludes them; if the PR
+gains sub-table fields, decide per-field whether they should deep-copy or reference.
+
+**Status:** effective (user-built in the UI; doc-only capture). Button uid not captured — no CLI read/describe
+path for nested flowModels actions (`use`/`parentId` not filterable); record it next time the popup is edited.
