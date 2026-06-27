@@ -936,3 +936,53 @@ gains sub-table fields, decide per-field whether they should deep-copy or refere
 
 **Status:** effective (user-built in the UI; doc-only capture). Button uid not captured — no CLI read/describe
 path for nested flowModels actions (`use`/`parentId` not filterable); record it next time the popup is edited.
+
+## D52 — Budget-safe PO line-item import: cap moved to the Issue gate + import hidden on non-draft (2026-06-27)
+
+**Decision:** Procurement can bulk-**import** PO line items (for large orders). Because import bypasses **all**
+`po_lines` request-interception guards — the D47 per-line budget block **and** the D45/D46 terminal guards —
+two complementary controls keep it safe, **supplementing D47 (not reversing it)**:
+- **A. Budget check at the Issue gate.** `issue_po` now aggregates `Σ(line_total)` for the PO and rejects if
+  it exceeds `purchase_request.quoted_total` (same currency; PO currency is PR-locked, D46/D47). Issue is the
+  chokepoint every PO crosses to become printable (Print is gated on `status ∈ {issued,…}`, D46), so an
+  over-budget PO can sit in `draft` but can't be issued or printed — regardless of how the lines were created.
+- **B. Import hidden unless `draft` + Procurement.** A linkage rule on the import button (user-built in the UI,
+  on the PO popup Line Items sub-table) hides it on any non-draft PO and for non-Procurement roles, so lines
+  can't be added behind an already-issued PO.
+
+**Why not keep enforcement purely per-line (D47):** D47 chose per-line enforcement *over* an Issue-gate check
+specifically to avoid freezing lines after issue — but that assumed **every** line-creation path passes through
+request-interception. Import is a new path that escapes it (pre-action interception never fires on import,
+verified). So the Issue gate is the net for imported lines; the D47 per-line guards stay for manual entry.
+
+**How applied (Part A, built + user-verified live 2026-06-27):** same-key revision of `issue_po`
+`370047775735808` → **`372351365087232`** (enabled+current; predecessor disabled = rollback). Added
+`purchase_request` to trigger appends; inserted 4 nodes on the all-priced (`x01errm96yk` br=1) branch before
+`issue_update`: `kkk684uupcd` (aggregate sum `line_total` where `purchase_order.id == {{$context.data.id}}`) →
+`hksnw304p3b` (math.js `{{$jobsMapByNodeKey.kkk684uupcd}} > {{$context.data.purchase_request.quoted_total}}`)
+→ br=1 over: `0udjhd90ljj` (response-message, echoes total + ceiling + currency) → `3ba6bu5e6un` (end −1);
+br=0 within (≤, empty) → converges to `issue_update`. Strict `>`, so spending exactly the PR amount is allowed.
+Part B import action + hide rule are **user-built in the UI** (import template/field-map/trigger-workflow toggle
+are UI-only — not CLI-authorable). The import attaches lines to the correct PO (no orphans); Part A's live
+aggregate therefore counts imported lines, so the cap applies to them.
+
+**Import Pro enabled** (`@nocobase/plugin-action-import-pro`) with per-row "trigger workflow" on — fires
+collection events (not request-interception), used only for the `lines_total` recompute/observability, never
+for the cap.
+
+**KNOWN ISSUE — PARKED (not critical; the cap is unaffected).** With per-row trigger on, importing a line
+fires the `po_lines` create collection event, but **Recompute A (`5ukanitoy74`, sync) sees
+`$context.data.purchaseOrderId = null`** — the event fires before the association FK lands on the snapshot
+(saved row is correct; no orphan). So `lines_total` isn't recomputed on import (it stays stale until a manual
+line touch). **Not a safety gap:** the Issue-gate cap aggregates lines *live* and the imported lines carry the
+FK, so the budget block still works on imported POs. **Fix when picked up:** re-query the line by its own
+`{{$context.data.id}}` (appends `purchase_order`) for the FK **and** flip Recompute A to async (the FK only
+lands post-commit, so a sync re-query still returns null). Both changes needed. See auto-memory
+`feedback_collection_event_assoc_fk_null`.
+
+**Affects:** MVP9a/D47 (per-line guards retained; cap now *also* at Issue), MVP9e (print still gated on
+`issued`). No PR-side impact. Forward note: any future non-interception line-creation path (another import
+surface, an API bulk write) is covered by the Issue gate but **not** by the per-line guards.
+
+**Status:** Part A built + user-verified live 2026-06-27 (over-budget Issue rejected, within-budget issues;
+import button + hide rule work). Recompute-on-import fix parked (above).

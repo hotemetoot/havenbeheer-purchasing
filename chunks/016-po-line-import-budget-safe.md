@@ -1,6 +1,6 @@
 # 016 — PO line-item import (budget-safe)
 
-Status: draft — not yet built
+Status: Part A built + user-verified 2026-06-27; Part B (import action + hide rule) user-built in UI; import→lines_total recompute PARKED (not critical). D52.
 
 > **Lets Procurement bulk-import PO line items (useful for large orders) without opening the budget
 > hole that import creates.** Import bypasses *all* `po_lines` request-interception guards — the D47
@@ -152,5 +152,21 @@ hide-button handles the "lines added after issue" case D47 worried about.
 - **Verification is UI-only** — `issue_po` is a custom-action (no headless user,
   `feedback_custom_action_execute_no_user`) and import is UI-driven; B1–B7 need a user walkthrough.
 
-## As built
-_(pending execution)_
+## As built (2026-06-27)
+
+**Part A — `issue_po` budget check (built + user-verified live):**
+- Same-key revision **`370047775735808` → `372351365087232`** (enabled+current; predecessor disabled = rollback). Added `purchase_request` to trigger appends.
+- 4 nodes inserted on the all-priced (`x01errm96yk` br=1) branch, before `issue_update`:
+  - `kkk684uupcd` — aggregate sum `line_total` where `purchase_order.id == {{$context.data.id}}` (precision 2).
+  - `hksnw304p3b` — condition math.js `{{$jobsMapByNodeKey.kkk684uupcd}} > {{$context.data.purchase_request.quoted_total}}` (rejectOnFalse false).
+    - br=1 (over) → `0udjhd90ljj` (response-message, echoes total + ceiling + `currency`) → `3ba6bu5e6un` (end −1).
+    - br=0 (within, ≤, empty) → converges → `issue_update`.
+- Strict `>` verified via `flow-nodes test`: `10400>10000` block, `9000>10000` allow, `10000>10000` allow (== passes). User confirmed live: over-budget Issue rejected, within-budget issues.
+
+**Part B — import action + hide rule (user-built in UI):**
+- Import action on the PO popup Line Items sub-table; hidden unless PO `status==draft` + Procurement. Import Pro enabled, per-row "trigger workflow" on. `purchase_order` confirmed in Procurement's `po_lines` create whitelist.
+- Imported lines attach to the correct PO (no orphans) → Part A's live aggregate counts them.
+
+**PARKED follow-up (not critical — cap unaffected):** import fires the `po_lines` create collection event, but **Recompute A `5ukanitoy74` (sync, live `370047322750976`) reads `$context.data.purchaseOrderId = null`** — the event fires before the association FK lands on the snapshot (verified on run `372353806172167`: trigger payload FK null, parent-load node empty, aggregates 0). So `lines_total` isn't recomputed on import (stale until a manual line touch). **Not a safety gap** — the Issue-gate cap aggregates lines live and imported lines carry the FK. **Fix when picked up:** re-query the line by `{{$context.data.id}}` (appends `purchase_order`) for the FK **and** flip Recompute A to **async** (the FK only lands post-commit, so a sync re-query still returns null — both changes needed). See auto-memory `feedback_collection_event_assoc_fk_null`.
+
+**Decision:** D52.
