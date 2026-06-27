@@ -7,6 +7,13 @@
 > **hard-blocked** from collectively exceeding the project budget. Dept-owner approval still applies to
 > each drawdown PR. See decision D49 (new).
 
+> **Build status (2026-06-27):** 014.1 + 014.3 done (collection, m2o, recompute A/B, budget guards).
+> **014.4 done** — PR-Approval drawdown branch (rev `372368060514304`; cond `492iwdlv0mr` → update
+> `48myq8dpqza` + notif `kykl9gnqj9h`). **014.2b/c done** — Project Approval `hzykothf9cx` ENABLED with
+> 4 approver surfaces + initiator (centralized) + ACL (operations/procurement/director). **Pending:**
+> 014.5 UI (Projects page/detail/Close button + PR `project` picker + PR field whitelists; board
+> `approval_document` required), 014.6 user E2E. See D49 update + `project_current_state.md` for IDs.
+
 ## Goal
 - A `projects` collection holds a budget envelope (USD) + scope description, approved via its own
   ladder (dept → procurement → director → board ≥ $15k), reusing existing steps and thresholds.

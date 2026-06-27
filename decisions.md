@@ -881,6 +881,38 @@ is a same-key revision, not an in-place edit.
 **Affects:** **MVP014** (new). Downstream: any future PR-routing or budget MVP must account for the project
 drawdown branch on PR Approval (`cv237r8h7k9`) and the two global PR budget guards. Supersedes **D5**.
 
+**Update 2026-06-27 (014.4 + 014.2b/c built + CLI-verified; pending user E2E).**
+- **014.4 — PR-Approval drawdown branch.** Same-key revision of `cv237r8h7k9` (live active was
+  `371882305585152`, NOT the doc-recorded `371864957943808` — user re-revised after MVP015) →
+  **`372368060514304`** (enabled+current; predecessor `371882305585152` disabled = rollback; 34→**37
+  nodes**). Added `project` to trigger appends. Inserted condition **`492iwdlv0mr`** "Project drawdown?"
+  as the new **br=2 head of `ec2h8cqal32`** (Procurement Approval): basic AND `notEqual(project.id,null)`
+  + `equal(project.status,"approved")` — true (br=1) → update **`48myq8dpqza`** (status=approved,
+  approved_at=now) → notification **`kykl9gnqj9h`** (requester only, D50 — Procurement is final so no
+  proc-head ping); false (br=0) → the existing `bizoy1sj87j` director/board logic (moved intact).
+  `flow-nodes test` passed all 3 scenarios (approved project→true, non-approved→false, no project→false).
+  Approval surfaces regenerated on the revision but are structurally identical to the live source (no
+  comment models / no inline `commentFormUid` on either — comment forms are simply off, so no 403).
+- **014.2b/c — Project Approval surfaces + ACL + ENABLED.** `hzykothf9cx` (`371693220069376`) now
+  **enabled+current**. Applied approval blueprints to the 4 nodes: Dept `tkw661dvfjq`→`5kjtfn7jwml`,
+  Procurement `ik1ixug5rrs`→`u3het26bp1s`, Director `su6sbibmoky`→`mr8tjeafu5x` (each approve/reject/
+  return, actions `[2,-1,1]`); Board `vwuxv7zih9f`→`1udja3xnsex` (approve/reject `[2,-1]` + editable
+  `approval_document` in the ProcessForm). Each approver surface = `approvalInformation` (6 scalar
+  display fields: project_number/title/description/budget_usd/status/committed_usd) + `approvalApprover`
+  (actions; board adds the upload). **No `commentFormUid` configured** (mirrors live PR forms → no 403).
+  Built the **initiator surface** (workflow `approvalUid` `nqqhwey5int`: ApplyFormModel w/ title+
+  description+budget_usd + auto `approvalSubmit`) and set **`centralized:true`** so real users launch a
+  project approval from the approval to-do center (the minimal E2E-create path until 014.5's Projects
+  page; reconcile centralized vs page-form there). **ACL** (`apply-data-permissions`, scope all):
+  **operations** create[title,description,budget_usd]/view[22]/update[title,description,budget_usd,
+  rejection_*]; **procurement** view[22]/update[rejection_*,approval_document]; **director** view[22]/
+  update[rejection_*]. Procurement already had `attachments` create (D32) → board upload covered.
+- **Blueprint gotcha:** the documented `apply-approval-blueprint` baseline is wrong on two keys — each
+  block needs a **`key`** and the resource init field is **`resource`** (not `resourceInit`).
+- **Deferred to 014.5/014.6:** Projects page/table/detail + Close Project button+workflow; PR-form
+  `project` picker + PR `project` create/update field whitelists; make board `approval_document`
+  **required**; user E2E A1–F2 (real users: Alice/Oliver create+submit, Oliver/Pat/Dana approve).
+
 ---
 
 ## D50 — Notify on PR approval (requester always; head of procurement only on the director path)
