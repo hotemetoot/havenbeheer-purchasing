@@ -1018,3 +1018,54 @@ surface, an API bulk write) is covered by the Issue gate but **not** by the per-
 
 **Status:** Part A built + user-verified live 2026-06-27 (over-budget Issue rejected, within-budget issues;
 import button + hide rule work). Recompute-on-import fix parked (above).
+
+## D53 — Project-budget cap enforced in the PR Approval workflow, not the request-interception guards (2026-06-28)
+
+**Amends:** D49 (project budget hard-block). **Same class of finding as D52 + D45-import:** a
+request-interception guard is bypassed by a non-CRUD write path, so enforcement moves into the workflow.
+
+**Problem:** D49's project-budget block was built as `request-interception` on `purchase_requests:create`
++ `:update` (guards `lylobzvlh5p` / `ebq41ibq60r`). But Procurement enters the quote on the **approval
+ProcessForm**, and the approval plugin's submit writes the record through its own path that **bypasses
+request-interception entirely** (the update guard logged **0 executions** on the real path — confirmed).
+So the cap was never enforced where the quote is actually set; **PR-26-0055** (a $110k quote against a
+$10k project) was approved. This is the same bypass family as D52 (import escapes po_lines guards) and the
+documented `feedback_request_interception_scope` (workflow-internal / plugin writes skip interception).
+
+**Two bugs fixed together:**
+- **Blank-quote crash (create+update guards).** The guards' calc node did
+  `... + {{values.quoted_total}} / {{values.fx_rate_to_usd}}`; a **blank `quoted_total` renders as an empty
+  string** in this `formula.js` engine → `N(0) +  / 1` SyntaxError → the sync guard *threw* → generic
+  "workflow or action failed, please contact administrator" whenever a project PR was created with no quote
+  (the normal case — Procurement fills the quote later). Fixed by `N()`-wrapping every `$context.params.values.*`
+  param (blank→0, no parse break) + a `IF(N(fx)==0,1,N(fx))` divide-by-zero guard; update guard's
+  `IF(ISBLANK(...))` effective-value nodes (which returned a wrong `false` on a blank param) rewritten the same
+  way. **Engine note:** evals JS-style — `=` is assignment, use `==`; never write a raw `{{param}}/{{param}}`
+  (wrap in `N()`); `$jobsMapByNodeKey` results render as real `null` (safe). See auto-memory
+  `feedback_formula_blank_param_empty_string`. Create `lylobzvlh5p` → ver `372589928710144`; update
+  `ebq41ibq60r` → ver `372590052442112` (both same-key revisions, predecessors disabled = rollback).
+- **Enforcement hole (the cap itself).** Added a **server-side backstop in PR Approval `cv237r8h7k9`**: same-key
+  revision `372368060514304` → **`372600911495168`** (enabled+current; predecessor disabled; **37→41 nodes**).
+  On the drawdown true-branch (`492iwdlv0mr` br=1), the old approve `48myq8dpqza`→notify `kykl9gnqj9h` was
+  replaced by: aggregate `wt7bh1uh2gn` (Σ `quoted_total_usd` of the project's child PRs, status notIn
+  rejected/cancelled — **includes this PR**, whose formula USD is saved by approve-time) → condition
+  `8ra9iw4f61z` (math.js `Σ > project.budget_usd`) → **br=1 over** = update `3o2q8urkutu` status=rejected +
+  dynamic over-budget `rejection_comment` → notify `xtr5t4xy1gq`; **br=0 within (≤ budget)** = recreated approve
+  `47fd05ite4i` → notify `fvbrc41tdl2`. Strict `>` so exactly == budget is allowed (matches D49 C3).
+
+**Behavior decision (user):** an over-budget project PR is **auto-rejected** at the Procurement-approve step
+(not returned/info_requested, not routed to Director). The **UI guardrail** (show remaining budget on the
+Procurement form + hide/disable Approve when the entered quote overruns) is the **user's to build** and is a
+UX layer only — RunJS is frontend-only and bypassable, so the workflow backstop is the real enforcement.
+
+**Why move enforcement and keep the interception guards too:** the create guard still does real work (blocks
+linking to a non-approved/closed project, and *does* fire on create); both interception guards stay enabled as
+defense-in-depth for any **direct-API** PR edit. They simply can't see the approval-form path, which the
+backstop now covers.
+
+**Affects:** MVP014 (D49 enforcement model). Forward note: the project budget is now enforced at PR-approval
+time; the request-interception guards are a secondary net for direct writes, not the primary control.
+
+**Status:** all three changes built + CLI-verified (expressions via `flow-nodes test`; structure via readback,
+41 nodes, all branches intact). **Pending user E2E:** over-budget project PR → auto-rejected; within-budget →
+approved. User deleting PR-26-0055.
