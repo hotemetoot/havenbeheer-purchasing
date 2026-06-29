@@ -1069,3 +1069,24 @@ time; the request-interception guards are a secondary net for direct writes, not
 **Status:** all three changes built + CLI-verified (expressions via `flow-nodes test`; structure via readback,
 41 nodes, all branches intact). **Pending user E2E:** over-budget project PR → auto-rejected; within-budget →
 approved. User deleting PR-26-0055.
+
+**Amendment (2026-06-28, same day) — commit on approval, not on submit.** User asked why budget commits at
+quote-entry (a pending PR with a quote was consuming budget) and proposed committing only on approval — which
+also removes a UI re-edit double-count. Adopted. **`committed_usd` now counts only `status == approved`** child
+PRs (was all non-rejected/cancelled). The cap is still enforced because the **backstop runs at approval** and
+counts already-approved siblings + this PR; the second of two in-flight PRs is caught when it's approved (the
+first is then approved and counted). Trade vs reserve-on-submit: a pending PR no longer reserves budget, so an
+over-budget PR is flagged at its approval rather than at quote entry — fine for sequential approvals.
+**Four coordinated same-key revisions** (all enabled+current; predecessors disabled = rollback):
+- Recompute A `j2fp3wa4o1k` → `372610306736128`: agg `stf49k2lx11` filter `status == approved`.
+- Recompute B (delete) `0mckvnf319y` → `372610338193408`: agg `hsshy332wo1` filter `status == approved`.
+- Backstop (PR Approval `cv237r8h7k9`) `372600911495168` → `372610390622208`: agg `wt7bh1uh2gn` filter
+  `project.id == X AND (status == approved OR id == thisPR)` — counts approved siblings **plus** this PR, and
+  reads this PR's live quote without a `$context.data` timing dependency.
+- Update-guard `ebq41ibq60r` `372590052442112` → `372610438856704`: agg `i4uayouh3va` filter `status == approved`
+  excl self (`dj27n84thia` then adds this PR's effective quote).
+
+Net: `remaining_usd = budget − Σ(approved)`, and a pending PR is never in it → **UI rule is simply
+`entered_quote_usd > remaining_usd`** (no re-edit caveat). The create-guard `lylobzvlh5p` aggregate was left as
+the broader filter (it only ever runs at create, where the PR has no quote, so its budget arm is moot — it still
+enforces "project must be approved"). **Pending user E2E unchanged.**
