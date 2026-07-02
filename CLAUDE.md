@@ -3,67 +3,88 @@
 NocoBase-based PR/PO approval workflow. This file is auto-loaded every session.
 
 ## Environment
-- NocoBase 2.1.0-beta.36 at http://localhost:13000
+- NocoBase 2.1.0-beta.47 at http://localhost:13000
 - CLI env name: `havenbeheer`
 - Auth: OAuth (auto-refreshes)
+- Multi-project shell isolation: `nb` scopes "current env" per shell session via `NB_SESSION_ID`. Run `nb session setup --shell <shell>` once per shell if not already done. If a chunk's `nb api` calls seem to hit the wrong environment, sanity-check with `nb session id` — this matters because agrofix/qhse are worked on concurrently in other shells.
 
 ## Where things live
-- Big picture: [design/](design/) — thin pointers to validation docs in `Planning and Design/`
+- Design: [design/](design/) — thin pointers to the heavier validation docs in `Planning and Design/`, not inlined content.
 - Roadmap of all MVPs: [roadmap.md](roadmap.md)
-- Current chunk (the MVP we're actively building): [chunks/NNN-*.md](chunks/)
-- What exists in NocoBase right now: [project_current_state.md](project_current_state.md) (authoritative — update at session end)
-- Decision history: [decisions.md](decisions.md) (currently effective) and [decisions-archive.md](decisions-archive.md) (full)
+- Current chunk: [chunks/NNN-*.md](chunks/); finished ones move to [completed/NNN-*.md](completed/)
+- Decisions made along the way: [decisions.md](decisions.md) — append-only, ≤15-line entries (Decision/Why/How to apply/Affects/Status), superseding via `Status: superseded by D#` rather than deletion. [decisions-archive.md](decisions-archive.md) holds older entries from before this convention — kept as a second file rather than merged, since retroactively reformatting ~50+ entries would lose real detail (workflow IDs, node counts) for no benefit. Only *new* entries follow the ≤15-line format; older entries in both files may run much longer.
+- Non-queryable context (traps, reasons behind manual changes, env facts, the go-live checklist): [notes.md](notes.md)
+- Client-facing docs, grows per chunk: [docs/user-guide.md](docs/user-guide.md) — starts empty as of the 2026-07-02 retrofit; backfilling docs for MVPs 1–16 (already shipped before this convention existed) is deferred to its own future chunk, not assumed done.
+- Tests: [tests/plan.yaml](tests/plan.yaml) (rules + cases), `tests/.env.test` (gitignored, human-filled only)
 - Cross-project NocoBase patterns: auto-memory `feedback_*.md` (read-only reference)
+- Kept non-standard folders (organically grown pre-retrofit, deliberately not restructured — real, load-bearing content with no better home in the standard tree): [Planning and Design/](Planning%20and%20Design/) (design validation docs), [nocobase docs/](nocobase%20docs/) (doc cache), [Outputs/](Outputs/), [snippets/](snippets/) (reusable JS, e.g. `po-line-items-total.js` — RunJS isn't version-controlled, so this is the source of truth for it), [templates/](templates/) (PO print-template source, `build_po_template.py`), [archive/](archive/), `backups/` (gitignored — `nb backup create/restore` output), [role-acl-guidelines.md](role-acl-guidelines.md) (standalone ACL reference, kept at root rather than folded into `design/permissions.md`).
+
+One fact, one home: if you're about to write the same fact in two of these files, stop — pick its home and pointer-reference it from elsewhere instead of duplicating it.
+
+There is no state-mirror file. The live app, queried via `nb api`, is the source of truth for everything queryable — collections, fields, roles, ACL, workflows, pages, IDs. Never act on an ID that wasn't just read from the live env. (`project_current_state.md` was retired 2026-07-02 for this reason — see git history if you need the pre-retrofit narrative.)
 
 ## Session workflow
 
-When the user names an MVP (e.g. "let's do 008"):
+When the user names an MVP (e.g. "let's do 014.5"):
 
-1. Read [project_current_state.md](project_current_state.md) — IDs, what exists, stale IDs. If a section is empty for what you'll act on, verify against the live env before proceeding. **Always re-query active workflow versions live** (`workflows` filter `{"current":true,"enabled":true}`) before touching any workflow — the user makes manual adjustments between sessions, and the doc's active-version IDs lag repeatedly.
-2. Read the [roadmap.md](roadmap.md) entry for the MVP.
-3. Check [decisions.md](decisions.md) for any D-entries affecting this MVP.
-4. Read [design/](design/) files only if the chunk touches their area.
-5. **If `chunks/NNN-*.md` does not exist yet**, draft it now using the chunk template (see existing chunks). Source material: roadmap one-liner, design files just read, decisions just checked. Show draft, refine, commit, then continue.
-6. **If `chunks/NNN-*.md` already exists**, read it.
-7. Enter plan mode; plan is saved to `./plans/` if that works (test once — see open item), else `~/.claude/plans/`.
-8. After user approves the plan, execute step by step.
-9. Pause before any irreversible action and ask user to verify manually.
+1. Query the live env via `nb api` for whatever the MVP touches (collections, roles, workflows, pages). Compare against roadmap.md, decisions.md, and recent git history. **Report drift before doing anything else** — anything live that doesn't match what's expected. Handle consequences immediately: update `tests/plan.yaml`, update `docs/user-guide.md`, adjust the chunk plan.
+2. Read the roadmap.md entry for the MVP.
+3. Check decisions.md for D-entries with "Affects: <MVP>".
+4. Read design/ files only if the chunk touches that area. Read notes.md for anything flagged relevant.
+5. **If chunks/NNN-*.md doesn't exist yet, draft it now** from the roadmap one-liner, the design files just read, and the decisions just checked. Show the draft, refine, commit, then continue.
+6. **If chunks/NNN-*.md already exists**, read it.
+7. Enter plan mode; save the plan to `./plans/`.
+8. Once the user approves the plan (once), execute **phase by phase**: after each phase, pause with a summary of what was done and a preview of the next phase before continuing. Irreversible actions (deletes, dropping pages, destroying workflow history) always get an explicit stop and confirmation, regardless of phase boundary.
+9. Backend only. Claude does not build UI unless the user explicitly delegates a screen — see "Test gate" below.
+
+## Test gate
+
+A chunk isn't complete until `nocobase-test run` is fully green AND the user has verbally confirmed the UI/behavior works. Not a checkbox ritual — an actual "yes this works" from the user. Once the backend is tested green, write a descriptive interface brief into the chunk file (blocks, field bindings, actions, linkage suggestions) and stop; the human builds the screen. The brief is a suggestion sheet, not a contract — the result may differ completely.
 
 At session end:
-- Update [project_current_state.md](project_current_state.md) with new collections, fields, workflow node IDs, MVP status. Commit it.
-- If the plan changed during the build: edit `chunks/NNN-*.md` in place AND append a D-entry to [decisions.md](decisions.md), listing affected downstream MVPs by number.
-- If you learned a NocoBase gotcha that applies to ANY NocoBase project (not just Havenbeheer), save it as `feedback_<topic>.md` in auto-memory.
+- If the plan changed during the build: edit chunks/NNN-*.md in place AND append a D-entry to decisions.md listing affected downstream chunks.
+- Update docs/user-guide.md for anything user-visible that changed — written from what the live app actually shows, not from what was planned.
+- Update roadmap.md status.
+- Commit.
+- If you learned a NocoBase gotcha that applies to ANY NocoBase project, save it to auto-memory as `feedback_<topic>.md`. If it's specific to this project, put it in notes.md instead.
 
 ## Live environment changes
 
 Before modifying live NocoBase configuration (creating/editing collections, workflows, pages, roles, fields), show the user:
-
-- **Intended changes** — what entities/fields/nodes will be created or modified.
-- **CLI/API category** — which skill or command group (e.g. `nocobase-data-modeling`, `nocobase-workflow-manage`).
-- **Expected UI result** — what the user will see in NocoBase after the change.
+- **Intended changes** — what entities/fields/nodes will be created or modified
+- **CLI/API category** — which skill or command group you'll use (e.g. nocobase-data-modeling, nocobase-workflow-manage)
+- **Expected UI result** — what the user will see in NocoBase after the change
 
 Wait for explicit approval before executing.
 
-**For irreversible actions** (deleting data, dropping a published page, destroying workflow history, removing a role with assigned users), additionally provide a rollback plan and get explicit confirmation. Most NocoBase actions are reversible enough that the rollback step is implicit; only require an explicit rollback plan when undoing isn't trivially obvious.
+**For irreversible actions** (deleting data, dropping a published page, destroying workflow history, removing a role with assigned users), additionally provide a rollback plan and get explicit confirmation. Most NocoBase actions are reversible enough that the rollback step is implicit; only require explicit rollback when undoing isn't trivially obvious.
 
 ## NocoBase rules
-
-The cross-project gotcha catalogue lives in the `myNocobase-project-workflow` skill (`reference/nocobase-gotchas.md`) — **read it before building or changing workflows, approval forms, ACL, or formula fields.** One-line versions of most gotchas are in the auto-memory index (always loaded). Project-specific rules that live only here:
-
-- **Never use IDs listed under "Stale IDs"** in [project_current_state.md](project_current_state.md), and verify risky IDs against the live env first — the doc is authoritative but can lag.
-- **`fieldGroups` requirement.** Any future page using `purchase_requests` needs `defaults.collections.purchase_requests.fieldGroups` (likewise `users` — the `submitter` association generates a view popup with >10 fields).
-- **No global `create` for approver roles on `attachments`-adjacent grants** — D25 forbids approvers creating PRs; use narrow independent resource permissions (see catalogue for the pattern).
+- **Workflow versioning:** once a workflow has been executed, you cannot edit it in place. Create a new revision (`nb api workflow workflows revision`), edit the new version, enable it, disable the old one.
+- **Member is the base role:** every user has `member` as their base role. View ACL on shared resources goes on `member`, not duplicated to every specific role. Only add separate ACL to a specific role when it needs MORE than member.
+- **`roleMode` is `only-use-union` (D54):** every user's effective permissions are the union of all their roles, always — a derived role's restriction has no effect if any other role the user holds already grants it. Tighten the most-permissive role, not the derived one. See `role-acl-guidelines.md` §1 and `notes.md`'s go-live checklist (`member`'s `ui.*` snippet is currently un-negated as a deliberate dev convenience, and this setting makes that apply to every user right now).
+- **`fieldGroups` requirement:** any page using `purchase_requests` needs `defaults.collections.purchase_requests.fieldGroups` set (likewise `users` — the `submitter` association generates a view popup with >10 fields).
+- **No global `create` for approver roles on `attachments`-adjacent grants** — D25 forbids approvers creating PRs; use narrow independent resource permissions instead (see the gotchas catalogue for the pattern).
+- **Auth failures hand off:** if `nb api` or a direct HTTP call returns 401/403/auth-required, stop and hand off to `nocobase-env-manage` — don't patch around it.
 
 ## Skills
-
-The NocoBase CLI ships skills, auto-installed via `nb init`: `nocobase-env-manage`, `nocobase-plugin-manage`, `nocobase-data-modeling`, `nocobase-acl-manage`, `nocobase-workflow-manage`, `nocobase-ui-builder`, `nocobase-data-analysis`, `nocobase-utils`. **Do NOT use** `nocobase-dsl-reconciler` for this project — we author against the live app, not committed YAML.
+Official (auto-installed with NocoBase CLI): nocobase-env-manage, nocobase-plugin-manage, nocobase-data-modeling, nocobase-acl-manage, nocobase-workflow-manage, nocobase-ui-builder, nocobase-data-analysis, nocobase-utils.
+This suite (`nb-project-suite`): nocobase-test (rules/cases, runner, pre-deploy gate), nocobase-bootstrap (this file's own origin — re-invoke only for a genuinely new project, not per chunk), nocobase-new-project (scaffold).
+Consult `nocobase-runjs` before writing any custom JS (JS Block/Field/Item/Column/Action, linkage rule scripts) — e.g. the `snippets/` JS blocks.
+Before building or changing workflows, approval forms, ACL, or formula fields: check `nocobase-bootstrap`'s gotchas catalogue for a known trap first — cheaper than rediscovering it live.
+**Do NOT use `nocobase-dsl-reconciler` for this project** — it authors apps as committed YAML + `cli push`, a fundamentally different model from this project's live-first approach (this file's whole workflow assumes `nb api` is the source of truth). Switching now would mean re-deriving 16+ already-shipped MVPs into YAML for no benefit. The skill's own description is opt-in-only, but this is a real fork in how the project works, not a minor tool choice — don't invoke it here even if asked for "the DSL path" in a generic sense; confirm explicitly first.
 
 ## Commits
-
 Commit after:
-- Chunk file approval (before any execution).
-- Successful implementation of a phase that's been manually verified.
-- Updating [project_current_state.md](project_current_state.md) at session end.
-- Recording a new D-entry in [decisions.md](decisions.md).
+- Chunk file approval (before any execution)
+- A phase that's been built and manually verified
+- `tests/plan.yaml` rule or case changes
+- A new D-entry in decisions.md
 
 Don't commit half-built or unverified configuration. The commit history should read as a series of "this worked" milestones.
+
+## Build discipline
+- One chunk per session, ideally 1–3 hours.
+- Manual verification by the user before marking a chunk complete.
+- When in doubt about scope: it's out. Defer to a later chunk and write the D-entry.
+- When the plan changes mid-build: edit the chunk file in place to reflect what was built, AND add a D-entry to decisions.md naming affected future chunks.
