@@ -1090,3 +1090,18 @@ Net: `remaining_usd = budget − Σ(approved)`, and a pending PR is never in it 
 `entered_quote_usd > remaining_usd`** (no re-edit caveat). The create-guard `lylobzvlh5p` aggregate was left as
 the broader filter (it only ever runs at create, where the PR has no quote, so its budget arm is moot — it still
 enforces "project must be approved"). **Pending user E2E unchanged.**
+
+---
+
+## D54 — System roleMode set to only-use-union (2026-07-02)
+
+**Decision:** `systemSettings.roleMode` is `only-use-union` — every user's effective permissions are always the union of all their assigned roles; there is no per-session single-role selection.
+
+**Why:** Lets roles be composed as small additive building blocks (a user's access is always the sum of their roles, so grants never need to be duplicated across roles for a multi-role user to have them). Also prevents end users from accidentally switching their active role to one with less access and losing functionality.
+
+**How to apply:** When reasoning about any role's restriction, a derived role's negation (a snippet, a strategy limit) has no effect if `member` or any other role the user holds already grants it — tighten the most-permissive role a user holds, not the derived one. See `role-acl-guidelines.md` §1 (written for `allow-use-union`; the union-always behavior it describes is now unconditional, not a switchable option).
+
+**Affects:** none yet (system-wide setting, not chunk-specific)
+**Status:** active
+
+**Retrofit note (2026-07-02):** discovered live during the `nb-project-suite` retrofit drift report — `role-acl-guidelines.md` and `project_current_state.md` both still said `allow-use-union` (dated 2026-06-11); this entry documents the change going forward. Dated today per the retrofit's rule for undocumented decisions found in `project_current_state.md`, not backdated to when the change actually happened (unknown).

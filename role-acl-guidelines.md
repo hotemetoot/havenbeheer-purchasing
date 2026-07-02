@@ -47,14 +47,16 @@ Distilled from the 2026-06-11 audit of this app. Written to be reusable in any N
 6. Org data: approver fields populated for every department that a workflow routes through; no hardcoded assignee IDs in active workflow versions.
 7. Booleans: check raw `defaultValue` types on flag fields (the CLI string-`"false"` coercion bug stores truthy defaults — see `feedback_fields_apply_boolean_default`).
 
-## 6. Havenbeheer-specific state (updated 2026-06-11, role-hardening phases 0–1 DONE)
+## 6. Havenbeheer-specific state (updated 2026-07-02, retrofit drift report)
 
-Resolved this session (details in `project_current_state.md` § Roles & ACL):
-- `member` snippets reverted to vanilla; `member` + `director` strategies now **view-only**.
+Resolved as of the 2026-06-11 role-hardening (details now in `decisions.md` D38, D40; historical detail also in git history of the retired `project_current_state.md`):
 - New dept-bound `operations` role owns PR create/update (update scoped to own + editable statuses); procurement's PR `create`/`importXlsx` removed (D25 now enforced); procurement update whitelists exclude workflow-managed columns.
 - `director` got the render-enabler grant (view 37 fields + update 2 rejection fields scoped to director/board stages).
+- `finance` role got the same render-enabler treatment once `fiona.finance` was created as an approver (D40).
+- Scopes 3, 6–9 (the broken snake_case ones) were deleted rather than fixed (D43).
 
-Still open:
-- `finance` role: `null` strategy, no users — placeholder until the payment MVP; **will need view + render-enabler grants when fiona.finance becomes an approver (Phase 2)**.
-- Director approval hardcodes user 12, Board hardcodes user 11; Director/Finance departments have `main_approver = NULL`; `secondary_approver`/`on_leave` to be dropped (Phase 2/3).
-- Scopes 3, 6–9 use snake_case FK columns (`department_id`, `submitter_id`) that 400 when bound — fix before first use (scope 2 already fixed to `submitterId`).
+**Corrections found during the 2026-07-02 retrofit drift report (see `decisions.md` D54):**
+- **`systemSettings.roleMode` is now `only-use-union`**, not `allow-use-union` as originally recorded here — deliberate (D54), not a regression. Every user's effective permissions are the union of all their roles, unconditionally; there is no per-session single-role selection anymore. This makes §1's "a restriction on a derived role is meaningless if the base role already grants it" true **always**, not just under union mode.
+- **`member`'s `ui.*` snippet is currently un-negated** (not vanilla) — deliberate development convenience (any test user can enter UI edit mode without switching to admin), **not** yet reverted. Because of the `only-use-union` setting above, this currently grants UI-edit access to every user in the app. Tracked in `notes.md` under "Before go-live" — must be re-negated before real end users get accounts.
+
+Resolved since 2026-06-11 (superseding this section's original "still open" list): approver assignment is fully data-driven per D40 — Director/Board/Procurement/Operations approvals resolve from `departments.main_approver`, no hardcoded user ids. Verified live 2026-07-02: all 4 departments have `main_approver` set (Procurement→11, Director→12, Finance→14, Operations→10).
