@@ -1,0 +1,71 @@
+# tests/plan.yaml — havenbeheer ACL test suite
+# R1–R3 (purchase_requests / operations role) verified live 2026-07-02,
+# 4/4 passed (see tests/reports/20260702-091759.md). No longer TODO.
+#
+# Retrofit pilot (nb-project-suite deliverable 6) is extending this suite
+# with a full ACL/workflow audit, drafted rule by rule, group by group.
+# New rules get # TODO verify until reviewed and run live.
+#
+# Checked for interference from request-interception guards on
+# purchase_requests before drafting the update/destroy cases:
+#   - "Guard A — PR Immutability Guard" blocks update/destroy only when
+#     status is approved/rejected/cancelled — does not affect draft, so R2/R3
+#     below are clear.
+#   - "Guard: PR Budget (create) — block over-project-budget" triggers on
+#     create but only matters when a project is linked; fixtures below don't
+#     set project/projectId, so it should be a no-op. Flag to Alexander if
+#     the create case fails unexpectedly — that guard is the first suspect.
+
+rules:
+  R1: Operations users can create purchase requests.
+  R2: Operations users can update their own purchase request while its status is draft or info_requested, and cannot update another operations user's purchase request.
+  R3: Operations users cannot delete purchase requests.
+
+fixtures:
+  users:
+    operations_a: { role: operations }
+    operations_b: { role: operations }
+
+  records:
+    purchase_requests:
+      - id_ref: pr_draft_a
+        as: operations_a
+        values: { title: "[TEST] Office chairs", status: draft }
+
+cases:
+  - rule: R1
+    name: operations user can create a purchase request
+    as: operations_a
+    action: purchase_requests:create
+    values: { title: "[TEST] New PR", status: draft }
+    expect: allow
+
+  - rule: R2
+    name: operations user can update their own draft PR
+    as: operations_a
+    action: purchase_requests:update
+    target: pr_draft_a
+    values: { title: "[TEST] Office chairs (edited)" }
+    expect: allow
+
+  - rule: R2
+    name: operations user cannot update another operations user's draft PR
+    as: operations_b
+    action: purchase_requests:update
+    target: pr_draft_a
+    values: { title: "[TEST] hijacked" }
+    expect: deny
+
+  - rule: R3
+    name: operations user cannot destroy a purchase request
+    as: operations_a
+    action: purchase_requests:destroy
+    target: pr_draft_a
+    expect: deny
+
+teardown:
+  sweep_collections: []
+  # Two async workflows also trigger on purchase_requests create/update
+  # ("Project Commit: recompute", "Guard A" above is sync). Since fixtures
+  # here don't link a project, they should no-op. Watch for leftovers on
+  # first run and add to sweep_collections if any turn up.

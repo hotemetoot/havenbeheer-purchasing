@@ -1105,3 +1105,18 @@ enforces "project must be approved"). **Pending user E2E unchanged.**
 **Status:** active
 
 **Retrofit note (2026-07-02):** discovered live during the `nb-project-suite` retrofit drift report — `role-acl-guidelines.md` and `project_current_state.md` both still said `allow-use-union` (dated 2026-06-11); this entry documents the change going forward. Dated today per the retrofit's rule for undocumented decisions found in `project_current_state.md`, not backdated to when the change actually happened (unknown).
+
+---
+
+## D55 — Fixed `director`'s `purchase_requests` ACL: scoped update, dropped stray create (2026-07-02)
+
+**Decision:** `director`'s `update` action on `purchase_requests` is now scoped to `status == pending_director_approval` only (new reusable scope, `rolesResourcesScopes` id 11, key `vycg3aal69u`, name "PR — pending director approval"). `director`'s `create` action on `purchase_requests` (fields: `["signature"]`, no scope) was removed entirely.
+
+**Why:** Found during the `nb-project-suite` retrofit's Step 6 ACL re-audit — `role-acl-guidelines.md` §6 said director's render-enabler update grant was "scoped to director/board stages" (matching the D38 render-enabler pattern), but live config had `scopeId: null` (unscoped — director could update those 5 fields, including `signature` and the rejection fields, on a PR at **any** status, not just its own approval stage). Confirmed as an oversight, not intentional, by the user. Separately, an undocumented `create` action existed on the same role/collection — also confirmed unintentional; the actual intent ("director can add a signature to an existing PR") is already covered by the `update` action's `signature` field, and D25 forbids approver-role PR creation.
+
+Note: the existing scope id 10 ("PR — director stage") covers **two** statuses (`pending_director_approval`, `pending_board_approval`) and is correctly used by `finance`'s render-enabler grant (per D40, groundwork for a future finance/payment stage — board approval itself belongs to Procurement per D32, not director). Deliberately did **not** reuse scope 10 for director; created a narrower single-status scope instead, since director's own approval only ever happens at `pending_director_approval`.
+
+**How to apply:** `director` on `purchase_requests` now has exactly 2 actions: `view` (37 fields, unscoped) and `update` (5 fields: `project`, `projectId`, `rejection_comment`, `rejection_reason_category`, `signature`; scoped to `pending_director_approval` via scope id 11). No `create` action. Verified live via readback (`roles data-source-resources get --appends actions`).
+
+**Affects:** `role-acl-guidelines.md` §6 (corrected in the same commit); `tests/plan.yaml` (new director rules should assert this scoping).
+**Status:** effective — written and readback-verified 2026-07-02.

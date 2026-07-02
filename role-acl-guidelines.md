@@ -51,8 +51,8 @@ Distilled from the 2026-06-11 audit of this app. Written to be reusable in any N
 
 Resolved as of the 2026-06-11 role-hardening (details now in `decisions.md` D38, D40; historical detail also in git history of the retired `project_current_state.md`):
 - New dept-bound `operations` role owns PR create/update (update scoped to own + editable statuses); procurement's PR `create`/`importXlsx` removed (D25 now enforced); procurement update whitelists exclude workflow-managed columns.
-- `director` got the render-enabler grant (view 37 fields + update 2 rejection fields scoped to director/board stages).
-- `finance` role got the same render-enabler treatment once `fiona.finance` was created as an approver (D40).
+- `director` got the render-enabler grant (view 37 fields + update 5 fields — `project`, `projectId`, `rejection_comment`, `rejection_reason_category`, `signature` — scoped to `pending_director_approval` only). **Corrected 2026-07-02 (D55):** this update grant was live-unscoped (an oversight) and carried a stray, undocumented `create` action; both fixed, see D55.
+- `finance` role got the same render-enabler treatment once `fiona.finance` was created as an approver (D40) — update scoped to `pending_director_approval`/`pending_board_approval` (scope 10), groundwork for a future finance/payment stage. No finance approval stage exists yet.
 - Scopes 3, 6–9 (the broken snake_case ones) were deleted rather than fixed (D43).
 
 **Corrections found during the 2026-07-02 retrofit drift report (see `decisions.md` D54):**
