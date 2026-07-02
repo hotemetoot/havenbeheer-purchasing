@@ -18,3 +18,7 @@ Thumbs.db
 
 # Local NocoBase backups (binary, not version-controlled)
 backups/
+
+# API test runner — secrets and disposable reports
+tests/.env.test
+tests/reports/
