@@ -1120,3 +1120,18 @@ Note: the existing scope id 10 ("PR — director stage") covers **two** statuses
 
 **Affects:** `role-acl-guidelines.md` §6 (corrected in the same commit); `tests/plan.yaml` (new director rules should assert this scoping).
 **Status:** effective — written and readback-verified 2026-07-02.
+
+---
+
+## D56 — PO deletion locked down: no PO destroy, PO-line destroy only while draft (2026-07-02)
+
+**Decision:** two changes, same principle (deletions minimal, for auditability — user's rule):
+1. `procurement`'s `destroy` action on `purchase_orders` **removed entirely** (ACL). Procurement can no longer delete a PO at any status — a PO is closed (not-yet-received) or completed (fully received) instead, never deleted.
+2. New request-interception workflow `Guard: PO Line Destroy — block once PO issued` (id `373256900640768`, key `v61hc3ou3pa`, enabled) blocks `destroy` on `po_lines` whenever the parent PO's status is anything other than `draft`. Procurement may still delete a mistaken line while the PO is draft, but not once issued.
+
+**Why:** Found during the `nb-project-suite` retrofit's Step 6 ACL/workflow re-audit — procurement's ACL grant for `purchase_orders` `destroy` was unscoped (only the completed/closed immutability guard applied, leaving draft/issued/partially_received/received POs fully deletable), and the same was true one level down for `po_lines`. User confirmed both are unwanted: never delete a PO; a line may only be deleted pre-issue.
+
+**How to apply:** `procurement` on `purchase_orders` now has exactly 4 actions (`trigger`, `view`, `create`, `update`) — no `destroy`. The new guard queries the line's parent PO by `filterByTk`, condition checks `purchase_order.status != "draft"` → reject with "Cannot delete a PO line once the PO has been issued." Existing `Guard: PO Line Immutability` (`f3dkb37te22`) is untouched and still separately governs `update` (stays editable outside `draft`, e.g. during receiving) plus its own `completed`/`closed` destroy lock — now redundant for destroy but harmless (first guard to reject wins).
+
+**Affects:** `tests/plan.yaml` (new purchase_orders/po_lines destroy rules should assert this).
+**Status:** effective — both parts written and readback-verified 2026-07-02 (ACL via `apply-data-permissions`; workflow: 4 nodes, query → condition → response-message → end, mirrors the sibling guard's shape).
