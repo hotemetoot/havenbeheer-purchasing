@@ -11,7 +11,7 @@
 | 007 | Suppliers collection + supplier on PR (issues/evaluations descoped, D26) | ✓ built |
 | 008 | Comments + attachments + soft fields | ✓ built (comments UI block removed post-verify; data layer kept) |
 | 009a | PO collection + po_lines + Generate-PO button | ✓ built (D27 descoped po_lines pricing; planned 9a.4 total-maintenance cancelled) |
-| 009b | PO send + budget zones (110%) + zone 2/3 notifications | ✓ built (D28 cancel→close collapse; zone-2 verified; zone-2 in-app notifications deferred — gated on Finance `main_approver`) |
+| 009b | PO send + budget zones (110%) + zone 2/3 notifications | ✓ built (D28 cancel→close collapse; zone-2 verified; zone-2 in-app notifications deferred — gated on Finance `main_approver`) — **superseded 2026-06-14 by D46**: Send + budget zones retired, replaced by the Issue-gated PO lifecycle (see D46 in decisions.md) |
 | 009c | PO receiving (per-line `received_quantity`) | ✓ built + verified 2026-06-07 (Receive Guard `mhfp4d15uee` + Receiving recompute `ork27v016yo`; receiving UI user-built; R1–R4 passed) |
 | 009d | PO completion / closing + immutability (no cancel — D28/D33) | ✓ built + verified 2026-06-09 (Complete `qh7b3hc5q1r` w/ D34 invoice+USD gate, broadened Close `f8gpu17s6hq`, D35 Close Guard `b6brl8r9c58`, PO/line immutability guards; C1–C5 + D34a/b + D35 all passed via API-staged fixtures) |
 | 009e | PO template printing (Word → PDF) | ✓ built + verified 2026-06-09 (Carbone template `printingTemplates:kkooshlz8rf` → `po-template-mvp9e.docx`, Havenbeheer-branded; Print button `c579329db0d`; P1/P2 confirmed on PO-26-0006; source in `templates/`) |
