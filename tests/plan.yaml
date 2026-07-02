@@ -22,15 +22,15 @@ rules:
   R3: Operations users cannot delete purchase requests.
   R4: Only procurement can create purchase orders; director cannot create one. # TODO verify
   R5: Only procurement can create po_lines; director cannot create one. # TODO verify
+  R12: Director can update the render-enabler fields (rejection_comment, rejection_reason_category, signature) on a purchase request while it is at pending_director_approval (its own approval stage). Narrowed 2026-07-02 (D58) - project/projectId dropped from this grant, no longer part of the rule. # TODO verify
   R13: Director cannot update PR fields outside its own approval stage (pending_director_approval). # TODO verify
   R14: Director cannot create purchase requests. # TODO verify
   R16: Procurement cannot create a PO from a purchase request that is not approved. # TODO verify
 
-# R12, R15, R17-R24 (see decisions.md D55/D56 and notes.md) intentionally NOT
-# drafted yet — each needs a PR actually at status=approved as a fixture
-# precondition, which needs the PR Approval workflow driven end-to-end.
-# Blocked on a runner.py case-type extension (approvalRecords:submit isn't
-# expressible in plan.yaml yet) - see notes.md "Approval-chain test fixtures".
+# R15, R17-R24 (see decisions.md D56 and notes.md) intentionally NOT drafted
+# yet — need their rule text derived first via a live ACL audit of
+# purchase_orders/po_lines across all 5 roles (same kind of audit that
+# produced D55-D58 for purchase_requests). Not started.
 
 fixtures:
   users:
@@ -38,12 +38,34 @@ fixtures:
     operations_b: { role: operations }
     director_a: { role: director }
     procurement_a: { role: procurement }
+    pat_procurement: { existing: true, email: "pat@havenbeheer.test", password: "nbtest" }
 
   records:
     purchase_requests:
       - id_ref: pr_draft_a
         as: operations_a
         values: { title: "[TEST] Office chairs", status: draft }
+      - id_ref: pr_pending_director
+        as: operations_a
+        trigger_workflow: cv237r8h7k9   # PR Approval workflow key
+        values: { title: "[TEST] R12 fixture", quoted_total: 100 }
+
+  # Drives pr_pending_director one real approval step (Procurement) so it
+  # lands at pending_director_approval - the precondition for R12. Real
+  # persona required: approvalRecords:submit checks the actual assigned
+  # userId (pat.procurement is the procurement dept's real main_approver,
+  # D40), not just role membership.
+  approvals:
+    - target: pr_pending_director
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement approve, advance to director stage"
+      assert:
+        - collection: purchase_requests
+          id_ref: pr_pending_director
+          match: { status: pending_director_approval }
+      timeout_s: 30
 
 cases:
   - rule: R1
@@ -94,6 +116,17 @@ cases:
     action: po_lines:create
     values: { quantity_ordered: 1 }
     expect: deny
+
+  # --- R12: director's render-enabler update grant works at its own
+  # approval stage (D55/D57/D58) — pr_pending_director is driven to
+  # pending_director_approval via fixtures.approvals above.
+  - rule: R12
+    name: director can update PR fields while it's at its own approval stage (pending_director_approval)
+    as: director_a
+    action: purchase_requests:update
+    target: pr_pending_director
+    values: { rejection_comment: "[TEST] director comment at own stage" }
+    expect: allow
 
   # --- R13: director's render-enabler update grant is scoped to its own
   # approval stage (D55 fix) — pr_draft_a is status=draft, not

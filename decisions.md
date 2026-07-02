@@ -1154,3 +1154,16 @@ Note: the existing scope id 10 ("PR — director stage") covers **two** statuses
 
 **Affects:** `role-acl-guidelines.md` §2 (correction added); any future custom ACL scope in this app (always use `data-sources roles-resources-scopes`, never bare `rolesResourcesScopes`); `nb-project-suite`'s `nocobase-acl-manage` skill (flagged back — see that project's `HANDOFF.md`).
 **Status:** effective — both roles fixed and runtime-verified 2026-07-02 via `tests/plan.yaml` R13 (director) and a manual live probe (finance, no automated case yet — no finance approval stage exists to fixture a case against).
+
+---
+
+## D58 — Director's render-enabler grant narrowed: dropped `project`/`projectId` (2026-07-02)
+
+**Decision:** `director`'s `update` action on `purchase_requests` now whitelists 3 fields (`rejection_comment`, `rejection_reason_category`, `signature`), down from 5. `project`/`projectId` removed. Scope unchanged (`pending_director_approval` only, id `373265356357632`).
+
+**Why:** Found while drafting `tests/plan.yaml` R12 — the render-enabler pattern (D38) is meant to be "minimal fields" just so the approval popup renders; `project`/`projectId` had no stated reason anywhere (not in D55, not referenced by the live Director Approval node's own config, checked directly). A director should approve/reject/return and optionally leave a rejection reason — not reassign a PR's project. Same shape of bug as D55/D57: an over-broad grant that looked fine on readback.
+
+**How to apply:** `director` on `purchase_requests` now has `view` (37 fields, unscoped) and `update` (3 fields: `rejection_comment`, `rejection_reason_category`, `signature`; scoped to `pending_director_approval`). Written via `roles apply-data-permissions`, runtime-verified via `tests/plan.yaml` R12 (a real non-admin director user updating `rejection_comment` at `pending_director_approval` — allow; see R13 for the deny side at other statuses).
+
+**Affects:** `role-acl-guidelines.md` §6 (corrected in the same commit); `tests/plan.yaml` R12.
+**Status:** effective — written and runtime-verified 2026-07-02.
