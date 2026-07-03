@@ -1,70 +1,75 @@
-# HANDOFF — havenbeheer retrofit, Step 6 continues (updated 2026-07-03, ninth session)
+# HANDOFF — havenbeheer retrofit, Step 6 (rewritten 2026-07-03, tenth session)
 
-**Ninth session (D61): `po_draft` fixture seeded AND R17/R20/R21/R24 promoted — suite 28/28.** PR→PO 1:1 is confirmed enforced live (the create-guard blocks a second PO on an already-consumed PR), so `pr_approved_2` was added as the fixture PO's own source; the runner gained an `after_approvals: true` flag on `fixtures.records` so a PO can be seeded *after* its source PR is approved (two-pass `op_run`; see `nb-project-suite` HANDOFF). Then R17 (procurement update-header allow / PO destroy-deny), R20 (director/finance/operations PO update+destroy deny), R21 (procurement line add/update allow + over-budget create deny), R24 (director/finance/operations po_line update+destroy deny) were promoted with cases against `po_draft`. All ACL grants + guard scopes verified live. **Next step: the issued/terminal-PO fixture** — see the revised "Next step" below. The rest of this file is the eighth-session (D60) state, still accurate.
+**Read this first, then:** `~/nocobase/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (authoritative step list), this project's `CLAUDE.md`, and `decisions.md` D55–D62 (the PO/po_lines ACL+workflow work this step is built on). `notes.md` holds non-queryable traps and the go-live checklist. Skim `~/nocobase/nb-project-suite/HANDOFF.md` only if you touch `runner.py` or the `nocobase-test` skill.
 
----
-
-
-**Read this first, then `~/nocobase/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (the authoritative step list) and this project's `CLAUDE.md`.** Also skim `~/nocobase/nb-project-suite/HANDOFF.md` if you're touching `runner.py` itself or the `nocobase-test` skill — it's the shared tool's own history, not repeated here.
-
-This file replaces the previous revision. Older session detail (D55–D59, the approval-chain mechanism, the scope-table bug, the director-whitelist fix) is preserved in `decisions.md` and git history — not repeated here except where it's still actionable.
+This is a full rewrite. Per-session narrative before this (D55–D62, the runner fixes, the ACL audit) lives in `decisions.md` and git history — not repeated here.
 
 ## What this is
 
-`Havenbeheer Purchasing` is `nb-project-suite`'s deliverable-6 pilot: proving the test suite works end-to-end on a real, already-mature project (16+ MVPs shipped). Steps 0–5 are done. Step 6 (extend `tests/plan.yaml` with a full ACL/workflow audit) is in progress and is the bulk of remaining work — expected to span several more sessions.
+`Havenbeheer Purchasing` is `nb-project-suite`'s deliverable-6 pilot: proving the test suite works end-to-end on a real, mature project (16+ MVPs shipped). Steps 0–5 done. **Step 6** (extend `tests/plan.yaml` with a full ACL/workflow audit, rule by rule, verified live) is in progress and is the bulk of remaining work.
 
-## Where Step 6 stands right now
+## Current state
 
-**Suite is 28/28 green.** Run `/opt/homebrew/bin/python3 ~/nocobase/nb-project-suite/tools/nb-test/runner.py run --project-dir .` from this project root to confirm. **Use the explicit `/opt/homebrew/bin/python3` (3.14, has `requests`+`pyyaml`) — do NOT rely on bare `python3`:** `.zprofile` prepends Homebrew only for *login* shells, so a non-login shell resolves `python3` to `/usr/bin/python3` (system 3.9.6, no deps) and the runner exits with "Missing dependency: requests." Installing into the system python is not the fix (its pip lacks a clean `--break-system-packages`); just pin the interpreter. (`--seed` is only needed when adding a new `test_*` fixture user; `existing: true` personas are sign-in-only.)
+**Suite is 30/30 green, 17 rules.** Run it with:
 
-**New this session (D60): R15 is live and the full approval-chain fixture works.** R15 (procurement can create a PO from an *approved* PR) is now an active, runtime-verified rule. It's driven by a new `fixtures.approvals` entry that runs a `pr_approved` record through the **full** two-step chain (Procurement → Director → `approved`), derived from the live PR Approval workflow (id `372610390622208`), not from prior notes. Approvers resolve from `departments.main_approver` (D40): Procurement → `pat_procurement` (id 11), Director → `dana_director` (id 12, added this session, `dana@havenbeheer.test`, shared `nbtest` password). This is the reusable template for any rule needing an approved PR or a PO.
+```
+/opt/homebrew/bin/python3 ~/nocobase/nb-project-suite/tools/nb-test/runner.py run --project-dir .
+```
 
-**Runner bug found + fixed this session (`nb-project-suite`-side, see D60 + that project's HANDOFF):** `Client.act` json-encoded the `fields` list, so `fields=["id"]` went as `'["id"]'` and NocoBase silently returned empty `{}` records → teardown sweep crashed on `rec["id"]`. Fixed: json-dump dicts only, pass lists as repeated params. Surfaced only because this is the first run leaving an undeleteable approved PR for the sweep to list.
+**Use the explicit `/opt/homebrew/bin/python3`** (3.14, has `requests`+`pyyaml`). Bare `python3` is non-deterministic here: `.zprofile` prepends Homebrew only for login shells, so a non-login shell gets `/usr/bin/python3` (3.9.6, no deps) and the runner exits "Missing dependency: requests." Don't install into system python — just pin the interpreter. (`--seed` only when adding a new `test_*` fixture user; `existing: true` personas are sign-in-only.)
 
-**The purchase_orders/po_lines ACL audit across all 5 roles is DONE (D59).** This finishes the audit D56 began. Result: the live grant matrix is correct as-is. Two grants were reviewed and **deliberately kept as an interim — they are NOT bugs, do not re-flag them on a future audit:**
-- `procurement` holds `payment_status`/`payment_date` set-rights on PO create+update. D33a says payment is Finance's domain, but there are no finance users or payment stage yet, so procurement holds it for now. Move to `finance` at go-live.
-- `procurement` records receiving (`po_lines.received_quantity` update). No warehouse role exists yet; a future warehouse role may take it over.
+**What's covered.** `purchase_requests` (R1–R3, R12–R16) and `purchase_orders`/`po_lines` ACL across all 5 roles: R4/R5 (create-deny), R15 (create-from-approved allow), R16 (create-from-unapproved deny), R17 (procurement PO header update allow / delete deny), R18 (terminal-PO immutability), R19/R23 (finance/operations create-deny), R20 (director/finance/operations PO update+destroy deny), R21 (procurement line add/update/over-budget/delete-while-draft), R24 (director/finance/operations line update+destroy deny).
 
-Both are logged as go-live TODOs in `notes.md`. Alexander confirmed both explicitly this session (leave as-is). No live ACL write was made.
+**Fixture toolkit now available** (all three verified live this project — reuse as templates):
+- `fixtures.records` with `trigger_workflow:` — create a record *into* an approval workflow (via `approvals:create`; a plain create does NOT trigger it).
+- `fixtures.approvals` — drive a record through N approval decisions as the real assigned approvers (`pat_procurement` id 11 / `dana_director` id 12, both `existing: true`, shared `nbtest` password; assignees resolve from `departments.main_approver`, D40).
+- `fixtures.records` with `after_approvals: true` — seed a record in a second pass *after* approvals run (needed when its create-guard requires an already-approved source; D61).
+- `fixtures.actions` — fire a post-action / one-click workflow via `triggerWorkflows` and assert the result status (D62). Used to close a PO.
 
-**R15/R17–R24 rule text is DRAFTED** in `tests/plan.yaml` from that audit, business rules approved by Alexander. **Active + verified live: R15, R19, R23** (R15 = procurement can create a PO from an approved PR; R19/R23 = finance/operations cannot create a PO/po_line). The remaining **six** (R17, R18, R20, R21, R22, R24) are still held as a **comment block** in `plan.yaml`, because the runner rejects any active rule with no case (`HYGIENE: rule X has no cases` → exit 2), and all six need a seeded PO/po_line record they don't have yet. `# TODO verify` was cleared on R15 (reviewed word-by-word + passed live); R4/R5/R12/R13/R14/R16 still carry it (they pass, but Alexander hasn't done the word-by-word review — the marker tracks review, not passing; his to clear).
+**Key live-verified facts** (don't re-derive; but re-verify if acting on them — see D57–D59 for why "looks configured" ≠ "is right"):
+- PR→PO is **1:1**, enforced only by the "Create PO" guard (`366562380808192`), not the schema. Every PO fixture needs its own approved PR.
+- procurement/purchase_orders ACL: view/create/update, **no destroy**. procurement/po_lines: +destroy. director/finance/operations: member view-only baseline on both.
+- Guards key off PO status: "PO Immutability" + "PO Line Immutability" block update/destroy only on completed/closed; "PO Line Destroy" blocks line delete unless PO draft; "Receive" allows a `received_quantity` update only on issued/sent/confirmed.
 
-**Runner bug found and FIXED this session:** `run --seed` used to re-send `password` when updating an already-existing `test_*` user, and NocoBase invalidates that user's tokens on any password write (`HTTP 401 INVALID_TOKEN "User password changed"`) — which broke auth for the rest of that same run (R12 flaked; fixture creation crashed). Fixed in `~/nocobase/nb-project-suite/tools/nb-test/runner.py` `seed_users()`: `password` is now sent only on create, never on update. Verified `run --seed` twice = 14/14 both times. `--seed` is safe to run repeatedly again; the old "seed once then plain run" workaround is no longer needed. (Detail in the suite's `HANDOFF.md`.)
+## Next step — R22 (receiving), and it's BLOCKED by live drift
 
-**Known leftover debris (growing, accepted):** the old `[TEST-SCRATCH]` PR plus one `[TEST] R15 approved-PR fixture` PR + its PO **per full run** all sit at terminal/approved status, locked by Guard A / PO-immutability (both `global: true`, block admin too), uncleanable via API. Alexander's call this session (D60): accept the accumulation to keep tests fully real, rather than add a runner "persistent existing-record" mode. Clean up manually at the DB level when it gets noisy. All labeled `[TEST]`.
+R22 (procurement records receiving via `po_lines.received_quantity`) is the last PO/po_line rule. It needs a PO at `issued`/`sent`/`confirmed`, which means driving a PO through the **Issue PO** custom-action (`issue_po`).
 
-## Next step, in order
+**Blocker (found 2026-07-03, in `notes.md` "Drift / open issues"):** the Issue PO guard requires `deliveryAddressId != null`, and procurement's ACL whitelist lists `delivery_address`, but **`purchase_orders` has no `delivery_address` field** (only `supplier` + `purchase_request` belongsTo remain). So no PO can currently be issued. **Resolve this first — it's a live config decision for Alexander** (restore the dropped relation, or clean the stale guard/ACL reference). Don't work around it in the test.
 
-The `po_draft` fixture is DONE and R17/R20/R21/R24 are promoted (28/28). What remains needs a PO in a **non-draft** status, because the relevant guards only bite there.
+Once unblocked, building R22:
+1. Verify live how the **one-click custom-action** trigger fires. `fixtures.actions` was proven against a **post-action** (`type: action`, Close PO) via `?triggerWorkflows=<key>` on an update. Issue PO is `type: custom-action` (type 1, one-click "Trigger workflow" button) — confirm whether the same `triggerWorkflows`-on-action call fires it, or whether it needs a different endpoint (e.g. `workflows:trigger`). If different, extend `advance_actions()` accordingly and log it in the suite HANDOFF.
+2. Add fixtures: a supplier record (→ `suppliers`) and a delivery_address value, set on a new `po_issued` PO (from its own `pr_approved_N`); a priced line ≤ the PR total; then a `fixtures.actions` step firing `issue_po`, asserting `status: issued`. Watch the full Issue guard: status==draft, supplierId, deliveryAddressId, currency, total>0, ≥1 priced line, sum(lines) ≤ PR quoted_total.
+3. Promote R22: procurement `received_quantity` update on the issued PO's line → allow; a non-owner role → deny.
 
-1. **Build an issued/terminal-PO fixture, then promote R18, R22, and R21's delete-deny half.** The three guards involved key off PO status: "Guard: PO Immutability" and "PO Line Immutability" block update/destroy only when the PO is `completed`/`closed`; "Guard: Receive" allows a `received_quantity` update only when the PO is `issued`/`sent`/`confirmed`; "PO Line Destroy — block once PO issued" blocks line delete unless the PO is `draft`. So `po_draft` can't exercise any of them.
-   - Inspect live how a PO advances out of draft: the custom actions **Issue PO** (`372351365087232`), **Complete PO** (`368971625791488`), **Close PO** (`369914944225280`), plus any "PO Close Guard" / status-path guards. Drive a fixture PO to `issued` (for R22 receiving + R21 delete-deny) and to `completed`/`closed` (for R18) — likely a new `fixtures.records` PO plus an action/status step, mirroring how the PR chain was driven. This may need a runner addition (a way to invoke a custom-action / status transition on a fixture record) — check before assuming the current fixture mechanism covers it.
-   - R22: procurement `received_quantity` update on an issued PO's line → allow; a non-owner role → deny. R18: no role (incl. procurement) can update/destroy a completed/closed PO → deny. R21 delete-deny: procurement line destroy on a non-draft PO → deny.
-   - Each new rule gets `# TODO verify` for Alexander's word-by-word review. Don't transcribe ACL as correct-by-definition — verify each guard live first.
-   - For **R18/R24** (terminal immutability), drive a PO to `completed`/`closed` (there are PO close/complete guards + likely an approval or status path — inspect live like the PR chain) and assert update/destroy are blocked. This may need its own fixture record + possibly an approval/close step.
-   - Each promoted rule gets `# TODO verify`; Alexander reviews the rule text word by word before it's cleared (the marker tracks *his review*, not test-pass). Don't transcribe live ACL as correct-by-definition — D57/D58/D59 show why. Split across sessions.
+## After R22 — the untouched collections
 
-2. **Then the untouched collections/roles:** `projects` (has its own `Project Approval` workflow — reuse the `fixtures.approvals` pattern; inspect its live node chain first), `suppliers`, `departments`.
+`projects` (has its own `Project Approval` workflow, id `372552255471616` — reuse the `fixtures.approvals` pattern; inspect its live node chain first), `suppliers`, `departments`. Same method: live ACL/guard audit per collection → draft rules → cases → run.
 
-## Before go-live (see `notes.md` for detail)
+## Standing review gate — `# TODO verify`
 
-- `member`'s `ui.*` snippet must be re-negated (currently un-negated for dev convenience; grants UI-edit to every user under `only-use-union`).
-- `fiona.finance` needs the `finance` role actually assigned (currently only holds `member`).
-- D57's dead-scope-table check only covered `purchase_requests`/`purchase_orders`/`po_lines` — re-run across the whole schema.
-- **New (D59):** move PO payment set-rights from `procurement` to `finance` when finance users exist; move `received_quantity` receiving to a warehouse role if one is created.
+`# TODO verify` on a rule means **Alexander hasn't reviewed the rule text word-by-word** — it tracks his review, NOT test-pass. He clears it, not you. Currently carrying it: R4, R5, R12, R13, R14, R16, R17, R18, R20, R21, R24. (R1–R3, R15, R19, R23 are clear.)
 
-## Step 7 — `docs/user-guide.md`
+## Debris (accepted, D60/D62)
 
-Still empty, still explicitly deferred, not part of this retrofit.
+Each full run drives 3 approval chains (`pr_approved`/`_2`/`_3`) and leaves 3 approved PRs plus a closed PO — all locked (Guard A + PO immutability are `global: true`, block admin too), uncleanable via API, labeled `[TEST]`. Accepted to keep tests fully real; clean up at the DB level when noisy. Adding `po_issued` makes it a 4th chain. Revisit a persistent-fixture runner mode only if this starts to bite.
 
-## Step 8 — hand back
+## Before go-live (detail in `notes.md`)
 
-Not yet — Step 6 isn't done. When it is: summarize what changed vs. what deliberately didn't, and do a final pilot-outcome report to `nb-project-suite`'s own `HANDOFF.md`.
+- Re-negate `member`'s `ui.*` snippet (un-negated for dev convenience; with `only-use-union` it grants UI-edit to every user now).
+- Assign the `finance` role to `fiona.finance` (id 14; currently only `member`).
+- Move PO payment set-rights (`payment_status`/`payment_date`) from `procurement` to `finance` when finance users exist; move `received_quantity` receiving to a warehouse role if one is created (D59).
+- Re-run D57's dead-scope-table check across the whole schema (only PR/PO/po_lines were covered).
+
+## Steps 7–8 (not started)
+
+- **Step 7** — `docs/user-guide.md` backfill for MVPs 1–16. Still empty, deferred, not part of this retrofit.
+- **Step 8** — hand back: when Step 6 is done, summarize what changed vs. what deliberately didn't, and write a final pilot-outcome report into `nb-project-suite`'s own `HANDOFF.md`. Then retire `myNocobase-project-workflow`.
 
 ## How Alexander works (carried over, still applies)
 
-- Step by step, review-gated. Present ONE step, get feedback, proceed.
-- **Review rules, not payloads (new this session, now permanent).** When proposing any live NocoBase config/ACL write, present the **business rule** — who can do what, under which condition, and why — for approval or correction, then execute. Do NOT lead with JSON payloads or field-by-field CLI args; show the mechanism only if asked. Baked into `CLAUDE.md`'s "Live environment changes" section, the suite's bootstrap template, and auto-memory `feedback_review_rules_not_payloads.md`.
-- Verify NocoBase-specific claims against live state, not docs/memory/prior sessions. D57 (scope that read back fine but was unenforced) and D58/D59 (whitelist fields with no stated reason) show why — an ACL grant looking configured isn't the same as it being *right*, on top of `nocobase-test`'s job of proving it's *enforced*.
-- Never touch VPS/production. Local only.
-- Pragmatic about local dev-only risk (test fixtures, shared passwords, reusing real dev personas) — but always get an explicit, specifically-named confirmation before mutating real accounts, data, or live ACL config, not just a general go-ahead.
+- **Step by step, review-gated.** Present ONE step, get feedback, proceed. Do not blast ahead through a plan even when it's fully written.
+- **Review rules, not payloads.** For any live config/ACL change, present the business rule — who can do what, under which condition, and why — for approval or correction, then execute. Don't lead with JSON/CLI args; show the mechanism only if asked.
+- **Verify NocoBase claims against live state**, not docs/memory/prior sessions. An ACL grant that reads back fine isn't the same as being right (D57), let alone enforced (`nocobase-test`'s whole job).
+- **Never touch VPS/production.** Local only; he pushes deploys himself. He builds all UI himself unless he delegates a screen. API keys: he pastes them into `.env.test` himself — never in chat or committed files.
+- Pragmatic about local dev-only risk (test fixtures, shared passwords, reusing dev personas), but get an explicit, specifically-named confirmation before mutating real accounts, data, or live ACL/config — not a general go-ahead.

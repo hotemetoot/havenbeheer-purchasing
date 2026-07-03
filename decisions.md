@@ -1214,3 +1214,18 @@ Note: the existing scope id 10 ("PR — director stage") covers **two** statuses
 **Rules promoted same session (D61):** R17 (procurement update-header allow / PO destroy-deny — no ACL destroy grant), R20 (director/finance/operations PO update+destroy deny), R21 (procurement line add/update allow + over-budget create deny), R24 (director/finance/operations po_line update+destroy deny) are now active, verified against `po_draft`. All ACL grants + guard scopes confirmed live 2026-07-03 (procurement/purchase_orders: view/create/update, no destroy; procurement/po_lines: +destroy; other three roles: member view-only baseline). Guards "PO Immutability" and "PO Line Immutability" bite only on completed/closed; "PO Line Destroy" needs parent draft; "Receive" needs issued/sent/confirmed — so the following stay deferred to an issued/terminal-PO fixture: **R18** (terminal PO immutability), **R22** (receiving via received_quantity), and **R21's delete-deny half**.
 
 **Status:** effective — suite 28/28 on 2026-07-03 (16 rules). R17/R20/R21/R24 carry `# TODO verify` (Alexander's word-by-word review pending). Next: build the issued/terminal-PO fixture for R18/R22/R21-delete-deny.
+
+---
+
+## D62 — runner `fixtures.actions` (triggerWorkflows); R18 + R21 delete-deny landed via a closed-PO fixture (2026-07-03)
+
+**Decision:** Added a `fixtures.actions` step to the runner: fire a post-action (`action`) or one-click (`custom-action`) workflow on a fixture record via the `triggerWorkflows` query param (the workflow KEY), then assert the resulting status — analogous to `fixtures.approvals` but for button-bound workflows. Used it to drive `po_closed` (a draft PO + line, from a third approved PR `pr_approved_3`) to `closed` through the Close PO post-action (key `f8gpu17s6hq`). Unblocked **R18** (procurement can edit a draft PO but not a closed one — isolates the "PO Immutability" guard, which blocks update on completed/closed, from ACL) and **R21's delete-deny half** (procurement holds po_line destroy, but the "PO Line Destroy" guard blocks it once the PO isn't draft).
+
+**Runner mechanics:** `op_run` now runs create(pre) → approvals → create(post) → **actions** → cases. `advance_actions()` resolves each `trigger_workflows` ident (key/title) to its key and calls `<collection>:verb?triggerWorkflows=<keys>` as the given user (admin here — the close is setup, not the assertion), then polls the assert. `Client.act` needed no change (`triggerWorkflows` is a plain string param). Close PO's guard allows closing a draft/issued/partially_received PO, so a draft PO closes directly — no Issue step needed. Lines must be seeded before the close (the terminal-PO line-create guard blocks adding lines to a closed PO).
+
+**Cost:** each full run now drives 3 approval chains (`pr_approved`/`_2`/`_3`) and leaves 3 approved PRs + closed/terminal POs as undeleteable `[TEST]` debris. Accepted per D60; revisit a persistent-fixture runner mode only if it starts to bite.
+
+**Still deferred — R22 (receiving):** needs an ISSUED PO, which requires the Issue PO one-click custom-action trigger PLUS supplier + delivery_address set on the PO (its guard checks status==draft, supplierId, deliveryAddressId, currency, total>0, ≥1 priced line, sum≤PR). A bigger fixture than `po_closed`; next session.
+
+**Affects:** `nb-project-suite` `runner.py` (`advance_actions`, `op_run` order) + `plan.example.yaml`; `tests/plan.yaml` (`pr_approved_3`, `po_closed`, `po_closed_line`, `fixtures.actions`, R18 rule + R18/R21-delete cases); `notes.md`; `HANDOFF.md`.
+**Status:** effective — suite 30/30 on 2026-07-03 (17 rules). R18 carries `# TODO verify`.

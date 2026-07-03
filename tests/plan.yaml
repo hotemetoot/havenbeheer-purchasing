@@ -29,17 +29,15 @@ rules:
   R16: Procurement cannot create a PO from a purchase request that is not approved. # TODO verify
   R17: Procurement can update a non-terminal (draft) PO's header fields, and cannot delete a PO at any status — procurement has no destroy grant on purchase_orders (D56/D59, ACL confirmed live 2026-07-03). # TODO verify
   R20: Director, finance, and operations users cannot update or delete a purchase order — none has an independent grant, so they fall through to member's view-only baseline (D59). # TODO verify
-  R21: Procurement can add and update po_lines on a non-terminal (draft) PO; a line create that would push the PO total over the source PR's quoted_total is blocked by the PO-line budget-ceiling guard (D47/D49). The delete-only-while-PO-draft half (D56) is deferred — it needs an issued/terminal PO fixture. # TODO verify
+  R18: Once a PO is terminal (completed/closed), no role — including procurement, which can edit a draft PO — can update it; the PO-immutability guard blocks it independent of ACL (D33). # TODO verify
+  R21: Procurement can add and update po_lines on a non-terminal (draft) PO and can delete a line only while the PO is draft; once the PO is non-draft the line-destroy guard blocks deletion. A line create that would push the PO total over the source PR's quoted_total is blocked by the PO-line budget-ceiling guard (D47/D49). # TODO verify
   R24: Director, finance, and operations users cannot update or delete po_lines — none has an independent grant, member view-only baseline (D59). # TODO verify
   # --- R15/R17-R24 drafted 2026-07-02 from the full purchase_orders/po_lines
   # ACL audit across all 5 roles (D59; audit begun in D56), business rules
   # approved by Alexander. R15/R19/R23 verified earlier; R17/R20/R21/R24
-  # promoted 2026-07-03 (D61) against the draft po_draft fixture. Still held
-  # here — each needs an ISSUED or TERMINAL (completed/closed) PO fixture that
-  # doesn't exist yet, because their guards only act on a non-draft PO:
-  #   R18: No role, incl. procurement, can update or delete a PO once completed/closed ("Guard: PO Immutability", D33). [terminal-PO fixture]
-  #   R22: Procurement records receiving — po_lines.received_quantity update; "Guard: Receive" requires the PO be issued/sent/confirmed, so unreachable on a draft PO (D59). [issued-PO fixture]
-  #   R21 delete-deny: line delete blocked once PO not draft ("Guard: PO Line Destroy — block once PO issued"). [issued-PO fixture]
+  # promoted 2026-07-03 (D61) against po_draft; R18 + R21's delete-deny added
+  # 2026-07-03 against the po_closed fixture. Still held here:
+  #   R22: Procurement records receiving — po_lines.received_quantity update; "Guard: Receive" requires the PO be issued/sent/confirmed. Needs an ISSUED PO fixture (Issue PO one-click trigger + supplier/delivery_address), not just a closed one (D59). [issued-PO fixture]
   R19: Finance and operations users cannot create a purchase order (no independent create grant; view-only via member baseline). # TODO verify
   R23: Finance and operations users cannot create po_lines (no independent create grant; view-only via member baseline). # TODO verify
 
@@ -75,27 +73,40 @@ fixtures:
         as: operations_a
         trigger_workflow: cv237r8h7k9   # PR Approval workflow key
         values: { title: "[TEST] po_draft fixture source PR", quoted_total: 100 }
+      # pr_approved_3: source PR for the po_closed fixture (1:1 -> its own PR).
+      - id_ref: pr_approved_3
+        as: operations_a
+        trigger_workflow: cv237r8h7k9   # PR Approval workflow key
+        values: { title: "[TEST] po_closed fixture source PR", quoted_total: 100 }
 
-    # po_draft: reusable non-terminal (draft) PO for R17/R20/R21/R22 cases.
-    # Created as procurement_a from the approved pr_approved_2. Flagged
-    # after_approvals so the runner creates it in the POST-approval pass —
-    # the create-guard requires its source PR already `approved`.
+    # po_draft: reusable non-terminal (draft) PO for R17/R20/R21 cases.
+    # po_closed: a draft PO that fixtures.actions then drives to `closed` (a
+    # terminal PO) for R18 + R21's delete-deny. Both after_approvals so the
+    # runner creates them in the POST-approval pass — the create-guard
+    # requires the source PR already `approved`.
     purchase_orders:
       - id_ref: po_draft
         as: procurement_a
         after_approvals: true
         values: { purchase_request: "@ref:pr_approved_2", currency: USD, total: 100 }
+      - id_ref: po_closed
+        as: procurement_a
+        after_approvals: true
+        values: { purchase_request: "@ref:pr_approved_3", currency: USD, total: 100 }
 
-    # One line on po_draft. line_total = quantity_ordered * unit_price = 50,
-    # under pr_approved_2's quoted_total (100), so "Guard: PO Line Create —
-    # budget ceiling (PR amount)" (id 370018742763520) lets it through. PO
-    # is draft, so "Guard: PO Line Create — block on terminal PO" is a no-op.
-    # after_approvals so it lands in the post pass, after po_draft exists.
+    # Lines are created while the parent PO is still draft (line create on a
+    # terminal PO is blocked by "Guard: PO Line Create — block on terminal
+    # PO"), so po_closed's line must be seeded BEFORE fixtures.actions closes
+    # it. line_total 50 < the PR's quoted_total 100 clears the budget guard.
     po_lines:
       - id_ref: po_draft_line
         as: procurement_a
         after_approvals: true
         values: { purchase_order: "@ref:po_draft", quantity_ordered: 2, unit_price: 25 }
+      - id_ref: po_closed_line
+        as: procurement_a
+        after_approvals: true
+        values: { purchase_order: "@ref:po_closed", quantity_ordered: 2, unit_price: 25 }
 
   # Drives fixture PRs through the REAL PR Approval workflow. Real personas
   # required: approvalRecords:submit checks the actual assigned userId, not
@@ -147,6 +158,40 @@ fixtures:
         - collection: purchase_requests
           id_ref: pr_approved_2
           match: { status: approved }
+      timeout_s: 30
+    # pr_approved_3: same full chain, source PR for the po_closed fixture.
+    - target: pr_approved_3
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement approve -> director stage"
+        - as: dana_director
+          decision: approve
+          comment: "[TEST] director approve -> approved"
+      assert:
+        - collection: purchase_requests
+          id_ref: pr_approved_3
+          match: { status: approved }
+      timeout_s: 30
+
+  # fixtures.actions — fire a post-action / one-click workflow on a fixture
+  # record once, up front (after records exist), via the triggerWorkflows
+  # query param. Here: drive po_closed (a draft PO with a line) to `closed`
+  # through the Close PO post-action (workflow key f8gpu17s6hq, type action).
+  # Its guard allows closing a draft/issued/partially_received PO. Run as
+  # admin so the update clears ACL/field-whitelist cleanly — the close is
+  # fixture setup, not the rule under test. internal_notes is a harmless
+  # payload just to carry the triggering update.
+  actions:
+    - target: po_closed
+      as: admin
+      action: purchase_orders:update
+      trigger_workflows: f8gpu17s6hq
+      values: { internal_notes: "[TEST] close trigger" }
+      assert:
+        - collection: purchase_orders
+          id_ref: po_closed
+          match: { status: closed }
       timeout_s: 30
 
 cases:
@@ -394,6 +439,27 @@ cases:
     action: po_lines:update
     target: po_draft_line
     values: { description: "[TEST] should be blocked" }
+    expect: deny
+
+  # --- R18: po_closed is driven to `closed` by fixtures.actions. Procurement
+  # can edit a DRAFT PO's header (R17), so a deny here isolates the "PO
+  # Immutability" guard (blocks update on completed/closed) from ACL.
+  - rule: R18
+    name: procurement cannot update a closed (terminal) PO
+    as: procurement_a
+    action: purchase_orders:update
+    target: po_closed
+    values: { internal_notes: "[TEST] should be blocked (terminal)" }
+    expect: deny
+
+  # --- R21 delete-deny: procurement HAS destroy on po_lines and can delete a
+  # line while the PO is draft, so a deny on po_closed_line (parent closed)
+  # isolates "Guard: PO Line Destroy — block once PO issued" from ACL.
+  - rule: R21
+    name: procurement cannot delete a line once the PO is no longer draft
+    as: procurement_a
+    action: po_lines:destroy
+    target: po_closed_line
     expect: deny
 
 teardown:

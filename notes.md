@@ -6,6 +6,10 @@ Migrated 2026-07-02 from the retired `project_current_state.md` (see D-entries i
 
 ---
 
+## Drift / open issues
+
+- **Issue PO is currently un-satisfiable — no `delivery_address` field exists on `purchase_orders` (found 2026-07-03, D62).** The "Issue PO" workflow (`issue_po`) guard requires `deliveryAddressId != null` to move a PO draft→issued, and procurement's ACL create/update/view whitelists still list `delivery_address` — but the collection has no such field (only `supplier` and `purchase_request` belongsTo relations remain). So as it stands live, no PO can pass the Issue guard, which **blocks the R22 receiving fixture** (receiving needs an issued/sent/confirmed PO). Resolve before building R22: either the `delivery_address` relation was dropped and needs restoring, or the Issue guard + ACL whitelist reference a stale field and should be cleaned up. Alexander's call — this is a live config decision, not a test change.
+
 ## Before go-live
 
 - **`member` role's `ui.*` snippet is intentionally un-negated** (should be `!ui.*` per vanilla defaults in `role-acl-guidelines.md` §3). Alexander uses this deliberately during development so any test user can enter UI edit mode without switching to admin. Because `systemSettings.roleMode` is `only-use-union` (D54), this grants **every user in the app** UI-edit access right now, not just a convenience toggle. **Must be reverted (re-negated) before real end users get accounts.**
@@ -39,8 +43,9 @@ Use the real personas above (`dana.director`=id 12, `pat.procurement`=id 11, `fi
 **Done (D61, 2026-07-03):** the PO/po_line fixture is seeded — `po_draft` + one line, created after approvals via the new `after_approvals` runner flag. PR→PO 1:1 (D9) is **confirmed enforced live** by "Guard: Create PO (PR must be approved)" (blocks a second PO on an already-consumed PR), so `pr_approved_2` was added as the fixture PO's own source.
 
 **Promoted (D61, 2026-07-03):** R17/R20/R21/R24 active against `po_draft`, suite 28/28.
+**Promoted (D62, 2026-07-03):** R18 + R21's delete-deny landed against `po_closed` (a draft PO closed via the new `fixtures.actions` triggerWorkflows step), suite 30/30.
 
-**Still to do:** build an issued/terminal (completed/closed) PO fixture, then promote R18 (terminal immutability), R22 (receiving via received_quantity — needs the PO at issued/sent/confirmed), and R21's delete-deny half (line delete blocked once PO not draft). See `HANDOFF.md` "Next step."
+**Still to do:** R22 (receiving via received_quantity) — the only PO/po_line rule left. It needs an ISSUED PO, which requires the Issue PO one-click custom-action trigger AND supplier + delivery_address set on the PO. Bigger than `po_closed`. Then move on to the untouched collections (`projects`, `suppliers`, `departments`). See `HANDOFF.md` "Next step."
 
 ## Environment
 
