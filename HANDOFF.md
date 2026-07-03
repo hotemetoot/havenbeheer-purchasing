@@ -1,4 +1,9 @@
-# HANDOFF — havenbeheer retrofit, Step 6 continues (rewritten 2026-07-02, seventh session)
+# HANDOFF — havenbeheer retrofit, Step 6 continues (updated 2026-07-03, ninth session)
+
+**Ninth session (D61): the `po_draft` PO/po_line fixture is DONE.** PR→PO 1:1 is confirmed enforced live (the create-guard blocks a second PO on an already-consumed PR), so a second full-chain approved PR (`pr_approved_2`) was added as the fixture PO's own source. The runner gained an `after_approvals: true` flag on `fixtures.records` so a PO can be seeded *after* its source PR is approved (two-pass `op_run`; see `nb-project-suite` HANDOFF). Suite still 15/15 — no rules promoted yet. **Next step is now item 1 below: promote R17/R20/R21/R22 with cases against `po_draft`.** The rest of this file is the eighth-session (D60) state, still accurate.
+
+---
+
 
 **Read this first, then `~/nocobase/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (the authoritative step list) and this project's `CLAUDE.md`.** Also skim `~/nocobase/nb-project-suite/HANDOFF.md` if you're touching `runner.py` itself or the `nocobase-test` skill — it's the shared tool's own history, not repeated here.
 
@@ -10,7 +15,11 @@ This file replaces the previous revision. Older session detail (D55–D59, the a
 
 ## Where Step 6 stands right now
 
-**Suite is 14/14 green.** Run `python3 ~/nocobase/nb-project-suite/tools/nb-test/runner.py run --project-dir .` from this project root to confirm. On a fresh shell you may need `python3 -m pip install requests pyyaml --break-system-packages` first.
+**Suite is 15/15 green.** Run `python3 ~/nocobase/nb-project-suite/tools/nb-test/runner.py run --project-dir .` from this project root to confirm. On a fresh shell you may need `python3 -m pip install requests pyyaml --break-system-packages` first. (`--seed` is only needed when adding a new `test_*` fixture user; `existing: true` personas are sign-in-only.)
+
+**New this session (D60): R15 is live and the full approval-chain fixture works.** R15 (procurement can create a PO from an *approved* PR) is now an active, runtime-verified rule. It's driven by a new `fixtures.approvals` entry that runs a `pr_approved` record through the **full** two-step chain (Procurement → Director → `approved`), derived from the live PR Approval workflow (id `372610390622208`), not from prior notes. Approvers resolve from `departments.main_approver` (D40): Procurement → `pat_procurement` (id 11), Director → `dana_director` (id 12, added this session, `dana@havenbeheer.test`, shared `nbtest` password). This is the reusable template for any rule needing an approved PR or a PO.
+
+**Runner bug found + fixed this session (`nb-project-suite`-side, see D60 + that project's HANDOFF):** `Client.act` json-encoded the `fields` list, so `fields=["id"]` went as `'["id"]'` and NocoBase silently returned empty `{}` records → teardown sweep crashed on `rec["id"]`. Fixed: json-dump dicts only, pass lists as repeated params. Surfaced only because this is the first run leaving an undeleteable approved PR for the sweep to list.
 
 **The purchase_orders/po_lines ACL audit across all 5 roles is DONE (D59).** This finishes the audit D56 began. Result: the live grant matrix is correct as-is. Two grants were reviewed and **deliberately kept as an interim — they are NOT bugs, do not re-flag them on a future audit:**
 - `procurement` holds `payment_status`/`payment_date` set-rights on PO create+update. D33a says payment is Finance's domain, but there are no finance users or payment stage yet, so procurement holds it for now. Move to `finance` at go-live.
@@ -18,21 +27,21 @@ This file replaces the previous revision. Older session detail (D55–D59, the a
 
 Both are logged as go-live TODOs in `notes.md`. Alexander confirmed both explicitly this session (leave as-is). No live ACL write was made.
 
-**R15/R17–R24 rule text is now DRAFTED** in `tests/plan.yaml` from that audit, business rules approved by Alexander. Only R19 and R23 are **active** (finance/operations cannot create a PO or po_line — verified live this session). The other seven (R15, R17, R18, R20, R21, R22, R24) are held as a **comment block** in `plan.yaml`, because the runner rejects any active rule that has no case (`HYGIENE: rule X has no cases` → exit 2), and all seven need a seeded PO record they don't have yet.
+**R15/R17–R24 rule text is DRAFTED** in `tests/plan.yaml` from that audit, business rules approved by Alexander. **Active + verified live: R15, R19, R23** (R15 = procurement can create a PO from an approved PR; R19/R23 = finance/operations cannot create a PO/po_line). The remaining **six** (R17, R18, R20, R21, R22, R24) are still held as a **comment block** in `plan.yaml`, because the runner rejects any active rule with no case (`HYGIENE: rule X has no cases` → exit 2), and all six need a seeded PO/po_line record they don't have yet. `# TODO verify` was cleared on R15 (reviewed word-by-word + passed live); R4/R5/R12/R13/R14/R16 still carry it (they pass, but Alexander hasn't done the word-by-word review — the marker tracks review, not passing; his to clear).
 
 **Runner bug found and FIXED this session:** `run --seed` used to re-send `password` when updating an already-existing `test_*` user, and NocoBase invalidates that user's tokens on any password write (`HTTP 401 INVALID_TOKEN "User password changed"`) — which broke auth for the rest of that same run (R12 flaked; fixture creation crashed). Fixed in `~/nocobase/nb-project-suite/tools/nb-test/runner.py` `seed_users()`: `password` is now sent only on create, never on update. Verified `run --seed` twice = 14/14 both times. `--seed` is safe to run repeatedly again; the old "seed once then plain run" workaround is no longer needed. (Detail in the suite's `HANDOFF.md`.)
 
-**Known leftover debris (unchanged):** a scratch `[TEST-SCRATCH]` PR from an earlier session sits at `status: approved`, locked by Guard A, uncleanable via API. Harmless, ignore or clean manually.
+**Known leftover debris (growing, accepted):** the old `[TEST-SCRATCH]` PR plus one `[TEST] R15 approved-PR fixture` PR + its PO **per full run** all sit at terminal/approved status, locked by Guard A / PO-immutability (both `global: true`, block admin too), uncleanable via API. Alexander's call this session (D60): accept the accumulation to keep tests fully real, rather than add a runner "persistent existing-record" mode. Clean up manually at the DB level when it gets noisy. All labeled `[TEST]`.
 
 ## Next step, in order
 
-1. **Build a PO-record fixture — this is the gate for the seven drafted rules.** They all need a real purchase order (and its lines) seeded, which the "Guard: Create PO (PR must be approved)" workflow blocks unless the source PR is `approved`. So:
-   - Extend `fixtures.approvals` to drive a PR through the **full** approval chain to `status: approved` (the current fixture only drives one step to `pending_director_approval` for R12). Derive the exact chain and the real approver persona per stage from the live PR Approval workflow + D40 (`departments.main_approver`: Procurement→11, Director→12, Finance→14, Operations→10; each is a real `existing: true` persona like `pat_procurement`, since `approvalRecords:submit` checks the assigned `userId`).
-   - Add a `fixtures.records` entry that creates a `purchase_orders` row from that approved PR **as `procurement_a`** (procurement is the PO creator). This is R15's allow case.
-   - With a draft PO + po_lines in hand, promote R17/R20/R21/R22 from comments to active rules and write their cases. For R18/R24 (terminal immutability), drive a PO to `completed`/`closed` and assert update/destroy are blocked.
-   - Each promoted rule gets `# TODO verify`; Alexander reviews the rule text word by word before it's trusted. Don't transcribe live ACL as correct-by-definition — the D58/D59 findings show why. Split across sessions as needed.
+The full-chain approval fixture is DONE, and (ninth session, D61) the **`po_draft` PO/po_line fixture is now DONE too** — `pr_approved_2` → `po_draft` (draft PO) + `po_draft_line` (qty 2 × 25 = 50, under the 100 budget ceiling), created in the runner's post-approval pass. PR→PO 1:1 is confirmed enforced live. What remains is promoting the rules that depend on that fixture.
 
-2. **Then the untouched collections/roles:** `projects` (has its own `Project Approval` workflow — expect the same approval-chain fixture pattern), `suppliers`, `departments`.
+1. **Promote R17/R20/R21/R22 from the comment block to active rules and write their cases against `po_draft`** (procurement update-header allow / delete-deny; director-finance-operations update+delete deny; procurement line add/update allow, delete draft-only; receiving via `received_quantity`). Before writing each case, inspect the live guard that governs it — "Guard: PO Immutability" (update/destroy scope), "Guard: PO Line Immutability", "Guard: Receive (PO must be receivable)", "Guard: PO Line Destroy — block once PO issued" — don't assume the ACL grant is the whole story (a guard may allow/deny independently of ACL).
+   - For **R18/R24** (terminal immutability), drive a PO to `completed`/`closed` (there are PO close/complete guards + likely an approval or status path — inspect live like the PR chain) and assert update/destroy are blocked. This may need its own fixture record + possibly an approval/close step.
+   - Each promoted rule gets `# TODO verify`; Alexander reviews the rule text word by word before it's cleared (the marker tracks *his review*, not test-pass). Don't transcribe live ACL as correct-by-definition — D57/D58/D59 show why. Split across sessions.
+
+2. **Then the untouched collections/roles:** `projects` (has its own `Project Approval` workflow — reuse the `fixtures.approvals` pattern; inspect its live node chain first), `suppliers`, `departments`.
 
 ## Before go-live (see `notes.md` for detail)
 

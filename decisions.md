@@ -1182,3 +1182,33 @@ Note: the existing scope id 10 ("PR — director stage") covers **two** statuses
 
 **Affects:** `tests/plan.yaml` (R15/R17–R24 drafted from this audit); `notes.md` go-live checklist (2 new items).
 **Status:** effective — audit complete, no write. Rule text drafted; the update/destroy/view/receiving cases are pending a PO-record fixture (approved-PR → PO), the create-deny cases (R19/R23) run now.
+
+---
+
+## D60 — R15 landed live via a full-chain approval fixture; runner `fields`-serialization bug found and fixed (2026-07-02)
+
+**Decision:** R15 (procurement can create a PO from an *approved* PR) is now an active, runtime-verified rule — suite is 15/15. It needed a PR actually at `status: approved`, which only the real PR Approval workflow can produce. Added a second `fixtures.approvals` entry driving a new `pr_approved` record through the **full** two-step chain (Procurement → Director → approved), alongside the existing one-step `pr_pending_director` (for R12).
+
+**Chain derived from live workflow, not prior notes** (enabled `PR Approval`, id `372610390622208`): for a simple PR (no project, `is_regular` false, small total) the path is Procurement Approval → "Director required?" (true because `is_regular` ≠ true, OR total ≥ $300) → `pending_director_approval` → Director Approval → "Board required?" (false, total < $15k) → `approved`. Assignees resolve from `departments.main_approver` (D40): Procurement → Pat Procurement (id 11, `pat@havenbeheer.test`), Director → Dana Director (id 12, `dana@havenbeheer.test`). Both signed in as `existing: true` fixture users with the shared `nbtest` password. The workflow also has custom-approver, dept-owner, board (≥$15k), and project-drawdown branches — none on this fixture's path.
+
+**Runner bug found + fixed (`nb-project-suite`-side):** `Client.act` json-encoded *every* dict/list query param. Correct for `filter` (NocoBase wants a JSON string) but wrong for `fields` — sending `fields=["id"]` as the JSON string `'["id"]'` makes NocoBase **silently return empty `{}` records** (no error), so the teardown sweep crashed on `rec["id"]` (`KeyError`). It only surfaced now because this is the first run leaving an undeleteable **approved** PR for the side-effect sweep to list (prior fixtures were all destroyable). Fix: json-dump dicts only; pass lists through so `requests` serializes them as repeated params (`fields=id`). Verified live. Full write-up in `nb-project-suite`'s `HANDOFF.md`.
+
+**Debris (accepted, Alexander's call this session):** each full run drives two PRs through approval and creates one PO; the approved PR + PO can't be torn down (Guard A + PO immutability are `global: true`, block admin too), so labeled `[TEST]` records accumulate until manual DB cleanup. Chosen over a runner "persistent existing-record" feature to keep the tests fully real.
+
+**How to apply:** to test any rule needing an approved PR (or a PO), reuse the `pr_approved` fixture + its `approvals` entry as the template; add more approval steps for higher tiers (dept-owner / board) as needed. `# TODO verify` on a rule means "not yet word-by-word reviewed by Alexander" — cleared on R15 this session (reviewed + passed live); R4/R5/R12/R13/R14/R16 still carry it despite passing (separate review gate, Alexander's to clear).
+
+**Affects:** `tests/plan.yaml` (R15 active + `pr_approved`/`dana_director` fixtures); `nb-project-suite` `tools/nb-test/runner.py` (`Client.act` fix); `notes.md` (approval-chain fixtures section — chain now derived live).
+**Status:** effective — R15 written and runtime-verified 2026-07-02, suite 15/15.
+
+---
+
+## D61 — PR→PO 1:1 confirmed enforced live; runner gains `after_approvals` fixture phase (2026-07-03)
+
+**Decision:** Seeded a reusable non-terminal PO fixture (`po_draft` + one line) so R17/R20/R21/R22 can get cases. Confirmed live that PR→PO is 1:1 — enforced by "Guard: Create PO (PR must be approved)" (id `366562380808192`), whose condition blocks a PO create when the PR is not `approved` OR already has a PO (`purchase_request.purchase_order != null`). This is NOT a schema constraint — there is no reverse relation field on `purchase_requests` and no unique FK; the guard is the only thing enforcing D9. Because R15's case consumes `pr_approved`, the fixture PO needs its own source, so added `pr_approved_2` (a second full-chain approved PR).
+
+**Runner feature (`nb-project-suite`-side):** `fixtures.records` specs now accept `after_approvals: true`. `op_run` creates non-flagged records, runs `advance_approvals()`, then creates flagged records — so a record whose create-guard requires an already-approved source (the PO) can be seeded. Backward-compatible (no existing spec sets the flag); suite stays 15/15. Line total kept at 50 (qty 2 × 25) under `pr_approved_2`'s `quoted_total` 100 to clear "Guard: PO Line Create — budget ceiling (PR amount)" (id `370018742763520`).
+
+**How to apply:** to seed any record gated on an approval, flag it `after_approvals: true` and give it a distinct approved source PR (1:1 means no sharing). R18/R24 (terminal immutability) still need a separate completed/closed PO fixture via the Complete/Issue/Close PO custom actions — not built yet.
+
+**Affects:** `tests/plan.yaml` (`pr_approved_2` + its `approvals` entry, `po_draft` + `po_draft_line` fixtures); `nb-project-suite` `tools/nb-test/runner.py` (`create_fixtures` phase arg, two-pass `op_run`); `notes.md`.
+**Status:** effective — fixtures live, suite 15/15 on 2026-07-03. No rules promoted yet; R17/R20/R21/R22 cases are the next step.

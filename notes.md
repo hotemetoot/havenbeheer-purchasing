@@ -34,7 +34,11 @@ Use the real personas above (`dana.director`=id 12, `pat.procurement`=id 11, `fi
 
 **Leftover:** the scratch PR used for this verification landed at `status: approved` and is now locked by Guard A (PR Immutability Guard) — couldn't be destroyed via the API afterward. Still in the live database as `[TEST-SCRATCH] trigger_workflow check`. Needs manual cleanup or can be left as harmless labeled debris.
 
-**Still to do:** draft R12 (should be quick — mirrors R13's existing deny case, now unblocked). R15/R17–R24 (`purchase_orders`/`po_lines`) additionally need their own rule-text derivation via a live ACL audit of those two collections across all 5 roles (the kind of work that produced D55–D57 for `purchase_requests`) — not done yet, separate next step.
+**Done since:** R12 landed (seventh session). R15/R17–R24 rule text derived via the D59 audit. **Eighth session (D60):** the full two-step chain is now a live fixture — `pr_approved` driven Procurement → Director → `approved`, chain derived from the live `PR Approval` workflow (id `372610390622208`), assignees `pat_procurement` (id 11) + `dana_director` (id 12, added this session). R15 active + verified live, suite 15/15. A `runner.py` `fields`-serialization bug was found + fixed along the way (see D60 / suite HANDOFF).
+
+**Done (D61, 2026-07-03):** the PO/po_line fixture is seeded — `po_draft` + one line, created after approvals via the new `after_approvals` runner flag. PR→PO 1:1 (D9) is **confirmed enforced live** by "Guard: Create PO (PR must be approved)" (blocks a second PO on an already-consumed PR), so `pr_approved_2` was added as the fixture PO's own source.
+
+**Still to do:** promote R17/R20/R21/R22 to active rules with cases against `po_draft`. Then build a terminal (completed/closed) PO fixture for R18/R24. See `HANDOFF.md` "Next step."
 
 ## Environment
 
