@@ -27,19 +27,19 @@ rules:
   R14: Director cannot create purchase requests. # TODO verify
   R15: Procurement can create a purchase order from a purchase request whose status is approved (the allow counterpart to R16). Reviewed + verified live 2026-07-02.
   R16: Procurement cannot create a PO from a purchase request that is not approved. # TODO verify
+  R17: Procurement can update a non-terminal (draft) PO's header fields, and cannot delete a PO at any status — procurement has no destroy grant on purchase_orders (D56/D59, ACL confirmed live 2026-07-03). # TODO verify
+  R20: Director, finance, and operations users cannot update or delete a purchase order — none has an independent grant, so they fall through to member's view-only baseline (D59). # TODO verify
+  R21: Procurement can add and update po_lines on a non-terminal (draft) PO; a line create that would push the PO total over the source PR's quoted_total is blocked by the PO-line budget-ceiling guard (D47/D49). The delete-only-while-PO-draft half (D56) is deferred — it needs an issued/terminal PO fixture. # TODO verify
+  R24: Director, finance, and operations users cannot update or delete po_lines — none has an independent grant, member view-only baseline (D59). # TODO verify
   # --- R15/R17-R24 drafted 2026-07-02 from the full purchase_orders/po_lines
-  # ACL audit across all 5 roles (D59; audit begun in D56). Business rules
-  # approved by Alexander. R19 and R23 run now (create-deny, no record needed)
-  # and are active rules below. The other seven are DRAFTED but held here as
-  # comments — the runner requires every active rule to have >=1 case, and all
-  # seven need a seeded PO/po_line record via a PO fixture (approved-PR -> PO)
-  # that doesn't exist yet. Promote each to an active rule when its case lands:
-  #   R17: Procurement can update a non-terminal PO's header fields, and cannot delete a PO at any status (D56). [PO fixture]
-  #   R18: No role, incl. procurement, can update or delete a PO once completed/closed (terminal immutability guard, D33). [terminal-PO fixture]
-  #   R20: Director, finance, operations cannot update or delete a PO. [PO fixture]
-  #   R21: Procurement can add/update po_lines on a non-terminal PO, delete a line only while PO is draft (D56); over-budget line create/update blocked (D47/D49). [PO fixture]
-  #   R22: Procurement records receiving — can update po_lines.received_quantity (interim owner per D59; bypasses budget guard). [PO fixture]
-  #   R24: Director, finance, operations cannot update/delete/import po_lines; all roles can view PO + po_lines via member baseline. [PO fixture]
+  # ACL audit across all 5 roles (D59; audit begun in D56), business rules
+  # approved by Alexander. R15/R19/R23 verified earlier; R17/R20/R21/R24
+  # promoted 2026-07-03 (D61) against the draft po_draft fixture. Still held
+  # here — each needs an ISSUED or TERMINAL (completed/closed) PO fixture that
+  # doesn't exist yet, because their guards only act on a non-draft PO:
+  #   R18: No role, incl. procurement, can update or delete a PO once completed/closed ("Guard: PO Immutability", D33). [terminal-PO fixture]
+  #   R22: Procurement records receiving — po_lines.received_quantity update; "Guard: Receive" requires the PO be issued/sent/confirmed, so unreachable on a draft PO (D59). [issued-PO fixture]
+  #   R21 delete-deny: line delete blocked once PO not draft ("Guard: PO Line Destroy — block once PO issued"). [issued-PO fixture]
   R19: Finance and operations users cannot create a purchase order (no independent create grant; view-only via member baseline). # TODO verify
   R23: Finance and operations users cannot create po_lines (no independent create grant; view-only via member baseline). # TODO verify
 
@@ -280,6 +280,120 @@ cases:
     as: operations_a
     action: po_lines:create
     values: { quantity_ordered: 1 }
+    expect: deny
+
+  # --- R17: procurement can edit a draft PO's header (update grant + "PO
+  # Immutability" guard only bites on completed/closed), but cannot delete a
+  # PO — procurement has no destroy grant on purchase_orders (ACL denies).
+  # internal_notes is in procurement's update whitelist and touches no guard.
+  - rule: R17
+    name: procurement can update a draft PO's header
+    as: procurement_a
+    action: purchase_orders:update
+    target: po_draft
+    values: { internal_notes: "[TEST] procurement header edit" }
+    expect: allow
+
+  - rule: R17
+    name: procurement cannot delete a PO (no destroy grant)
+    as: procurement_a
+    action: purchase_orders:destroy
+    target: po_draft
+    expect: deny
+
+  # --- R20: director/finance/operations have no independent grant on
+  # purchase_orders -> member view-only baseline, so update/destroy deny.
+  - rule: R20
+    name: director cannot update a PO
+    as: director_a
+    action: purchase_orders:update
+    target: po_draft
+    values: { internal_notes: "[TEST] should be blocked" }
+    expect: deny
+
+  - rule: R20
+    name: director cannot delete a PO
+    as: director_a
+    action: purchase_orders:destroy
+    target: po_draft
+    expect: deny
+
+  - rule: R20
+    name: finance cannot update a PO
+    as: finance_a
+    action: purchase_orders:update
+    target: po_draft
+    values: { internal_notes: "[TEST] should be blocked" }
+    expect: deny
+
+  - rule: R20
+    name: operations cannot update a PO
+    as: operations_a
+    action: purchase_orders:update
+    target: po_draft
+    values: { internal_notes: "[TEST] should be blocked" }
+    expect: deny
+
+  # --- R21: procurement adds/updates po_lines on the draft po_draft. A small
+  # line (10) keeps the PO total (existing 50 + 10 = 60) under the PR's 100.
+  # Updating only `description` skips the budget guard (no price/qty in values).
+  # An over-budget create (100 x 10 = 1000) trips "Guard: PO Line Create —
+  # budget ceiling" -> HTTP 400 deny.
+  - rule: R21
+    name: procurement can add a within-budget line to a draft PO
+    as: procurement_a
+    action: po_lines:create
+    values: { purchase_order: "@ref:po_draft", description: "[TEST] extra line", quantity_ordered: 1, unit_price: 10 }
+    expect: allow
+
+  - rule: R21
+    name: procurement can update a line's description on a draft PO
+    as: procurement_a
+    action: po_lines:update
+    target: po_draft_line
+    values: { description: "[TEST] line edited by procurement" }
+    expect: allow
+
+  - rule: R21
+    name: procurement cannot add a line that pushes the PO over the PR budget
+    as: procurement_a
+    action: po_lines:create
+    values: { purchase_order: "@ref:po_draft", description: "[TEST] over budget", quantity_ordered: 100, unit_price: 10 }
+    expect: deny
+
+  # --- R24: director/finance/operations have no independent grant on po_lines
+  # -> member view-only baseline, so update/destroy deny (ACL bites before any
+  # guard). Setting only `description` avoids the receive/budget guards, so a
+  # non-deny result would be a real ACL leak, not a guard artifact.
+  - rule: R24
+    name: director cannot update a po_line
+    as: director_a
+    action: po_lines:update
+    target: po_draft_line
+    values: { description: "[TEST] should be blocked" }
+    expect: deny
+
+  - rule: R24
+    name: director cannot delete a po_line
+    as: director_a
+    action: po_lines:destroy
+    target: po_draft_line
+    expect: deny
+
+  - rule: R24
+    name: finance cannot update a po_line
+    as: finance_a
+    action: po_lines:update
+    target: po_draft_line
+    values: { description: "[TEST] should be blocked" }
+    expect: deny
+
+  - rule: R24
+    name: operations cannot update a po_line
+    as: operations_a
+    action: po_lines:update
+    target: po_draft_line
+    values: { description: "[TEST] should be blocked" }
     expect: deny
 
 teardown:

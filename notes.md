@@ -38,7 +38,9 @@ Use the real personas above (`dana.director`=id 12, `pat.procurement`=id 11, `fi
 
 **Done (D61, 2026-07-03):** the PO/po_line fixture is seeded — `po_draft` + one line, created after approvals via the new `after_approvals` runner flag. PR→PO 1:1 (D9) is **confirmed enforced live** by "Guard: Create PO (PR must be approved)" (blocks a second PO on an already-consumed PR), so `pr_approved_2` was added as the fixture PO's own source.
 
-**Still to do:** promote R17/R20/R21/R22 to active rules with cases against `po_draft`. Then build a terminal (completed/closed) PO fixture for R18/R24. See `HANDOFF.md` "Next step."
+**Promoted (D61, 2026-07-03):** R17/R20/R21/R24 active against `po_draft`, suite 28/28.
+
+**Still to do:** build an issued/terminal (completed/closed) PO fixture, then promote R18 (terminal immutability), R22 (receiving via received_quantity — needs the PO at issued/sent/confirmed), and R21's delete-deny half (line delete blocked once PO not draft). See `HANDOFF.md` "Next step."
 
 ## Environment
 
