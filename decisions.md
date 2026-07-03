@@ -1167,3 +1167,18 @@ Note: the existing scope id 10 ("PR — director stage") covers **two** statuses
 
 **Affects:** `role-acl-guidelines.md` §6 (corrected in the same commit); `tests/plan.yaml` R12.
 **Status:** effective — written and runtime-verified 2026-07-02.
+
+---
+
+## D59 — PO/PO-line ACL audit across all 5 roles: two grants deliberately kept as interim (2026-07-02)
+
+**Decision:** Completed the `purchase_orders`/`po_lines` ACL audit across director/finance/member/operations/procurement (finishing the audit D56 began). The full grant matrix is correct as-is, with two grants reviewed and **deliberately kept for now** — not bugs, do not re-flag on a future audit:
+1. `procurement` retains `payment_status`/`payment_date` in its PO `create`+`update` whitelists. D33a assigns payment to Finance, but no finance users or payment stage exist yet, so procurement holds it in the interim. (Procurement's *view* of these fields is unaffected either way.)
+2. `procurement` records receiving (`po_lines.received_quantity` update). No warehouse role exists yet; a future warehouse role may take this over.
+
+**Why:** Per the retrofit rule (don't transcribe live ACL as correct-by-definition), each grant was checked against a stated reason. These two contradict the eventual target (payment→Finance per D33a, receiving→warehouse) but are correct *for the current org*, which has neither role populated. Alexander confirmed both 2026-07-02: leave as-is, revisit when those users exist.
+
+**How to apply:** No config change this session. Both are recorded as go-live/future TODOs in `notes.md`. When finance users are created, move payment set-rights off procurement to `finance` (add the terminal-PO carve-out D33a describes). When a warehouse role is created, move `received_quantity` update to it. Everything else in the matrix cites existing decisions: procurement create/update from an approved PR (D9/D11/D12, live create-guard), close via popup (D33/D35), no PO destroy + line destroy draft-only (D56), line pricing/budget (D47/D49), terminal immutability (D33); director/finance/operations are view-only via the `member` baseline.
+
+**Affects:** `tests/plan.yaml` (R15/R17–R24 drafted from this audit); `notes.md` go-live checklist (2 new items).
+**Status:** effective — audit complete, no write. Rule text drafted; the update/destroy/view/receiving cases are pending a PO-record fixture (approved-PR → PO), the create-deny cases (R19/R23) run now.

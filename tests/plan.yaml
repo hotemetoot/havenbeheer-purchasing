@@ -26,11 +26,22 @@ rules:
   R13: Director cannot update PR fields outside its own approval stage (pending_director_approval). # TODO verify
   R14: Director cannot create purchase requests. # TODO verify
   R16: Procurement cannot create a PO from a purchase request that is not approved. # TODO verify
-
-# R15, R17-R24 (see decisions.md D56 and notes.md) intentionally NOT drafted
-# yet — need their rule text derived first via a live ACL audit of
-# purchase_orders/po_lines across all 5 roles (same kind of audit that
-# produced D55-D58 for purchase_requests). Not started.
+  # --- R15/R17-R24 drafted 2026-07-02 from the full purchase_orders/po_lines
+  # ACL audit across all 5 roles (D59; audit begun in D56). Business rules
+  # approved by Alexander. R19 and R23 run now (create-deny, no record needed)
+  # and are active rules below. The other seven are DRAFTED but held here as
+  # comments — the runner requires every active rule to have >=1 case, and all
+  # seven need a seeded PO/po_line record via a PO fixture (approved-PR -> PO)
+  # that doesn't exist yet. Promote each to an active rule when its case lands:
+  #   R15: Procurement can create a PO from an approved PR (allow counterpart to R16). [approved-PR fixture]
+  #   R17: Procurement can update a non-terminal PO's header fields, and cannot delete a PO at any status (D56). [PO fixture]
+  #   R18: No role, incl. procurement, can update or delete a PO once completed/closed (terminal immutability guard, D33). [terminal-PO fixture]
+  #   R20: Director, finance, operations cannot update or delete a PO. [PO fixture]
+  #   R21: Procurement can add/update po_lines on a non-terminal PO, delete a line only while PO is draft (D56); over-budget line create/update blocked (D47/D49). [PO fixture]
+  #   R22: Procurement records receiving — can update po_lines.received_quantity (interim owner per D59; bypasses budget guard). [PO fixture]
+  #   R24: Director, finance, operations cannot update/delete/import po_lines; all roles can view PO + po_lines via member baseline. [PO fixture]
+  R19: Finance and operations users cannot create a purchase order (no independent create grant; view-only via member baseline). # TODO verify
+  R23: Finance and operations users cannot create po_lines (no independent create grant; view-only via member baseline). # TODO verify
 
 fixtures:
   users:
@@ -38,6 +49,7 @@ fixtures:
     operations_b: { role: operations }
     director_a: { role: director }
     procurement_a: { role: procurement }
+    finance_a: { role: finance }
     pat_procurement: { existing: true, email: "pat@havenbeheer.test", password: "nbtest" }
 
   records:
@@ -154,6 +166,38 @@ cases:
     as: procurement_a
     action: purchase_orders:create
     values: { purchase_request: "@ref:pr_draft_a", currency: USD, total: 100 }
+    expect: deny
+
+  # --- R19/R23: finance and operations have no independent create grant on
+  # purchase_orders/po_lines (D59 audit) — they fall through to member's
+  # view-only baseline, same as director in R4/R5. ACL denies create before
+  # any record is touched, so no PO fixture is needed here.
+  - rule: R19
+    name: finance cannot create a purchase order
+    as: finance_a
+    action: purchase_orders:create
+    values: { currency: USD, total: 100 }
+    expect: deny
+
+  - rule: R19
+    name: operations cannot create a purchase order
+    as: operations_a
+    action: purchase_orders:create
+    values: { currency: USD, total: 100 }
+    expect: deny
+
+  - rule: R23
+    name: finance cannot create a po_line
+    as: finance_a
+    action: po_lines:create
+    values: { quantity_ordered: 1 }
+    expect: deny
+
+  - rule: R23
+    name: operations cannot create a po_line
+    as: operations_a
+    action: po_lines:create
+    values: { quantity_ordered: 1 }
     expect: deny
 
 teardown:

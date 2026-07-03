@@ -50,12 +50,12 @@ At session end:
 
 ## Live environment changes
 
-Before modifying live NocoBase configuration (creating/editing collections, workflows, pages, roles, fields), show the user:
-- **Intended changes** — what entities/fields/nodes will be created or modified
-- **CLI/API category** — which skill or command group you'll use (e.g. nocobase-data-modeling, nocobase-workflow-manage)
-- **Expected UI result** — what the user will see in NocoBase after the change
+Before modifying live NocoBase configuration (creating/editing collections, workflows, pages, roles, fields), get approval on the **business logic**, not the implementation:
+- **The rule in plain language** — who can do what, under which condition, and why (the business reason: a D-entry, a workflow gate, a stated responsibility). This is the thing to review and correct.
+- **What changes vs. what stays** — the net effect in business terms (e.g. "procurement can no longer set payment status, but still sees it").
+- **Expected UI result** — what the user will see in NocoBase after the change.
 
-Wait for explicit approval before executing.
+Do NOT lead with raw payloads, JSON bodies, or field-by-field CLI arguments. Alexander reviews rules, not wire format — show the mechanism only if he asks. Wait for explicit approval or correction of the rule, then execute.
 
 **For irreversible actions** (deleting data, dropping a published page, destroying workflow history, removing a role with assigned users), additionally provide a rollback plan and get explicit confirmation. Most NocoBase actions are reversible enough that the rollback step is implicit; only require explicit rollback when undoing isn't trivially obvious.
 
