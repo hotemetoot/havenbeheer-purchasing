@@ -23,13 +23,13 @@ rules:
   R1: Operations users can create purchase requests.
   R2: Operations users can update their own purchase request only while its status is info_requested; they cannot update another operations user's purchase request. Ownership = the acting user is the PR's creator (createdById) or submitter (submitterId). (D68 retired draft; the only operations-editable status is now info_requested, reached by an approver returning the PR for info.)
   R3: Operations users cannot delete purchase requests.
-  R4: Only procurement can create purchase orders; director cannot create one. # TODO verify
-  R5: Only procurement can create po_lines; director cannot create one. # TODO verify
-  R12: Director can update the render-enabler fields (rejection_comment, rejection_reason_category, signature) on a purchase request while it is at pending_director_approval (its own approval stage). Narrowed 2026-07-02 (D58) - project/projectId dropped from this grant, no longer part of the rule. # TODO verify
-  R13: Director cannot update PR fields outside its own approval stage (pending_director_approval). # TODO verify
-  R14: Director cannot create purchase requests. # TODO verify
+  R4: Only procurement can create purchase orders; director cannot create one. Verified live 2026-07-04 — procurement holds a purchase_orders:create grant; director has no PO resource entry and its role strategy is view-only.
+  R5: Only procurement can create po_lines; director cannot create one. Verified live 2026-07-04 — procurement holds a po_lines:create grant; director has no po_lines resource entry and its role strategy is view-only.
+  R12: Director can update the render-enabler fields (rejection_comment, rejection_reason_category, signature) on a purchase request while it is at pending_director_approval (its own approval stage). Narrowed 2026-07-02 (D58) - project/projectId dropped from this grant, no longer part of the rule. Verified live 2026-07-04 — update scope "PR — pending director approval" = status $eq pending_director_approval; field whitelist is exactly those three, no project/projectId.
+  R13: Director cannot update PR fields outside its own approval stage (pending_director_approval). Verified live 2026-07-04 — the director update grant's only scope is status $eq pending_director_approval, so any other status (here info_requested) falls outside it and is denied.
+  R14: Director cannot create purchase requests. Verified live 2026-07-04 — director's purchase_requests grant has only view + update actions (no create), and its role strategy is view-only.
   R15: Procurement can create a purchase order from a purchase request whose status is approved (the allow counterpart to R16). Reviewed + verified live 2026-07-02.
-  R16: Procurement cannot create a PO from a purchase request that is not approved. # TODO verify
+  R16: Procurement cannot create a PO from a purchase request that is not approved. Verified live 2026-07-04 — "Guard: Create PO (PR must be approved)" (global on purchase_orders:create) blocks when the source PR's status is not approved (also blocks if the PR already has a PO).
   R17: Procurement can update a non-terminal (draft) PO's header fields, and cannot delete a PO at any status — procurement has no destroy grant on purchase_orders (D56/D59, ACL confirmed live 2026-07-03). # TODO verify
   R20: Director, finance, and operations users cannot update or delete a purchase order — none has an independent grant, so they fall through to member's view-only baseline (D59). # TODO verify
   R18: Once a PO is terminal (completed/closed), no role — including procurement, which can edit a draft PO — can update it; the PO-immutability guard blocks it independent of ACL (D33). # TODO verify
@@ -514,10 +514,10 @@ cases:
     expect: allow
 
   # --- R13: director's render-enabler update grant is scoped to its own
-  # approval stage (D55 fix) — pr_draft_a is status=draft, not
+  # approval stage (D55 fix) — pr_draft_a is status=info_requested, not
   # pending_director_approval, so this must be denied.
   - rule: R13
-    name: director cannot update PR fields while it's still draft (not their approval stage)
+    name: director cannot update PR fields while it's at info_requested (not their approval stage)
     as: director_a
     action: purchase_requests:update
     target: pr_draft_a
@@ -529,7 +529,7 @@ cases:
     name: director cannot create a purchase request
     as: director_a
     action: purchase_requests:create
-    values: { title: "[TEST] director attempt", status: draft }
+    values: { title: "[TEST] director attempt" }   # status omitted (D68 retired draft); ACL denies create regardless
     expect: deny
 
   # --- R15: allow counterpart to R16. pr_approved is driven to status:
