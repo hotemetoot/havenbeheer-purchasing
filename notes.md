@@ -8,7 +8,7 @@ Migrated 2026-07-02 from the retired `project_current_state.md` (see D-entries i
 
 ## Drift / open issues
 
-- **Issue PO is currently un-satisfiable — no `delivery_address` field exists on `purchase_orders` (found 2026-07-03, D62).** The "Issue PO" workflow (`issue_po`) guard requires `deliveryAddressId != null` to move a PO draft→issued, and procurement's ACL create/update/view whitelists still list `delivery_address` — but the collection has no such field (only `supplier` and `purchase_request` belongsTo relations remain). So as it stands live, no PO can pass the Issue guard, which **blocks the R22 receiving fixture** (receiving needs an issued/sent/confirmed PO). Resolve before building R22: either the `delivery_address` relation was dropped and needs restoring, or the Issue guard + ACL whitelist reference a stale field and should be cleaned up. Alexander's call — this is a live config decision, not a test change.
+- **RESOLVED 2026-07-03 (tenth session): the Issue PO "missing delivery_address field" finding was wrong.** `purchase_orders.delivery_address` exists live: belongsTo → `delivery_addresses`, foreignKey `deliveryAddressId`, m2o interface (field key `td7idf8lg6p`). That matches both the Issue guard's `deliveryAddressId != null` check and procurement's ACL whitelist entry. `delivery_addresses` holds 2 records (Havenbeheer Hoofdkantoor id 366556185821184, Main Warehouse id 366562938650624). Alexander flagged the relation exists; re-verified live via `fields:list`. R22 is unblocked — the `po_issued` fixture sets `deliveryAddressId` to one of these records.
 
 ## Before go-live
 

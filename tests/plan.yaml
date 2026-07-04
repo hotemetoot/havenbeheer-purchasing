@@ -31,13 +31,16 @@ rules:
   R20: Director, finance, and operations users cannot update or delete a purchase order — none has an independent grant, so they fall through to member's view-only baseline (D59). # TODO verify
   R18: Once a PO is terminal (completed/closed), no role — including procurement, which can edit a draft PO — can update it; the PO-immutability guard blocks it independent of ACL (D33). # TODO verify
   R21: Procurement can add and update po_lines on a non-terminal (draft) PO and can delete a line only while the PO is draft; once the PO is non-draft the line-destroy guard blocks deletion. A line create that would push the PO total over the source PR's quoted_total is blocked by the PO-line budget-ceiling guard (D47/D49). # TODO verify
+  R22: Procurement records receiving by updating a po_line's received_quantity, allowed only once the PO is issued (or sent/confirmed) — the Receive guard blocks a received_quantity update while the PO is still draft. Director, finance, and operations users cannot record receiving at all (no update grant, member view-only baseline; receiving sits on procurement as a deliberate interim, D59). # TODO verify
   R24: Director, finance, and operations users cannot update or delete po_lines — none has an independent grant, member view-only baseline (D59). # TODO verify
   # --- R15/R17-R24 drafted 2026-07-02 from the full purchase_orders/po_lines
   # ACL audit across all 5 roles (D59; audit begun in D56), business rules
   # approved by Alexander. R15/R19/R23 verified earlier; R17/R20/R21/R24
   # promoted 2026-07-03 (D61) against po_draft; R18 + R21's delete-deny added
-  # 2026-07-03 against the po_closed fixture. Still held here:
-  #   R22: Procurement records receiving — po_lines.received_quantity update; "Guard: Receive" requires the PO be issued/sent/confirmed. Needs an ISSUED PO fixture (Issue PO one-click trigger + supplier/delivery_address), not just a closed one (D59). [issued-PO fixture]
+  # 2026-07-03 against the po_closed fixture. R22 drafted 2026-07-03 (tenth
+  # session) against the po_issued fixture — Issue PO is a one-click
+  # custom-action workflow, fired via the dedicated purchase_orders:trigger
+  # verb (verified live; see fixtures.actions below).
   R19: Finance and operations users cannot create a purchase order (no independent create grant; view-only via member baseline). # TODO verify
   R23: Finance and operations users cannot create po_lines (no independent create grant; view-only via member baseline). # TODO verify
 
@@ -78,6 +81,24 @@ fixtures:
         as: operations_a
         trigger_workflow: cv237r8h7k9   # PR Approval workflow key
         values: { title: "[TEST] po_closed fixture source PR", quoted_total: 100 }
+      # pr_approved_4: source PR for the po_issued fixture (1:1 -> its own PR).
+      - id_ref: pr_approved_4
+        as: operations_a
+        trigger_workflow: cv237r8h7k9   # PR Approval workflow key
+        values: { title: "[TEST] po_issued fixture source PR", quoted_total: 100 }
+
+    # Reference data for the Issue PO guard: it requires supplierId and
+    # deliveryAddressId to be set. Created as admin (plain reference records,
+    # no guards on these collections, not the rule under test). Deletable at
+    # teardown; the leftover issued PO (undeletable line, see below) keeps
+    # dangling FKs afterward — harmless [TEST] debris, same policy as
+    # po_closed.
+    suppliers:
+      - id_ref: sup_r22
+        values: { name: "[TEST] R22 supplier" }
+    delivery_addresses:
+      - id_ref: addr_r22
+        values: { name: "[TEST] R22 delivery address" }
 
     # po_draft: reusable non-terminal (draft) PO for R17/R20/R21 cases.
     # po_closed: a draft PO that fixtures.actions then drives to `closed` (a
@@ -93,6 +114,14 @@ fixtures:
         as: procurement_a
         after_approvals: true
         values: { purchase_request: "@ref:pr_approved_3", currency: USD, total: 100 }
+      # po_issued: seeded complete (supplier + delivery address + currency +
+      # total) so the Issue PO guard passes; fixtures.actions below then
+      # drives it draft -> issued. Both associations are in procurement's
+      # create whitelist (confirmed live 2026-07-03).
+      - id_ref: po_issued
+        as: procurement_a
+        after_approvals: true
+        values: { purchase_request: "@ref:pr_approved_4", supplier: "@ref:sup_r22", delivery_address: "@ref:addr_r22", currency: USD, total: 100 }
 
     # Lines are created while the parent PO is still draft (line create on a
     # terminal PO is blocked by "Guard: PO Line Create — block on terminal
@@ -107,6 +136,13 @@ fixtures:
         as: procurement_a
         after_approvals: true
         values: { purchase_order: "@ref:po_closed", quantity_ordered: 2, unit_price: 25 }
+      # po_issued_line: seeded while the PO is still draft (line create on a
+      # non-draft PO is guard-blocked). Priced (Issue guard rejects any
+      # unpriced line) and 50 <= the PR's 100 (budget ceiling).
+      - id_ref: po_issued_line
+        as: procurement_a
+        after_approvals: true
+        values: { purchase_order: "@ref:po_issued", quantity_ordered: 2, unit_price: 25 }
 
   # Drives fixture PRs through the REAL PR Approval workflow. Real personas
   # required: approvalRecords:submit checks the actual assigned userId, not
@@ -173,6 +209,20 @@ fixtures:
           id_ref: pr_approved_3
           match: { status: approved }
       timeout_s: 30
+    # pr_approved_4: same full chain, source PR for the po_issued fixture.
+    - target: pr_approved_4
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement approve -> director stage"
+        - as: dana_director
+          decision: approve
+          comment: "[TEST] director approve -> approved"
+      assert:
+        - collection: purchase_requests
+          id_ref: pr_approved_4
+          match: { status: approved }
+      timeout_s: 30
 
   # fixtures.actions — fire a post-action / one-click workflow on a fixture
   # record once, up front (after records exist), via the triggerWorkflows
@@ -192,6 +242,22 @@ fixtures:
         - collection: purchase_orders
           id_ref: po_closed
           match: { status: closed }
+      timeout_s: 30
+    # Drive po_issued draft -> issued through Issue PO (key issue_po, type
+    # custom-action, sync). Custom-action (one-click) workflows fire via the
+    # DEDICATED `<collection>:trigger` verb — verified live 2026-07-03 —
+    # not by riding triggerWorkflows on a CRUD verb like the post-action
+    # close above. No values needed. Run as admin: setup, not the rule under
+    # test. If the guard rejects, the runner surfaces the workflow's own
+    # response-message (HTTP 400) — read it, it names the failed condition.
+    - target: po_issued
+      as: admin
+      action: purchase_orders:trigger
+      trigger_workflows: issue_po
+      assert:
+        - collection: purchase_orders
+          id_ref: po_issued
+          match: { status: issued }
       timeout_s: 30
 
 cases:
@@ -460,6 +526,42 @@ cases:
     as: procurement_a
     action: po_lines:destroy
     target: po_closed_line
+    expect: deny
+
+  # --- R22: receiving. po_issued is driven to `issued` by fixtures.actions.
+  # Three guards fire on po_lines update; checked all three node chains live
+  # 2026-07-03 before drafting:
+  #   - "Guard: Receive" blocks a received_quantity update unless the parent
+  #     PO is issued/sent/confirmed — so the po_draft_line case isolates it.
+  #   - "Guard: PO Line Update — budget ceiling" only fires when values carry
+  #     quantity_ordered/unit_price — a received_quantity-only update skips it.
+  #   - "Guard: PO Line Immutability" only bites on completed/closed — issued
+  #     passes.
+  # received_quantity is in procurement's po_lines update whitelist (D59,
+  # re-confirmed live 2026-07-03); operations has no update grant at all, so
+  # its deny isolates ACL, not a guard.
+  - rule: R22
+    name: procurement can record receiving on a line of an issued PO
+    as: procurement_a
+    action: po_lines:update
+    target: po_issued_line
+    values: { received_quantity: 1 }
+    expect: allow
+
+  - rule: R22
+    name: procurement cannot record receiving while the PO is still draft
+    as: procurement_a
+    action: po_lines:update
+    target: po_draft_line
+    values: { received_quantity: 1 }
+    expect: deny
+
+  - rule: R22
+    name: operations cannot record receiving at all
+    as: operations_a
+    action: po_lines:update
+    target: po_issued_line
+    values: { received_quantity: 5 }
     expect: deny
 
 teardown:
