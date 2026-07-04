@@ -29,12 +29,12 @@ rules:
   R13: Director cannot update PR fields outside its own approval stage (pending_director_approval). Verified live 2026-07-04 — the director update grant's only scope is status $eq pending_director_approval, so any other status (here info_requested) falls outside it and is denied.
   R14: Director cannot create purchase requests. Verified live 2026-07-04 — director's purchase_requests grant has only view + update actions (no create), and its role strategy is view-only.
   R15: Procurement can create a purchase order from a purchase request whose status is approved (the allow counterpart to R16). Reviewed + verified live 2026-07-02.
-  R16: Procurement cannot create a PO from a purchase request that is not approved. Verified live 2026-07-04 — "Guard: Create PO (PR must be approved)" (global on purchase_orders:create) blocks when the source PR's status is not approved (also blocks if the PR already has a PO).
-  R17: Procurement can update a non-terminal (draft) PO's header fields, and cannot delete a PO at any status — procurement has no destroy grant on purchase_orders (D56/D59, ACL confirmed live 2026-07-03). # TODO verify
+  R16: 'Procurement cannot create a PO from a purchase request that is not approved. Verified live 2026-07-04 — "Guard: Create PO (PR must be approved)" (global on purchase_orders:create) blocks when the source PR''s status is not approved (also blocks if the PR already has a PO).'
+  R17: Procurement can update a PO's header fields at any non-terminal status (draft/issued/partially_received/received) — the update ACL grant is unscoped and the PO Immutability guard blocks only the terminal statuses (completed/closed) — and cannot delete a PO at any status — procurement has no destroy grant on purchase_orders (D56/D59, ACL re-verified live 2026-07-04; D69 retired the sent/confirmed statuses). # TODO verify
   R20: Director, finance, and operations users cannot update or delete a purchase order — none has an independent grant, so they fall through to member's view-only baseline (D59). # TODO verify
   R18: Once a PO is terminal (completed/closed), no role — including procurement, which can edit a draft PO — can update it; the PO-immutability guard blocks it independent of ACL (D33). # TODO verify
   R21: Procurement can add and update po_lines on a non-terminal (draft) PO and can delete a line only while the PO is draft; once the PO is non-draft the line-destroy guard blocks deletion. A line create that would push the PO total over the source PR's quoted_total is blocked by the PO-line budget-ceiling guard (D47/D49). # TODO verify
-  R22: Procurement records receiving by updating a po_line's received_quantity, allowed only once the PO is issued (or sent/confirmed) — the Receive guard blocks a received_quantity update while the PO is still draft. Director, finance, and operations users cannot record receiving at all (no update grant, member view-only baseline; receiving sits on procurement as a deliberate interim, D59). # TODO verify
+  R22: Procurement records receiving by updating a po_line's received_quantity, allowed only once the PO is issued (receivable set = issued/partially_received/received) — the Receive guard blocks a received_quantity update while the PO is still draft. Director, finance, and operations users cannot record receiving at all (no update grant, member view-only baseline; receiving sits on procurement as a deliberate interim, D59). # TODO verify (D69 trimmed the guard's dead sent/confirmed clauses)
   R24: Director, finance, and operations users cannot update or delete po_lines — none has an independent grant, member view-only baseline (D59). # TODO verify
   # --- R15/R17-R24 drafted 2026-07-02 from the full purchase_orders/po_lines
   # ACL audit across all 5 roles (D59; audit begun in D56), business rules
@@ -724,7 +724,9 @@ cases:
   # Three guards fire on po_lines update; checked all three node chains live
   # 2026-07-03 before drafting:
   #   - "Guard: Receive" blocks a received_quantity update unless the parent
-  #     PO is issued/sent/confirmed — so the po_draft_line case isolates it.
+  #     PO is in the receivable set issued/partially_received/received (D69
+  #     trimmed the dead sent/confirmed clauses) — so the po_draft_line case
+  #     isolates it.
   #   - "Guard: PO Line Update — budget ceiling" only fires when values carry
   #     quantity_ordered/unit_price — a received_quantity-only update skips it.
   #   - "Guard: PO Line Immutability" only bites on completed/closed — issued
