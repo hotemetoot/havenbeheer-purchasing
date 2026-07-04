@@ -1,6 +1,8 @@
 # HANDOFF — havenbeheer retrofit, Step 6 (rewritten 2026-07-04, thirteenth session)
 
-**Read this first, then:** `~/.claude/skills/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (authoritative step list), this project's `CLAUDE.md`, and `decisions.md` D63–D67. `notes.md` holds non-queryable traps and the go-live checklist. Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py`.
+**Read this first, then:** `~/.claude/skills/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (authoritative step list), this project's `CLAUDE.md`, and `decisions.md` D63–D68. `notes.md` holds non-queryable traps and the go-live checklist. Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py`.
+
+> **Concurrency note (2026-07-04):** Alexander committed **D68** (`d8927a4`) from a second terminal *during* this session — PR `draft` + `cancelled` retired, applied live. This session's commits stacked cleanly on top, but two sessions were editing havenbeheer at once. Before the next write-heavy step, make sure no other session is open on this repo.
 
 Per-session narrative lives in `decisions.md` and git history — not repeated here.
 
@@ -39,9 +41,11 @@ Alexander reviewed the projects rules R25–R30 word by word; each claim re-veri
 
 **Rule C revision (D65) still NOT activated** — verified live this session: `373589018214400` disabled + not current; buggy `372552255471616` current+enabled. Activation is Alexander's one-step action: enable+current on `373589018214400`, disable `372552255471616`.
 
+**D68 broke part of the PR suite — fix before ANY run.** Alexander applied D68 live this session: `purchase_requests.status` no longer has `draft` or `cancelled` (default now `pending_dept_approval`), and the `cancellation_reason`/`cancelled_at` fields were dropped. Consequences for `plan.yaml`, not yet fixed (Alexander's review territory): the **`pr_draft_a` fixture seeds `status: draft`, which is now an invalid enum value** — it will fail on the next run; **R2 is reopened** (D68: "draft or info_requested" → info_requested only) even though it was previously cleared; and the header note on `cancelled` is stale. These fixture/rule fixes gate a clean run alongside the R26/R27 work.
+
 ## Next session starts here (order set by Alexander)
 
-1. **Backlog word-review FIRST** — Alexander reviews the older rule TEXTS still carrying `# TODO verify`: **R4, R5, R12, R13, R14, R16, R17, R18, R20, R21, R22, R24**. These are already green in the suite; this is the review gate (his sign-off on wording), not test-pass. Present ONE at a time, re-verify each claim live, clear the marker on his OK. (R1–R3, R15, R19, R23 already cleared.)
+1. **Backlog word-review FIRST** — Alexander reviews the older rule TEXTS still carrying `# TODO verify`: **R4, R5, R12, R13, R14, R16, R17, R18, R20, R21, R22, R24**, plus **R2 (reopened by D68)**. These were green in the suite before D68; this is the review gate (his sign-off on wording), not test-pass. Present ONE at a time, re-verify each claim live, clear the marker on his OK. While here, **reconcile D68**: any PR rule referencing `draft`/`cancelled` needs updating, and the `pr_draft_a` fixture (`status: draft`) must be re-pointed to a valid status. (R1, R3, R15, R19, R23 stay cleared; R2 no longer.)
 2. **Then D67 (the rename) in a fresh session** — Alexander's explicit sequencing. Mechanical live build; unblocks clean R27 cases.
 3. **D66** — projects-edit ACL + approval-process build (the heavier one). Then rework the R26/R27 cases.
 4. **Rule C activation (D65)** — one-step user action, still pending; do whenever convenient.
@@ -49,7 +53,7 @@ Alexander reviewed the projects rules R25–R30 word by word; each claim re-veri
 
 ## Standing review gate — `# TODO verify`
 
-Tracks Alexander's word-by-word review, NOT test-pass; he clears it. Carrying: **R4, R5, R12, R13, R14, R16, R17, R18, R20, R21, R22, R24**. Cleared: R1–R3, R15, R19, R23, **R25, R28, R29, R30**. On `# TODO build+verify` (approved text, needs a build to pass): **R26, R27**.
+Tracks Alexander's word-by-word review, NOT test-pass; he clears it. Carrying: **R2 (reopened by D68), R4, R5, R12, R13, R14, R16, R17, R18, R20, R21, R22, R24**. Cleared: R1, R3, R15, R19, R23, **R25, R28, R29, R30**. On `# TODO build+verify` (approved text, needs a build to pass): **R26, R27**.
 
 ## Fixture design notes (projects) — carry over
 
