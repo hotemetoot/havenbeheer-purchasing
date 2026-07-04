@@ -43,6 +43,18 @@ rules:
   # verb (verified live; see fixtures.actions below).
   R19: Finance and operations users cannot create a purchase order (no independent create grant; view-only via member baseline). # TODO verify
   R23: Finance and operations users cannot create po_lines (no independent create grant; view-only via member baseline). # TODO verify
+  # --- R25-R30 drafted 2026-07-04 (twelfth session) from the projects
+  # backend hardened in D63/D64 (guard 2h75zryz3cb, Close Project
+  # px2xvjaxoqf, D53 backstop) and the projects ACL re-verified live this
+  # session. Business rules locked with Alexander 2026-07-03 (see HANDOFF /
+  # D63); the rule TEXTS below are still unreviewed - the # TODO verify
+  # markers gate the first run.
+  R25: Only operations users can create projects; procurement, director, and finance cannot (no create grant — member view-only baseline). # TODO verify
+  R26: A project is directly editable only while it is draft, info_requested, or rejected — and by ANY operations user (the update grant has no ownership scope). From submission onward (any pending stage, approved, or closed) the immutability guard blocks direct updates for every role; only the approval flow itself advances it (admin is deliberately exempt). No role can delete a project at any status (no destroy grant). # TODO verify
+  R27: Only procurement can close a project (dedicated Close Project action; no other role has the trigger grant), and only an approved one — closing a draft or mid-flow project, or re-closing a closed one, is rejected. A successful close sets status closed and stamps closed_at. # TODO verify
+  R28: A purchase request cannot be created linked to a project that is not approved (draft, mid-flow, rejected, or closed); linking to an approved project is allowed. # TODO verify
+  R29: When procurement approves a project-linked PR, it is auto-rejected if the total of already-approved sibling PRs plus this PR exceeds the project's budget (strict greater-than — exactly on budget still approves); within budget it is approved, and the project's committed amount recomputes from approved PRs only. # TODO verify
+  R30: A PR drawing on an approved project skips the director and board stages unconditionally — procurement approval is the final human step, regardless of amount. # TODO verify
 
 fixtures:
   users:
@@ -53,6 +65,14 @@ fixtures:
     finance_a: { role: finance }
     pat_procurement: { existing: true, email: "pat@havenbeheer.test", password: "nbtest" }
     dana_director: { existing: true, email: "dana@havenbeheer.test", password: "nbtest" }
+    # operations_proj: dept-bearing project submitter. The Project Approval
+    # ladder routes its dept stage via createdBy.mainDepartment.mainApproverId
+    # — a dept-less user stalls there (HANDOFF fixture note). main_department
+    # points at the Procurement dept (363554444476416, main approver = Pat,
+    # id 11) so the dept stage lands on known creds. Do NOT add a department
+    # to the existing seeded users — it would change the already-green PR
+    # approval chains above.
+    operations_proj: { role: operations, main_department: 363554444476416 }
 
   records:
     purchase_requests:
@@ -86,6 +106,64 @@ fixtures:
         as: operations_a
         trigger_workflow: cv237r8h7k9   # PR Approval workflow key
         values: { title: "[TEST] po_issued fixture source PR", quoted_total: 100 }
+      # --- drawdown PRs (R29/R30): linked to proj_approved, so they can only
+      # be created AFTER the project's approval chain ran (create guard
+      # lylobzvlh5p blocks linking a non-approved project) -> after_approvals.
+      # Their own approval steps run in the SECOND approvals pass (entries
+      # with after_records: true below). fx_rate_to_usd: 1 keeps
+      # quoted_total_usd == quoted_total. Budget 5000: within (1000) commits;
+      # over (9500; 1000 + 9500 > 5000) trips the D53 backstop at
+      # procurement-approve. Both terminal PRs (approved/rejected) survive
+      # teardown — Guard A blocks destroy on terminal PRs — so this adds 2
+      # labeled debris PRs per run (accepted, same policy as pr_approved_*),
+      # with dangling project FKs once the project fixture is deleted.
+      - id_ref: pr_proj_within
+        as: operations_a
+        after_approvals: true
+        trigger_workflow: cv237r8h7k9
+        values: { title: "[TEST] project PR within budget", quoted_total: 1000, fx_rate_to_usd: 1, project: "@ref:proj_approved" }
+      - id_ref: pr_proj_over
+        as: operations_a
+        after_approvals: true
+        trigger_workflow: cv237r8h7k9
+        values: { title: "[TEST] project PR over budget", quoted_total: 9500, fx_rate_to_usd: 1, project: "@ref:proj_approved" }
+
+    # --- projects fixtures (R25-R30). status defaults to draft (field
+    # defaultValue, verified live 2026-07-04); operations' create whitelist
+    # has no status field, so none is sent. Budgets stay under the ladder's
+    # $15k board threshold to keep chains at 3 steps (dept -> procurement ->
+    # director). The immutability guard (2h75zryz3cb) exempts admin, so
+    # teardown deletes ALL project fixtures cleanly; approvals rows
+    # cascade-delete with the project (D63).
+    projects:
+      # proj_draft: plain create, stays draft. Used by R26 (draft edits +
+      # destroy-deny), R27 (close-draft deny), R28 (link-deny).
+      - id_ref: proj_draft
+        as: operations_a
+        values: { title: "[TEST] draft project", budget_usd: 5000, justification: "[TEST] R26 draft fixture" }
+      # proj_pending: enters the ladder and is deliberately left at the dept
+      # stage (submitter operations_proj -> assignee Pat, never approved).
+      # Gives R26 its mid-flow lock target. The zero-step approvals entry
+      # below pins the precondition (status pending_dept_approval).
+      - id_ref: proj_pending
+        as: operations_proj
+        trigger_workflow: hzykothf9cx   # Project Approval workflow key
+        values: { title: "[TEST] mid-flow project", budget_usd: 5000, justification: "[TEST] R26 mid-flow fixture" }
+      # proj_approved: full ladder to approved. The drawdown target for
+      # R28/R29/R30's PRs, then R27's close-allow target (case order:
+      # the R28 link-allow case MUST run before the R27 close-allow case).
+      - id_ref: proj_approved
+        as: operations_proj
+        trigger_workflow: hzykothf9cx
+        values: { title: "[TEST] approved project", budget_usd: 5000, justification: "[TEST] drawdown fixture" }
+      # proj_approved_2: full ladder to approved, then fixtures.actions
+      # closes it AS ADMIN before any case runs -> the stable `closed`
+      # project for R26 (closed-update deny), R27 (re-close deny), R28
+      # (link-to-closed deny).
+      - id_ref: proj_approved_2
+        as: operations_proj
+        trigger_workflow: hzykothf9cx
+        values: { title: "[TEST] closed project", budget_usd: 5000, justification: "[TEST] closed fixture" }
 
     # Reference data for the Issue PO guard: it requires supplierId and
     # deliveryAddressId to be set. Created as admin (plain reference records,
@@ -224,6 +302,80 @@ fixtures:
           match: { status: approved }
       timeout_s: 30
 
+    # --- projects approval chains (R25-R30 preconditions). Ladder audited
+    # node-by-node 2026-07-03: dept stage (assignee = submitter's
+    # mainDepartment.mainApproverId = Pat via operations_proj) ->
+    # Procurement Approval (Pat) -> Director Approval (Dana); board stage
+    # skipped (budget 5000 < 15000). The guard 2h75zryz3cb is active
+    # throughout — these chains PASSING is the approval-path pass-through
+    # proof for R26 (approval writes bypass request-interception, D63).
+    # departmentId assert: the first ladder node writes it from the
+    # submitter's main department — resolves 363554444476416 for
+    # operations_proj under BOTH the current revision and the pending
+    # Rule C revision (373589018214400), so this does not block on the
+    # revision swap.
+    # proj_pending: zero steps — the entry only pins the precondition
+    # (stalled at the dept stage) that R26's mid-flow deny case relies on.
+    - target: proj_pending
+      steps: []
+      assert:
+        - collection: projects
+          id_ref: proj_pending
+          match: { status: pending_dept_approval }
+      timeout_s: 30
+    - target: proj_approved
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] dept stage approve"
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement stage approve"
+        - as: dana_director
+          decision: approve
+          comment: "[TEST] director stage approve -> approved"
+      assert:
+        - collection: projects
+          id_ref: proj_approved
+          match: { status: approved, departmentId: 363554444476416 }
+      timeout_s: 30
+    - target: proj_approved_2
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] dept stage approve"
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement stage approve"
+        - as: dana_director
+          decision: approve
+          comment: "[TEST] director stage approve -> approved"
+      assert:
+        - collection: projects
+          id_ref: proj_approved_2
+          match: { status: approved }
+      timeout_s: 30
+    # --- drawdown PR chains: after_records -> run in the SECOND approvals
+    # pass, after the after_approvals records above exist. ONE procurement
+    # step each — for a project-linked PR the drawdown branch replaces the
+    # director/board routing entirely (D49/D53): within-budget -> approved,
+    # over-budget -> auto-rejected. Outcome asserts live in the R29/R30
+    # `state` cases, where a failure is classified per rule.
+    - target: pr_proj_within
+      after_records: true
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement approve -> drawdown, within budget"
+      timeout_s: 30
+    - target: pr_proj_over
+      after_records: true
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement approve -> drawdown, over budget"
+      timeout_s: 30
+
   # fixtures.actions — fire a post-action / one-click workflow on a fixture
   # record once, up front (after records exist), via the triggerWorkflows
   # query param. Here: drive po_closed (a draft PO with a line) to `closed`
@@ -258,6 +410,20 @@ fixtures:
         - collection: purchase_orders
           id_ref: po_issued
           match: { status: issued }
+      timeout_s: 30
+    # Drive proj_approved_2 -> closed through Close Project (key
+    # px2xvjaxoqf, custom-action, sync) so cases start against a stable
+    # closed project. As admin: setup, not the rule under test (the close
+    # workflow's own role check passes admin; status check passes:
+    # approved). R27's own allow case closes proj_approved as procurement.
+    - target: proj_approved_2
+      as: admin
+      action: projects:trigger
+      trigger_workflows: px2xvjaxoqf
+      assert:
+        - collection: projects
+          id_ref: proj_approved_2
+          match: { status: closed }
       timeout_s: 30
 
 cases:
@@ -563,6 +729,218 @@ cases:
     target: po_issued_line
     values: { received_quantity: 5 }
     expect: deny
+
+  # ==========================================================================
+  # R25-R30: projects. All tagged [projects] for scoped first runs
+  # (--tag projects). Guard interference checked before drafting
+  # (2026-07-04): "Guard: Project Immutability" (2h75zryz3cb, sync 400)
+  # bites update/destroy when status is any pending_*, approved, or closed —
+  # deny cases against those statuses isolate the GUARD; the draft-status
+  # allow cases isolate ACL. Destroy-deny isolates ACL (no role has destroy
+  # at any status). Close denies: 403 = ACL (no trigger grant), 400 = the
+  # close workflow's own status/role End-nodes.
+  # ORDER SENSITIVE: the R28 link-allow case and the R29/R30 state cases
+  # must run BEFORE R27's close-allow case turns proj_approved `closed`
+  # (committed_usd is unaffected by the close, but the link-allow would
+  # false-fail). Keep the R27 block last.
+  # ==========================================================================
+
+  # --- R25: only operations has create on projects (ACL audit 2026-07-04).
+  - rule: R25
+    name: operations user can create a project
+    as: operations_a
+    action: projects:create
+    values: { title: "[TEST] R25 project", budget_usd: 100, justification: "[TEST] R25" }
+    expect: allow
+    tags: [projects]
+
+  - rule: R25
+    name: procurement cannot create a project
+    as: procurement_a
+    action: projects:create
+    values: { title: "[TEST] R25 blocked", budget_usd: 100 }
+    expect: deny
+    tags: [projects]
+
+  - rule: R25
+    name: director cannot create a project
+    as: director_a
+    action: projects:create
+    values: { title: "[TEST] R25 blocked", budget_usd: 100 }
+    expect: deny
+    tags: [projects]
+
+  - rule: R25
+    name: finance cannot create a project
+    as: finance_a
+    action: projects:create
+    values: { title: "[TEST] R25 blocked", budget_usd: 100 }
+    expect: deny
+    tags: [projects]
+
+  # --- R26: draft is editable (by ANY operations user — update grant has
+  # scope: all records, verified live 2026-07-04); locked statuses deny for
+  # every role; destroy denies everywhere (ACL, before the guard is reached).
+  - rule: R26
+    name: operations user can edit their own draft project
+    as: operations_a
+    action: projects:update
+    target: proj_draft
+    values: { title: "[TEST] draft project (edited)" }
+    expect: allow
+    tags: [projects]
+
+  - rule: R26
+    name: another operations user can edit the same draft project (no ownership scope)
+    as: operations_b
+    action: projects:update
+    target: proj_draft
+    values: { title: "[TEST] draft project (edited by b)" }
+    expect: allow
+    tags: [projects]
+
+  - rule: R26
+    name: operations cannot edit a mid-flow project (pending dept approval)
+    as: operations_a
+    action: projects:update
+    target: proj_pending
+    values: { title: "[TEST] should be blocked" }
+    expect: deny
+    tags: [projects]
+
+  - rule: R26
+    name: operations cannot edit an approved project
+    as: operations_a
+    action: projects:update
+    target: proj_approved
+    values: { title: "[TEST] should be blocked" }
+    expect: deny
+    tags: [projects]
+
+  # procurement HAS a projects update grant (rejection_*/approval_document/
+  # attachments), so this deny against a closed project isolates the guard.
+  - rule: R26
+    name: procurement cannot edit a closed project
+    as: procurement_a
+    action: projects:update
+    target: proj_approved_2
+    values: { rejection_comment: "[TEST] should be blocked" }
+    expect: deny
+    tags: [projects]
+
+  - rule: R26
+    name: operations cannot delete a project (even a draft)
+    as: operations_a
+    action: projects:destroy
+    target: proj_draft
+    expect: deny
+    tags: [projects]
+
+  # --- R28: create guard lylobzvlh5p blocks linking a non-approved project
+  # (HTTP 400). The allow side must run while proj_approved is still open —
+  # BEFORE R27's close-allow below. The allow-case PR stays draft (no
+  # quote), so it never enters committed_usd and teardown can delete it.
+  - rule: R28
+    name: PR cannot be created linked to a draft project
+    as: operations_a
+    action: purchase_requests:create
+    values: { title: "[TEST] R28 blocked", project: "@ref:proj_draft" }
+    expect: deny
+    tags: [projects]
+
+  - rule: R28
+    name: PR cannot be created linked to a closed project
+    as: operations_a
+    action: purchase_requests:create
+    values: { title: "[TEST] R28 blocked", project: "@ref:proj_approved_2" }
+    expect: deny
+    tags: [projects]
+
+  - rule: R28
+    name: PR can be created linked to an approved project
+    as: operations_a
+    action: purchase_requests:create
+    values: { title: "[TEST] R28 allowed", project: "@ref:proj_approved" }
+    expect: allow
+    tags: [projects]
+
+  # --- R29: outcomes of the drawdown chains driven in fixtures.approvals
+  # (after_records pass). state cases: polled subset-match, admin read.
+  - rule: R29
+    name: over-budget project PR was auto-rejected at procurement approve
+    type: state
+    target: pr_proj_over
+    match: { status: rejected }
+    tags: [projects]
+
+  - rule: R29
+    name: within-budget project PR was approved
+    type: state
+    target: pr_proj_within
+    match: { status: approved }
+    tags: [projects]
+
+  - rule: R29
+    name: project committed_usd recomputed from approved PRs only (1000, not 10500)
+    type: state
+    target: proj_approved
+    match: { committed_usd: 1000 }
+    tags: [projects]
+
+  # --- R30: the within-budget PR reached `approved` off ONE procurement
+  # decision (its fixture chain has a single step, no director/board) —
+  # that is the unconditional director-skip. If the skip regressed, the PR
+  # would sit at pending_director_approval and this match fails.
+  - rule: R30
+    name: project PR reached approved with procurement as the final human step
+    type: state
+    target: pr_proj_within
+    match: { status: approved }
+    tags: [projects]
+
+  # --- R27: close action. KEEP LAST (the allow case closes proj_approved).
+  - rule: R27
+    name: operations cannot fire the close action (no trigger grant)
+    as: operations_a
+    action: projects:trigger
+    target: proj_approved
+    trigger_workflows: px2xvjaxoqf
+    expect: deny
+    tags: [projects]
+
+  - rule: R27
+    name: a draft project cannot be closed
+    as: procurement_a
+    action: projects:trigger
+    target: proj_draft
+    trigger_workflows: px2xvjaxoqf
+    expect: deny
+    tags: [projects]
+
+  - rule: R27
+    name: a closed project cannot be closed again
+    as: procurement_a
+    action: projects:trigger
+    target: proj_approved_2
+    trigger_workflows: px2xvjaxoqf
+    expect: deny
+    tags: [projects]
+
+  - rule: R27
+    name: procurement can close an approved project
+    as: procurement_a
+    action: projects:trigger
+    target: proj_approved
+    trigger_workflows: px2xvjaxoqf
+    expect: allow
+    tags: [projects]
+
+  - rule: R27
+    name: the closed project actually reached status closed
+    type: state
+    target: proj_approved
+    match: { status: closed }
+    tags: [projects]
 
 teardown:
   sweep_collections: []

@@ -20,7 +20,7 @@ Migrated 2026-07-02 from the retired `project_current_state.md` (see D-entries i
 
 ## Test/demo user personas (NOT the automated suite's fixtures)
 
-`alice.member`, `oliver.owner`, `pat.procurement`, `dana.director`, `simon.supervisor`, `fiona.finance` are long-lived, manually-created personas used for UI walkthroughs and demos — not the `nocobase-test` runner's ephemeral `test_<name>@test.local` fixtures. The test suite must not assume these users, touch their data, or clean them up; if suite fixtures are needed, seed separate `test_*` accounts.
+`alice.member`, `oliver.owner`, `pat.procurement`, `dana.director`, `simon.supervisor`, `fiona.finance` are long-lived, manually-created personas used for UI walkthroughs and demos — not the `nb-test` runner's ephemeral `test_<name>@test.local` fixtures. The test suite must not assume these users, touch their data, or clean them up; if suite fixtures are needed, seed separate `test_*` accounts.
 
 **Correction 2026-07-02:** Alexander clarified these personas are themselves dev/test-only (nothing here is a real production identity — this is local dev, and go-live migration moves only settings/ACL/workflows, never data or these accounts). They're fine for the test suite to use directly, including changing their passwords to a shared value (`nbtest`) — the constraint above about "must not assume/touch/clean up" was more caution than necessary and can be relaxed.
 
@@ -30,7 +30,7 @@ Migrated 2026-07-02 from the retired `project_current_state.md` (see D-entries i
 
 Draft rules exist in `tests/plan.yaml`'s comment header but have no cases yet: R12 (director update at `pending_director_approval`), R15/R17–R20 (`purchase_orders`), R21–R24 (`po_lines`). All need a `purchase_request` fixture actually at `status: approved` (or further along), which only happens by being driven through the real PR Approval workflow — not settable directly on create (no role's create whitelist includes `status`, and even if it did, guards check the real record).
 
-`runner.py`'s `fixtures.approvals` block drives a fixture record through real approval decisions once, up front, before any cases run — see `nb-project-suite`'s `plan.example.yaml` and `nocobase-test/SKILL.md` Pitfalls. `approvalRecords:submit` only accepts `status: 2` (approve) or `status: -1` (reject) — there is no `status: 1` for "return." Returning a record is a separate action, `approvalRecords:return` (no `status` field, just `comment`/`returnToNodeKey`).
+`runner.py`'s `fixtures.approvals` block drives a fixture record through real approval decisions once, up front, before any cases run — see `nb-project-suite`'s `plan.example.yaml` and `nb-test/SKILL.md` Pitfalls. `approvalRecords:submit` only accepts `status: 2` (approve) or `status: -1` (reject) — there is no `status: 1` for "return." Returning a record is a separate action, `approvalRecords:return` (no `status` field, just `comment`/`returnToNodeKey`).
 
 Use the real personas above (`dana.director`=id 12, `pat.procurement`=id 11, `fiona.finance`=id 14, `oliver.owner`=id 10 — all already set as the relevant `departments.main_approver`, see D40) as `fixtures.users` entries with `existing: true` and the shared `nbtest` password — this tells the runner to sign in only, never touch their nickname/role. Don't create new synthetic approver users — the whole point of driving the real chain is exercising the real assignee-matching logic in `approvalRecords:submit`'s `validateSubmit`, which checks the record's actual assigned `userId`.
 

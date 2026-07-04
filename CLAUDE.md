@@ -39,7 +39,7 @@ When the user names an MVP (e.g. "let's do 014.5"):
 
 ## Test gate
 
-A chunk isn't complete until `nocobase-test run` is fully green AND the user has verbally confirmed the UI/behavior works. Not a checkbox ritual — an actual "yes this works" from the user. Once the backend is tested green, write a descriptive interface brief into the chunk file (blocks, field bindings, actions, linkage suggestions) and stop; the human builds the screen. The brief is a suggestion sheet, not a contract — the result may differ completely.
+A chunk isn't complete until `nb-test run` is fully green AND the user has verbally confirmed the UI/behavior works. Not a checkbox ritual — an actual "yes this works" from the user. Once the backend is tested green, write a descriptive interface brief into the chunk file (blocks, field bindings, actions, linkage suggestions) and stop; the human builds the screen. The brief is a suggestion sheet, not a contract — the result may differ completely.
 
 At session end:
 - If the plan changed during the build: edit chunks/NNN-*.md in place AND append a D-entry to decisions.md listing affected downstream chunks.
@@ -69,9 +69,9 @@ Do NOT lead with raw payloads, JSON bodies, or field-by-field CLI arguments. Ale
 
 ## Skills
 Official (auto-installed with NocoBase CLI): nocobase-env-manage, nocobase-plugin-manage, nocobase-data-modeling, nocobase-acl-manage, nocobase-workflow-manage, nocobase-ui-builder, nocobase-data-analysis, nocobase-utils.
-This suite (`nb-project-suite`): nocobase-test (rules/cases, runner, pre-deploy gate), nocobase-bootstrap (this file's own origin — re-invoke only for a genuinely new project, not per chunk), nocobase-new-project (scaffold).
+This suite (`nb-project-suite`): nb-test (rules/cases, runner, pre-deploy gate), nb-bootstrap (this file's own origin — re-invoke only for a genuinely new project, not per chunk), nb-new-project (scaffold).
 Consult `nocobase-runjs` before writing any custom JS (JS Block/Field/Item/Column/Action, linkage rule scripts) — e.g. the `snippets/` JS blocks.
-Before building or changing workflows, approval forms, ACL, or formula fields: check `nocobase-bootstrap`'s gotchas catalogue for a known trap first — cheaper than rediscovering it live.
+Before building or changing workflows, approval forms, ACL, or formula fields: check `nb-bootstrap`'s gotchas catalogue for a known trap first — cheaper than rediscovering it live.
 **Do NOT use `nocobase-dsl-reconciler` for this project** — it authors apps as committed YAML + `cli push`, a fundamentally different model from this project's live-first approach (this file's whole workflow assumes `nb api` is the source of truth). Switching now would mean re-deriving 16+ already-shipped MVPs into YAML for no benefit. The skill's own description is opt-in-only, but this is a real fork in how the project works, not a minor tool choice — don't invoke it here even if asked for "the DSL path" in a generic sense; confirm explicitly first.
 
 ## Commits
