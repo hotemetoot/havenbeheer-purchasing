@@ -9,8 +9,11 @@
 # Checked for interference from request-interception guards on
 # purchase_requests before drafting the update/destroy cases:
 #   - "Guard A — PR Immutability Guard" blocks update/destroy only when
-#     status is approved/rejected/cancelled — does not affect draft, so R2/R3
-#     below are clear.
+#     status is approved or rejected (verified live 2026-07-04, id
+#     366217145548800). Its condition still lists `cancelled` too, but that is
+#     a dead clause after D68 retired the status — no PR can reach it. It does
+#     NOT block info_requested, so R2 (edit) and R3 (destroy-deny via ACL)
+#     both reach ACL as intended.
 #   - "Guard: PR Budget (create) — block over-project-budget" triggers on
 #     create but only matters when a project is linked; fixtures below don't
 #     set project/projectId, so it should be a no-op. Flag to Alexander if
@@ -18,7 +21,7 @@
 
 rules:
   R1: Operations users can create purchase requests.
-  R2: Operations users can update their own purchase request while its status is draft or info_requested, and cannot update another operations user's purchase request.
+  R2: Operations users can update their own purchase request only while its status is info_requested; they cannot update another operations user's purchase request. Ownership = the acting user is the PR's creator (createdById) or submitter (submitterId). (D68 retired draft; the only operations-editable status is now info_requested, reached by an approver returning the PR for info.)
   R3: Operations users cannot delete purchase requests.
   R4: Only procurement can create purchase orders; director cannot create one. # TODO verify
   R5: Only procurement can create po_lines; director cannot create one. # TODO verify
@@ -76,9 +79,15 @@ fixtures:
 
   records:
     purchase_requests:
+      # pr_draft_a: created into the approval flow, then returned for info by
+      # procurement (see fixtures.approvals) so it lands at info_requested —
+      # the only status operations can edit after D68 retired `draft`. Name
+      # kept; shared source PR for R2 (owner edit), R13 (not-director-stage),
+      # R16 (not-approved).
       - id_ref: pr_draft_a
         as: operations_a
-        values: { title: "[TEST] Office chairs", status: draft }
+        trigger_workflow: cv237r8h7k9   # PR Approval workflow key
+        values: { title: "[TEST] Office chairs", quoted_total: 100 }
       - id_ref: pr_pending_director
         as: operations_a
         trigger_workflow: cv237r8h7k9   # PR Approval workflow key
@@ -232,6 +241,23 @@ fixtures:
   # (is_regular != true) -> pending_director_approval -> Director Approval
   # -> "Board required?" false (< $15k) -> approved.
   approvals:
+    # pr_draft_a: created into the flow (skips dept — test users carry no
+    # department), lands at the procurement stage; procurement RETURNS it for
+    # info. The Procurement Approval node's return branch (branchIndex 1) is
+    # wired to "Procurement Returned → Info Requested", which sets
+    # status=info_requested (verified live 2026-07-04). A plain return needs no
+    # returnToNodeKey (node returnTo=null). This is the only way to reach the
+    # one operations-editable status after D68 — operations cannot write status.
+    - target: pr_draft_a
+      steps:
+        - as: pat_procurement
+          decision: return
+          comment: "[TEST] procurement returns for info -> info_requested"
+      assert:
+        - collection: purchase_requests
+          id_ref: pr_draft_a
+          match: { status: info_requested }
+      timeout_s: 30
     # pr_pending_director: one step only (Procurement), lands at
     # pending_director_approval - the precondition for R12.
     - target: pr_pending_director
@@ -431,11 +457,11 @@ cases:
     name: operations user can create a purchase request
     as: operations_a
     action: purchase_requests:create
-    values: { title: "[TEST] New PR", status: draft }
+    values: { title: "[TEST] New PR" }   # status omitted — defaults to pending_dept_approval (D68)
     expect: allow
 
   - rule: R2
-    name: operations user can update their own draft PR
+    name: operations user can update their own info_requested PR
     as: operations_a
     action: purchase_requests:update
     target: pr_draft_a
@@ -443,7 +469,7 @@ cases:
     expect: allow
 
   - rule: R2
-    name: operations user cannot update another operations user's draft PR
+    name: operations user cannot update another operations user's info_requested PR
     as: operations_b
     action: purchase_requests:update
     target: pr_draft_a
