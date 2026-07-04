@@ -1,49 +1,63 @@
-# HANDOFF — havenbeheer retrofit, Step 6 (rewritten 2026-07-04, twelfth session)
+# HANDOFF — havenbeheer retrofit, Step 6 (rewritten 2026-07-04, thirteenth session)
 
-**Read this first, then:** `~/.claude/skills/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (authoritative step list), this project's `CLAUDE.md`, and `decisions.md` D63–D65. `notes.md` holds non-queryable traps and the go-live checklist. Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py` — it gained four features this session (logged there, dated 2026-07-04).
+**Read this first, then:** `~/.claude/skills/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (authoritative step list), this project's `CLAUDE.md`, and `decisions.md` D63–D67. `notes.md` holds non-queryable traps and the go-live checklist. Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py`.
 
 Per-session narrative lives in `decisions.md` and git history — not repeated here.
 
 ## What this is
 
-`Havenbeheer Purchasing` is `nb-project-suite`'s deliverable-6 pilot: proving the test suite works end-to-end on a real, mature project (16+ MVPs shipped). Steps 0–5 done. **Step 6** (extend `tests/plan.yaml` with a full ACL/workflow audit, rule by rule, verified live) is in progress: PR/PO/po_lines covered and green; **the projects rules R25–R30 are now DRAFTED but have never run — they wait on Alexander's word-by-word review (the hard gate)**. Then `suppliers`, `departments`.
+`Havenbeheer Purchasing` is `nb-project-suite`'s deliverable-6 pilot: proving the test suite works end-to-end on a real, mature project (16+ MVPs shipped). Steps 0–5 done. **Step 6** (extend `tests/plan.yaml` with a full ACL/workflow audit, rule by rule, verified live) is in progress: PR / PO / po_lines covered and green; the **projects rules R25–R30 are now reviewed** (this session). `suppliers` and `departments` still have no audit.
+
+## What landed this session (2026-07-04, thirteenth — review only, no runner execution)
+
+Alexander reviewed the projects rules R25–R30 word by word; each claim re-verified against live state as it was presented. Two committed checkpoints: `edf1592` (the twelfth session's uncommitted draft, committed at session start) and `c99f137` (this review). **Working tree clean.**
+
+| Rule | Outcome | Marker |
+|---|---|---|
+| R25 | Verified live — only operations holds a projects `create` grant | cleared |
+| R26 | **Rewritten** from live "any operations edits any draft" to owner- and stage-scoped intent (D66) | build+verify |
+| R27 | **Renamed** project terminal `closed → completed` (D67); chain logic verified live 7/7 | build+verify |
+| R28 | Verified live (not-approved link check on create *and* update guards); reworded off the stale terminal word | cleared |
+| R29 | Verified live (over-budget auto-reject on procurement approval; strict `>`; committed recompute approved-only) | cleared |
+| R30 | Verified live (drawdown skips director+board unconditionally, no amount operand — confirmed from branch topology) | cleared |
+
+**Two decisions logged, both live builds NOT done (Alexander approves/runs):**
+- **D66** — projects edit ACL to match rewritten R26: operations `update` → `createdBy` own-records scope; drop `remaining_usd` (a formula) from the operations/procurement/director update whitelists; enforce per-stage approver edits (dept head at pending_dept_approval, procurement at pending_purchasing_review, director at pending_director_approval) — likely via the approval process's node-level editable fields, since the D63 immutability guard blocks all direct `projects:update` at every pending stage.
+- **D67** — rename `closed → completed`: `projects.status` enum value+label, `closed_at` field → `completed_at` (+ migrate any existing `status: closed` rows), Close Project workflow (`373522687393792` / `px2xvjaxoqf`) → "Complete Project" success node + reject messages, D63 guard (`373520806248448`) locked-status list, and the `proj_closed` fixture/cases.
 
 ## Current state
 
-**Old suite is green: 33/33, twice this session** (baseline, then a regression run after the runner changes). `plan.yaml` now holds **24 rules / 55 cases** (hygiene-checked only for the new ones). Run it with:
+**Old suite last known green 33/33** (twelfth session; **not re-run this session** — this session read and reviewed only). `plan.yaml` = **24 rules / 55 cases**. Run it with:
 
 ```
 /opt/homebrew/bin/python3 ~/.claude/skills/nb-project-suite/tools/nb-test/runner.py run --project-dir .
 ```
 
-**Use the explicit `/opt/homebrew/bin/python3`** (3.14, has `requests`+`pyyaml`). Bare `python3` non-deterministically resolves to system 3.9.6 without deps in non-login shells.
+**Use the explicit `/opt/homebrew/bin/python3`** (3.14, has `requests`+`pyyaml`). Bare `python3` non-deterministically resolves to system 3.9.6 without deps.
 
-**DO NOT run the full suite until Alexander has reviewed R25–R30** — a full run executes the new cases. This session had a near-miss: a verification run was started after drafting and only failed to execute anything because the new fixture user wasn't seeded yet (`signIn failed for test_operations_proj@...` — no fixtures were created, no case ran, the gate held by accident). If you must prove the old rules still pass, temporarily stash the R25–R30 sections — or just wait for the review.
+**DO NOT run the projects rules yet.** R25/R28/R29/R30 would pass, but the **R26/R27 cases are now stale** — they still assert the old "any operations edits any draft" behavior and use `proj_closed`. They must be reworked to the new model (D66) and `completed` (D67) before a run means anything. The projects fixtures still build on any run.
 
-## What landed this session (2026-07-04, twelfth)
+**Rule C revision (D65) still NOT activated** — verified live this session: `373589018214400` disabled + not current; buggy `372552255471616` current+enabled. Activation is Alexander's one-step action: enable+current on `373589018214400`, disable `372552255471616`.
 
-1. **R25–R30 drafted** in `tests/plan.yaml`, all `# TODO verify`, all cases tagged `[projects]` (first reviewed run can be scoped: `--tag projects` — note the OLD fixtures still build on any run; scoping only skips cases). Coverage: only-operations-create (R25); immutability incl. the no-ownership-scope fact and destroy-deny (R26); close allow/denies (R27); PR-link guard both sides (R28); over-budget backstop + committed recompute (R29); unconditional director-skip (R30). Everything cited in the case comments was re-verified live this session (ACL per role, guard's 6 locked statuses, close chain, drawdown branch, `status` defaultValue, operations' PR whitelist carries `project`).
-2. **Rule C built, NOT active** (D65): same-key revision `373589018214400` of Project Approval fixes the null `departmentId` write. The permission layer blocked the live swap — **Alexander activates**: enable+current on `373589018214400`, disable `372552255471616`. Structure verified identical (22 nodes, wiring diff clean).
-3. **Four `runner.py` features** (details in the suite's own HANDOFF): `main_department:` on fixture users (dept-routed ladders — membership + `isMain` through-row, probe-verified live); `after_records: true` on approvals entries (second approvals pass, for PRs that can only exist after their project is approved); `trigger` verb on permission cases (ACL-gated close tests); `state` case type (assert fixture-produced outcomes per rule). First two regression-verified 33/33; last two are new code paths first exercised by the projects rules.
+## Next session starts here (order set by Alexander)
 
-## Next session starts here
-
-1. **Alexander reviews R25–R30 word by word** (and clears whichever `# TODO verify` markers he chooses, incl. the R4–R24 backlog listed below). One rule to read extra carefully: **R26 states ANY operations user can edit ANY draft project** — that's the live ACL (update grant, scope: all records, re-verified 2026-07-04), written as-is so he can either bless it or turn it into an ACL fix + rule change.
-2. **Alexander activates the Rule C revision** (one step, above).
-3. **First run:** `run --seed --project-dir .` (seed creates `test_operations_proj@test.local` with main department = Procurement `363554444476416` so the projects ladder's dept stage lands on Pat). Expect 55 cases. On any failure: classify rule / case / app before touching anything — the four new runner features and the zero-step `proj_pending` approvals assert are the least-proven parts.
-4. Then the **UI build** (Alexander) proceeds on proven numbers: Close button = "Trigger workflow" bound to `px2xvjaxoqf`; the procurement-form remaining-budget guardrail per D53 (UI rule: entered quote > `remaining_usd`, strict >); board `approval_document` required (D49) still open.
-5. Then `suppliers` and `departments` — same method, no audit done yet.
-
-## Fixture design notes (projects)
-
-- `operations_proj` is the ONLY dept-bearing test user. **Do not add departments to the existing seeded users** — it would change the already-green PR approval chains (their dept stage currently skips for dept-less users; the projects ladder instead stalls at the dept stage, which the `proj_pending` fixture exploits deliberately: submitted by operations_proj, left unapproved at Pat's dept stage).
-- Chains: projects need 3 steps (Pat dept → Pat procurement → Dana director; budgets 5000 < 15k board threshold). Drawdown PRs need 1 step each (Pat; the drawdown branch replaces director/board).
-- **Teardown:** all project fixtures delete cleanly (guard exempts admin; approvals rows cascade). The two terminal drawdown PRs do NOT (Guard A) — **debris grows by 2 labeled PRs per full run** (1 approved, 1 rejected, project FKs dangling), on top of the existing 4-PR/PO/line set (D60/D62 policy).
-- Case order in the file is load-bearing: R28's link-allow and the R29/R30 state cases sit BEFORE the R27 block, whose allow case closes `proj_approved`.
+1. **Backlog word-review FIRST** — Alexander reviews the older rule TEXTS still carrying `# TODO verify`: **R4, R5, R12, R13, R14, R16, R17, R18, R20, R21, R22, R24**. These are already green in the suite; this is the review gate (his sign-off on wording), not test-pass. Present ONE at a time, re-verify each claim live, clear the marker on his OK. (R1–R3, R15, R19, R23 already cleared.)
+2. **Then D67 (the rename) in a fresh session** — Alexander's explicit sequencing. Mechanical live build; unblocks clean R27 cases.
+3. **D66** — projects-edit ACL + approval-process build (the heavier one). Then rework the R26/R27 cases.
+4. **Rule C activation (D65)** — one-step user action, still pending; do whenever convenient.
+5. **First projects run** — `run --seed --project-dir .` once R26/R27 cases are reworked (seed creates `test_operations_proj@test.local`, main department Procurement `363554444476416`). Expect 55 cases. On failure, classify rule / case / app before touching anything.
 
 ## Standing review gate — `# TODO verify`
 
-Tracks Alexander's word-by-word review, NOT test-pass; he clears it, not you. Carrying: R4, R5, R12, R13, R14, R16, R17, R18, R20, R21, R22, R24, **R25–R30 (new, never run)**. Clear: R1–R3, R15, R19, R23.
+Tracks Alexander's word-by-word review, NOT test-pass; he clears it. Carrying: **R4, R5, R12, R13, R14, R16, R17, R18, R20, R21, R22, R24**. Cleared: R1–R3, R15, R19, R23, **R25, R28, R29, R30**. On `# TODO build+verify` (approved text, needs a build to pass): **R26, R27**.
+
+## Fixture design notes (projects) — carry over
+
+- `operations_proj` is the ONLY dept-bearing test user. **Do not add departments to the existing seeded users** — it would change the already-green PR approval chains.
+- Chains: projects need 3 steps (Pat dept → Pat procurement → Dana director; budgets 5000 < 15k board threshold). Drawdown PRs need 1 step each (Pat; drawdown branch replaces director/board — R30).
+- **Teardown:** project fixtures delete cleanly (guard exempts admin). The two terminal drawdown PRs do NOT (Guard A) — **debris grows by 2 labeled PRs per full run**, on top of the existing 4-PR/PO/line set (D60/D62 policy).
+- Case order in the file is load-bearing: R28's link-allow and the R29/R30 state cases sit BEFORE the R27 block, whose allow case closes/completes `proj_approved`.
+- When reworking R26 cases: the new model needs owner-scoped edit allow, cross-operations edit deny, dept-head stage edit, `remaining_usd` write deny, and rejected-locked deny.
 
 ## Before go-live (detail in `notes.md`)
 
@@ -63,4 +77,4 @@ Tracks Alexander's word-by-word review, NOT test-pass; he clears it, not you. Ca
 - **Review rules, not payloads.** Business rules for approval; mechanism only if asked.
 - **Verify NocoBase claims against live state**, not docs/memory/prior sessions.
 - **Never touch VPS/production.** He builds all UI himself unless he delegates a screen. API keys: he pastes them into `.env.test` himself — never in chat or committed files.
-- Pragmatic about local dev-only risk, but explicit, specifically-named confirmation before mutating real accounts, data, or live ACL/config. (This session's example: the Rule C revision swap was correctly held for him even though "do the backend work" was a general go-ahead.)
+- Pragmatic about local dev-only risk, but explicit, specifically-named confirmation before mutating real accounts, data, or live ACL/config.
