@@ -3,7 +3,7 @@
 | MVP | Scope | Status |
 |---|---|---|
 | 001 | 3-stage approval (dept → procurement → director), approve/return/reject | ✓ complete |
-| 002 | Cancel by submitter (draft only) | ✓ complete |
+| 002 | Cancel by submitter (draft only) | ⊘ retired 2026-07-04 by D68 — draft stage dropped, so submitter-cancel removed; a PR starts at Pending Dept Approval |
 | 003 | Quotation fields + currency + manual FX rate (D22) + formula USD total | ✓ complete |
 | 004 | Manual `needs_director_approval` checkbox (D23) + routing | ✓ complete |
 | 005 | Guard A — PR immutability when terminal (bulk-update limitation deferred, D24) | ✓ complete |
