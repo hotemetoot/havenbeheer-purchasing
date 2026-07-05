@@ -66,15 +66,16 @@ Backlog word-review, one rule at a time, each claim re-verified against live sta
 
 ## Next session starts here
 
-1. **Finish the Step 6 audit surface**: `suppliers` and `departments` still have no rules at all. Draft, review as a group, run.
-2. **R27 word-review** — its cases are green and D67 is live; the `# TODO verify` just needs Alexander's read of the rule sentence.
-3. Then Step 7 (user-guide backfill) / Step 8 (pilot-outcome report, retire `myNocobase-project-workflow`).
+1. **Finish the Step 6 audit surface**: `suppliers` and `departments` still have no rules at all. Draft from live inspection, present as one review group (plain language, concrete examples — see notes.md top), run.
+2. Then Step 7 (user-guide backfill for MVPs 1–16) / Step 8 (pilot-outcome report into `nb-project-suite`'s HANDOFF, retire `myNocobase-project-workflow`).
+
+State at close of eighteenth session: suite green 58/58, all 24 rules reviewed and approved, no `# TODO` markers anywhere in plan.yaml, working tree clean.
 
 ## Standing review gate — `# TODO verify`
 
 Tracks Alexander's word-by-word review, NOT test-pass; he clears it.
 - **Carrying:** none — the PR/PO/po_lines backlog word-review finished 2026-07-05 (fifteenth session). All of R1–R25, R28–R30 are cleared. Stale `# TODO verify` markers on R19/R23 (verified earlier, marker removal missed) were also removed.
-- **Still marked:** only R27 (`# TODO verify`) — cases green, just needs Alexander's read of the rule sentence. R26 cleared 2026-07-05 (eighteenth session, group review + approval).
+- **Nothing marked.** R27 cleared 2026-07-05 (eighteenth session, Alexander's explicit word after the mechanism re-check); R26 cleared same day. **Every rule in plan.yaml is now reviewed and approved, and the suite is green** — the review backlog for PR / PO / po_lines / projects is fully closed.
 - **Review protocol changed 2026-07-05 (Alexander):** reviews are now short verdicts — verify the cited mechanism (guard enabled+condition, grant+scope), state holds/doesn't, stop. Coverage is one case per mechanism, not per role; never flag missing role×action matrix combinations. Codified in the nb-test SKILL.md "Coverage scope" section and auto-memory `feedback_test_coverage_lean.md`. Existing fanned-out green cases (e.g. R20/R24) stay as-is — no churn.
 
 ## Live-state cleanups flagged, not done (Alexander's call — live writes)
