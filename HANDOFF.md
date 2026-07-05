@@ -80,8 +80,9 @@ Tracks Alexander's word-by-word review, NOT test-pass; he clears it.
 ## Live-state cleanups flagged, not done (Alexander's call — live writes)
 
 - **Guard A (PR Immutability, id 366217145548800) still carries a dead `cancelled` clause** in its "Status is terminal?" condition (approved OR rejected OR cancelled). Harmless — no PR reaches `cancelled` after D68 — but out of sync. Trimming is a live workflow edit (needs version/revision care). *(The parallel dead `draft` clause on the operations update ACL scope WAS trimmed live this session.)*
-- **Project guard's reject message is stale** (found eighteenth session): guard `2h75zryz3cb`'s error text still tells the user "Only draft, info-requested, or rejected projects can be changed" — but D66 locked `rejected`. Blocking behavior is correct; only the message wording is wrong. Fix = another revision of that guard.
-- **Predecessor housekeeping**: Rule C's old revision `372552255471616` still enabled-not-current (D65 rollback); D70's two guard predecessors disabled as rollback. Disabling/cleanup awaits Alexander's word.
+- ~~Project guard's reject message stale~~ **FIXED 2026-07-05** (same session, Alexander's go-ahead): new revision `373836840763392` of `2h75zryz3cb` — "or rejected" removed from the message. Also fixed the Receive guard's message (said "sent", a D69-retired status; now "issued") via revision `373836909969408` of `mhfp4d15uee`. Message-only changes, copies diffed identical first; suite re-ran green 58/58 after.
+- **Trap hit while re-running:** right after enabling a revision, `triggerWorkflows`-bound actions can 500 with "Workflow on your action hangs" (no execution row). `nb api workflow workflows sync --filter '{"enabled": true}'` fixes it. Recorded in auto-memory (`reference_nb_workflow_revision_gotchas` #4).
+- **Predecessor housekeeping**: Rule C's old revision `372552255471616` still enabled-not-current (D65 rollback); D70's two guard predecessors + the two message-fix predecessors (`373789698883584`, `373672421949440`) disabled as rollback. Alexander says leave them for now (2026-07-05).
 
 ## Fixture design notes (carry over)
 
