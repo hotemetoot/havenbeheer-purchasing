@@ -47,14 +47,14 @@ rules:
   R19: Finance and operations users cannot create a purchase order (no independent create grant; view-only via member baseline).
   R23: Finance and operations users cannot create po_lines (no independent create grant; view-only via member baseline).
   # --- R25-R30 drafted 2026-07-04 (twelfth session) from the projects
-  # backend hardened in D63/D64 (guard 2h75zryz3cb, Close Project
-  # px2xvjaxoqf, D53 backstop) and the projects ACL re-verified live this
+  # backend hardened in D63/D64 (guard 2h75zryz3cb, Complete Project
+  # px2xvjaxoqf — "Close Project" pre-D67, D53 backstop) and the projects ACL re-verified live this
   # session. Business rules locked with Alexander 2026-07-03 (see HANDOFF /
   # D63); the rule TEXTS below are still unreviewed - the # TODO verify
   # markers gate the first run.
   R25: Only operations users can create projects; procurement, director, and finance cannot (no create grant — member view-only baseline).
-  R26: Project edits are owner- and stage-scoped, never open to any operations user (ownership key = createdBy). The submitter can edit the content fields (title, budget_usd, description, justification, attachments) only while the project is draft or info_requested; no other operations user can edit a project they did not create. Once submitted, content edits happen only inside the approval flow — the department head can edit those same content fields, including budget_usd, while the project is at pending_dept_approval. The approval-metadata fields (rejection_comment, rejection_reason_category, approval_document) are editable only by the stage approver at that stage — procurement at pending_purchasing_review, director at pending_director_approval — and never outside it. remaining_usd (a formula) and committed_usd (maintained by the recompute workflow) are never directly writable by any role. rejected, approved, and completed projects are fully locked; a project advances only through the approval flow and is completed only via the Complete action (R27). No role can delete a project at any status. Admin is exempt throughout. # TODO build+verify — intent rule; live ACL still differs (operations update is all-records and includes remaining_usd; department-head / procurement / director per-stage edits not yet enforced); terminal status renamed closed→completed (D-entry) not yet built
-  R27: Only procurement can complete a project (dedicated Complete Project action; no other role has the trigger grant), and only an approved one — completing a draft, mid-flow, info_requested, or rejected project, or re-completing a completed one, is rejected. A successful completion sets status completed and stamps completed_at. # TODO build+verify — logic verified live 2026-07-04; action/status/field renamed closed→completed (D-entry), live app still uses closed until the rename build lands
+  R26: Project edits are owner- and stage-scoped, never open to any operations user (ownership key = createdBy). The submitter can edit the content fields (title, budget_usd, description, justification, attachments) only while the project is draft or info_requested; no other operations user can edit a project they did not create. Once submitted, content edits happen only inside the approval flow — the department head can edit those same content fields, including budget_usd, while the project is at pending_dept_approval. The approval-metadata fields (rejection_comment, rejection_reason_category, approval_document) are editable only by the stage approver at that stage — procurement at pending_purchasing_review, director at pending_director_approval — and never outside it. remaining_usd (a formula) and committed_usd (maintained by the recompute workflow) are never directly writable by any role. rejected, approved, and completed projects are fully locked; a project advances only through the approval flow and is completed only via the Complete action (R27). No role can delete a project at any status. Admin is exempt throughout. # TODO build+verify — intent rule; live ACL still differs (operations update is all-records and includes remaining_usd; department-head / procurement / director per-stage edits not yet enforced); the closed→completed rename (D67) is built + live 2026-07-05
+  R27: Only procurement can complete a project (dedicated Complete Project action; no other role has the trigger grant), and only an approved one — completing a draft, mid-flow, info_requested, or rejected project, or re-completing a completed one, is rejected. A successful completion sets status completed and stamps completed_at. # TODO verify — D67 rename built + smoke-tested live 2026-07-05 (reject-draft, complete-approved w/ completed_at, guard-deny, re-complete-deny all pass as real users); full suite run pending
   R28: A purchase request cannot be created linked to a project whose status is anything other than approved — draft, any pending stage, info_requested, rejected, or the completed terminal all block; linking to an approved project is allowed. The same not-approved check also guards project re-links on PR update.
   R29: When procurement approves a project-linked PR, it is auto-rejected if the total of already-approved sibling PRs plus this PR exceeds the project's budget (strict greater-than — exactly on budget still approves); within budget it is approved, and the project's committed amount recomputes from approved PRs only.
   R30: A PR drawing on an approved project skips the director and board stages unconditionally — procurement approval is the final human step, regardless of amount.
@@ -146,7 +146,7 @@ fixtures:
     # cascade-delete with the project (D63).
     projects:
       # proj_draft: plain create, stays draft. Used by R26 (draft edits +
-      # destroy-deny), R27 (close-draft deny), R28 (link-deny).
+      # destroy-deny), R27 (complete-draft deny), R28 (link-deny).
       - id_ref: proj_draft
         as: operations_a
         values: { title: "[TEST] draft project", budget_usd: 5000, justification: "[TEST] R26 draft fixture" }
@@ -159,20 +159,20 @@ fixtures:
         trigger_workflow: hzykothf9cx   # Project Approval workflow key
         values: { title: "[TEST] mid-flow project", budget_usd: 5000, justification: "[TEST] R26 mid-flow fixture" }
       # proj_approved: full ladder to approved. The drawdown target for
-      # R28/R29/R30's PRs, then R27's close-allow target (case order:
-      # the R28 link-allow case MUST run before the R27 close-allow case).
+      # R28/R29/R30's PRs, then R27's complete-allow target (case order:
+      # the R28 link-allow case MUST run before the R27 complete-allow case).
       - id_ref: proj_approved
         as: operations_proj
         trigger_workflow: hzykothf9cx
         values: { title: "[TEST] approved project", budget_usd: 5000, justification: "[TEST] drawdown fixture" }
       # proj_approved_2: full ladder to approved, then fixtures.actions
-      # closes it AS ADMIN before any case runs -> the stable `closed`
-      # project for R26 (closed-update deny), R27 (re-close deny), R28
-      # (link-to-closed deny).
+      # completes it AS ADMIN before any case runs -> the stable `completed`
+      # project for R26 (completed-update deny), R27 (re-complete deny), R28
+      # (link-to-completed deny).
       - id_ref: proj_approved_2
         as: operations_proj
         trigger_workflow: hzykothf9cx
-        values: { title: "[TEST] closed project", budget_usd: 5000, justification: "[TEST] closed fixture" }
+        values: { title: "[TEST] completed project", budget_usd: 5000, justification: "[TEST] completed fixture" }
 
     # Reference data for the Issue PO guard: it requires supplierId and
     # deliveryAddressId to be set. Created as admin (plain reference records,
@@ -437,11 +437,11 @@ fixtures:
           id_ref: po_issued
           match: { status: issued }
       timeout_s: 30
-    # Drive proj_approved_2 -> closed through Close Project (key
+    # Drive proj_approved_2 -> completed through Complete Project (key
     # px2xvjaxoqf, custom-action, sync) so cases start against a stable
-    # closed project. As admin: setup, not the rule under test (the close
-    # workflow's own role check passes admin; status check passes:
-    # approved). R27's own allow case closes proj_approved as procurement.
+    # completed project. As admin: setup, not the rule under test (the
+    # complete workflow's own role check passes admin; status check passes:
+    # approved). R27's own allow case completes proj_approved as procurement.
     - target: proj_approved_2
       as: admin
       action: projects:trigger
@@ -449,7 +449,7 @@ fixtures:
       assert:
         - collection: projects
           id_ref: proj_approved_2
-          match: { status: closed }
+          match: { status: completed }
       timeout_s: 30
 
 cases:
@@ -762,14 +762,14 @@ cases:
   # R25-R30: projects. All tagged [projects] for scoped first runs
   # (--tag projects). Guard interference checked before drafting
   # (2026-07-04): "Guard: Project Immutability" (2h75zryz3cb, sync 400)
-  # bites update/destroy when status is any pending_*, approved, or closed —
+  # bites update/destroy when status is any pending_*, approved, or completed —
   # deny cases against those statuses isolate the GUARD; the draft-status
   # allow cases isolate ACL. Destroy-deny isolates ACL (no role has destroy
-  # at any status). Close denies: 403 = ACL (no trigger grant), 400 = the
-  # close workflow's own status/role End-nodes.
+  # at any status). Complete denies: 403 = ACL (no trigger grant), 400 = the
+  # complete workflow's own status/role End-nodes.
   # ORDER SENSITIVE: the R28 link-allow case and the R29/R30 state cases
-  # must run BEFORE R27's close-allow case turns proj_approved `closed`
-  # (committed_usd is unaffected by the close, but the link-allow would
+  # must run BEFORE R27's complete-allow case turns proj_approved `completed`
+  # (committed_usd is unaffected by completion, but the link-allow would
   # false-fail). Keep the R27 block last.
   # ==========================================================================
 
@@ -846,9 +846,9 @@ cases:
     tags: [projects]
 
   # procurement HAS a projects update grant (rejection_*/approval_document/
-  # attachments), so this deny against a closed project isolates the guard.
+  # attachments), so this deny against a completed project isolates the guard.
   - rule: R26
-    name: procurement cannot edit a closed project
+    name: procurement cannot edit a completed project
     as: procurement_a
     action: projects:update
     target: proj_approved_2
@@ -866,7 +866,7 @@ cases:
 
   # --- R28: create guard lylobzvlh5p blocks linking a non-approved project
   # (HTTP 400). The allow side must run while proj_approved is still open —
-  # BEFORE R27's close-allow below. The allow-case PR stays draft (no
+  # BEFORE R27's complete-allow below. The allow-case PR stays draft (no
   # quote), so it never enters committed_usd and teardown can delete it.
   - rule: R28
     name: PR cannot be created linked to a draft project
@@ -877,7 +877,7 @@ cases:
     tags: [projects]
 
   - rule: R28
-    name: PR cannot be created linked to a closed project
+    name: PR cannot be created linked to a completed project
     as: operations_a
     action: purchase_requests:create
     values: { title: "[TEST] R28 blocked", project: "@ref:proj_approved_2" }
@@ -926,9 +926,9 @@ cases:
     match: { status: approved }
     tags: [projects]
 
-  # --- R27: close action. KEEP LAST (the allow case closes proj_approved).
+  # --- R27: complete action. KEEP LAST (the allow case completes proj_approved).
   - rule: R27
-    name: operations cannot fire the close action (no trigger grant)
+    name: operations cannot fire the complete action (no trigger grant)
     as: operations_a
     action: projects:trigger
     target: proj_approved
@@ -937,7 +937,7 @@ cases:
     tags: [projects]
 
   - rule: R27
-    name: a draft project cannot be closed
+    name: a draft project cannot be completed
     as: procurement_a
     action: projects:trigger
     target: proj_draft
@@ -946,7 +946,7 @@ cases:
     tags: [projects]
 
   - rule: R27
-    name: a closed project cannot be closed again
+    name: a completed project cannot be completed again
     as: procurement_a
     action: projects:trigger
     target: proj_approved_2
@@ -955,7 +955,7 @@ cases:
     tags: [projects]
 
   - rule: R27
-    name: procurement can close an approved project
+    name: procurement can complete an approved project
     as: procurement_a
     action: projects:trigger
     target: proj_approved
@@ -964,10 +964,10 @@ cases:
     tags: [projects]
 
   - rule: R27
-    name: the closed project actually reached status closed
+    name: the completed project actually reached status completed
     type: state
     target: proj_approved
-    match: { status: closed }
+    match: { status: completed }
     tags: [projects]
 
 teardown:
