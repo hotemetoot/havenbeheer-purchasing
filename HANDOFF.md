@@ -1,6 +1,14 @@
-# HANDOFF — havenbeheer retrofit, Step 6 (updated 2026-07-05, sixteenth session)
+# HANDOFF — havenbeheer retrofit, Step 6 (updated 2026-07-05, eighteenth session)
 
-**Read this first, then:** `~/.claude/skills/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (authoritative step list), this project's `CLAUDE.md`, and `decisions.md` D63–D69. `notes.md` holds non-queryable traps and the go-live checklist. Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py`.
+**Read this first, then:** `~/.claude/skills/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (authoritative step list), this project's `CLAUDE.md`, and `decisions.md` D63–D70. `notes.md` holds non-queryable traps and the go-live checklist (and, top of file, **how to write for Alexander** — plain language, concrete examples; non-negotiable). Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py`.
+
+## What landed 2026-07-05 (eighteenth session — SUITE FULLY GREEN, 58/58)
+
+1. **R26 case rework finished, reviewed, approved.** The seventeenth session's draft was completed with one new test: procurement tries a direct edit at its own review stage — permission says yes, the safety-net workflow says no. That's the only test that isolates the projects guard (every other deny is stopped by a permission scope first). New fixture `proj_purchasing` (one dept approve, parks at `pending_purchasing_review`). Alexander approved the group; R26's `# TODO verify` is cleared.
+2. **First full projects run** → found 3 failures → **D70**: the PR-to-project link guards only saw the UI's payload format. Plain `project: 5` / `projectId: 5` / string ids bypassed the "project must be approved" block AND the budget block; the update-side guard checked the old link, not the new one, and skipped pure re-link edits entirely. Fixed via new revisions of `lylobzvlh5p` (create) and `ebq41ibq60r` (update) — payload-id normalizer node first, all checks read it; update guard now loads the project being SET and fires on project edits too. All bypass shapes retested by hand: blocked. Predecessors disabled as rollback. Full detail in D70.
+3. **Smuggle case rewritten** (runner lesson): the runner verifies an allowed update by checking every sent field got saved, so a deliberately-ignored field must be expressed as a deny-style case ("value must NOT get saved"). Plan is now 24 rules / **58** cases.
+4. **Suite green 58/58** after the guard fix — first fully green run including all projects rules, the `pr_draft_a` return-for-info seeding, and the `proj_purchasing` seeding.
+5. **Writing rule saved everywhere** (Alexander, this session): plain language, concrete examples, no jargon — see `notes.md` top, auto-memory `feedback_plain_language_concrete_examples`, and the nb-test SKILL.md review section.
 
 > **Concurrency note:** on 2026-07-04 Alexander committed D68 from a second terminal *during* the prior session. Before any write-heavy step, make sure no other session is open on this repo.
 
@@ -8,7 +16,7 @@ Per-session narrative lives in `decisions.md` and git history — not repeated h
 
 ## What this is
 
-`Havenbeheer Purchasing` is `nb-project-suite`'s deliverable-6 pilot: proving the test suite works end-to-end on a real, mature project (16+ MVPs shipped). Steps 0–5 done. **Step 6** (extend `tests/plan.yaml` with a full ACL/workflow audit, rule by rule, verified live) is in progress. PR / PO / po_lines and the projects rules R25–R30 are reviewed; `suppliers` and `departments` still have no audit.
+`Havenbeheer Purchasing` is `nb-project-suite`'s deliverable-6 pilot: proving the test suite works end-to-end on a real, mature project (16+ MVPs shipped). Steps 0–5 done. **Step 6** (extend `tests/plan.yaml` with a full ACL/workflow audit, reviewed in workflow/mechanism groups, verified live) is in progress. PR / PO / po_lines and the projects rules R25–R30 are reviewed; `suppliers` and `departments` still have no audit.
 
 ## What landed 2026-07-05 (sixteenth session — D67 rename built + live-verified)
 
@@ -42,7 +50,7 @@ Backlog word-review, one rule at a time, each claim re-verified against live sta
 
 ## Current state
 
-**Old suite last known green 33/33** (twelfth session; not re-run since). `plan.yaml` = **24 rules / 55 cases**, YAML validates. Run with:
+**Suite fully green: 58/58 (2026-07-05, eighteenth session).** `plan.yaml` = **24 rules / 58 cases**. Run with:
 
 ```
 /opt/homebrew/bin/python3 ~/.claude/skills/nb-project-suite/tools/nb-test/runner.py run --project-dir .
@@ -50,29 +58,30 @@ Backlog word-review, one rule at a time, each claim re-verified against live sta
 
 **Use the explicit `/opt/homebrew/bin/python3`** (3.14, has `requests`+`pyyaml`). Bare `python3` non-deterministically resolves to system 3.9.6 without deps.
 
-**DO NOT run yet.** Blockers before a run means anything:
-- **R26 cases are stale** — they still assert the old "any operations edits any draft" ACL. D66 (edit ACL + approval-process build) must land first, then the cases get reworked. (D67 is done — the vocabulary side of R26/R27 is already updated; R27's cases now match the live app.)
-- **The new `pr_draft_a` return-for-info seeding is unrun.** First run must confirm the procurement return actually lands `info_requested` and the R2 allow/deny cases pass. If the return step fails, that's the first suspect — not the rule.
+**Rule C revision (D65) ACTIVATED 2026-07-05 (seventeenth session)** — `373589018214400` enabled+current. Predecessor `372552255471616` still enabled (not current) as rollback; disabling it awaits Alexander's explicit word.
 
-**Rule C revision (D65) still NOT activated** — one-step user action: enable+current on `373589018214400`, disable `372552255471616` (buggy, currently current+enabled).
+**D66 done and green** — ACL + guard live (see D66 Status), R26 cases reworked, reviewed, approved, and passing. Dept-head editable fields on the Dept Owner Approval approver interface: Alexander's UI, no runner case until built.
+
+**D70 guard fix live** — both PR-to-project link guards revised (payload-shape bypass closed); predecessors `372589928710144` / `372610438856704` disabled as rollback.
 
 ## Next session starts here
 
-1. **D66** — projects-edit ACL + approval-process build (the heavier one). Then rework the R26 cases (see "When reworking R26 cases" below).
-2. **Rule C activation (D65)** — one-step user action, whenever convenient.
-3. **First projects run** — `run --seed --project-dir .` once R26 reworked. Expect 55 cases. On failure, classify rule / case / app before touching anything.
+1. **Finish the Step 6 audit surface**: `suppliers` and `departments` still have no rules at all. Draft, review as a group, run.
+2. **R27 word-review** — its cases are green and D67 is live; the `# TODO verify` just needs Alexander's read of the rule sentence.
+3. Then Step 7 (user-guide backfill) / Step 8 (pilot-outcome report, retire `myNocobase-project-workflow`).
 
 ## Standing review gate — `# TODO verify`
 
 Tracks Alexander's word-by-word review, NOT test-pass; he clears it.
 - **Carrying:** none — the PR/PO/po_lines backlog word-review finished 2026-07-05 (fifteenth session). All of R1–R25, R28–R30 are cleared. Stale `# TODO verify` markers on R19/R23 (verified earlier, marker removal missed) were also removed.
-- **On `# TODO build+verify`** (approved text, needs a build to pass): R26 — waits on D66. R27 dropped to plain `# TODO verify` (D67 built + smoke-tested 2026-07-05; full suite run pending).
+- **Still marked:** only R27 (`# TODO verify`) — cases green, just needs Alexander's read of the rule sentence. R26 cleared 2026-07-05 (eighteenth session, group review + approval).
 - **Review protocol changed 2026-07-05 (Alexander):** reviews are now short verdicts — verify the cited mechanism (guard enabled+condition, grant+scope), state holds/doesn't, stop. Coverage is one case per mechanism, not per role; never flag missing role×action matrix combinations. Codified in the nb-test SKILL.md "Coverage scope" section and auto-memory `feedback_test_coverage_lean.md`. Existing fanned-out green cases (e.g. R20/R24) stay as-is — no churn.
 
 ## Live-state cleanups flagged, not done (Alexander's call — live writes)
 
 - **Guard A (PR Immutability, id 366217145548800) still carries a dead `cancelled` clause** in its "Status is terminal?" condition (approved OR rejected OR cancelled). Harmless — no PR reaches `cancelled` after D68 — but out of sync. Trimming is a live workflow edit (needs version/revision care). *(The parallel dead `draft` clause on the operations update ACL scope WAS trimmed live this session.)*
-- **Rule C activation (D65)** — see above.
+- **Project guard's reject message is stale** (found eighteenth session): guard `2h75zryz3cb`'s error text still tells the user "Only draft, info-requested, or rejected projects can be changed" — but D66 locked `rejected`. Blocking behavior is correct; only the message wording is wrong. Fix = another revision of that guard.
+- **Predecessor housekeeping**: Rule C's old revision `372552255471616` still enabled-not-current (D65 rollback); D70's two guard predecessors disabled as rollback. Disabling/cleanup awaits Alexander's word.
 
 ## Fixture design notes (carry over)
 
@@ -97,7 +106,8 @@ Tracks Alexander's word-by-word review, NOT test-pass; he clears it.
 
 ## How Alexander works (carried over, still applies)
 
-- **Step by step, review-gated.** Present ONE step, get feedback, proceed.
+- **Plain simple language, concrete examples** (2026-07-05): no jargon in anything he reads. Every rule/test explained as a story — "Oscar tries to edit Olga's draft — blocked", never "cross-role ownership-scope deny". Explain unavoidable technical terms in one sentence on first use.
+- **Review-gated by logical group** (changed 2026-07-05; was one step/rule at a time). Present one coherent group — rules or actions sharing a workflow, ACL grant, or mechanism — get feedback, proceed. No whole-plan blasts, no single-rule drip.
 - **Review rules, not payloads.** Business rules for approval; mechanism only if asked.
 - **Verify NocoBase claims against live state**, not docs/memory/prior sessions.
 - **Never touch VPS/production.** He builds all UI himself unless he delegates a screen. API keys: he pastes them into `.env.test` himself — never in chat or committed files.

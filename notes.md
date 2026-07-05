@@ -6,6 +6,10 @@ Migrated 2026-07-02 from the retired `project_current_state.md` (see D-entries i
 
 ---
 
+## How to write for Alexander (2026-07-05)
+
+Plain simple language, always. No mechanism jargon in anything he reads — reviews, handoffs, summaries. Explain every rule or test as a concrete story with a named person: "Oscar tries to edit Olga's draft project — blocked." Say "permission" not "grant", "safety net that blocks the request" not "request-interception guard". If a technical term is unavoidable, explain it in one short sentence the first time. His words: "you explain everything using such convoluted language that i have no idea what you're talking about." Also saved in auto-memory (`feedback_plain_language_concrete_examples`) and the nb-test skill's review section.
+
 ## Drift / open issues
 
 - **RESOLVED 2026-07-03 (tenth session): the Issue PO "missing delivery_address field" finding was wrong.** `purchase_orders.delivery_address` exists live: belongsTo → `delivery_addresses`, foreignKey `deliveryAddressId`, m2o interface (field key `td7idf8lg6p`). That matches both the Issue guard's `deliveryAddressId != null` check and procurement's ACL whitelist entry. `delivery_addresses` holds 2 records (Havenbeheer Hoofdkantoor id 366556185821184, Main Warehouse id 366562938650624). Alexander flagged the relation exists; re-verified live via `fields:list`. R22 is unblocked — the `po_issued` fixture sets `deliveryAddressId` to one of these records.
