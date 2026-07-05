@@ -48,18 +48,17 @@ Backlog word-review, one rule at a time, each claim re-verified against live sta
 
 ## Next session starts here
 
-1. **Finish the backlog word-review** — remaining `# TODO verify`: **R17, R18, R20, R21, R22, R24** (all purchase_orders / po_lines). Present ONE at a time, re-verify each claim live, clear on Alexander's OK. These were green before D68 and none reference `draft`/`cancelled` on PRs, so no D68 reconcile expected — but check.
-2. **D67 (the rename)** — mechanical live build (`closed→completed`: status enum+label, `closed_at`→`completed_at` + migrate rows, Close Project workflow `373522687393792`/`px2xvjaxoqf` → "Complete Project", D63 guard `373520806248448` locked-status list, `proj_closed` fixture/cases). Unblocks clean R27 cases.
-3. **D66** — projects-edit ACL + approval-process build (the heavier one). Then rework R26/R27 cases.
-4. **Rule C activation (D65)** — one-step user action, whenever convenient.
-5. **First projects run** — `run --seed --project-dir .` once R26/R27 reworked. Expect 55 cases. On failure, classify rule / case / app before touching anything.
+1. **D67 (the rename)** — mechanical live build (`closed→completed`: status enum+label, `closed_at`→`completed_at` + migrate rows, Close Project workflow `373522687393792`/`px2xvjaxoqf` → "Complete Project", D63 guard `373520806248448` locked-status list, `proj_closed` fixture/cases). Unblocks clean R27 cases.
+2. **D66** — projects-edit ACL + approval-process build (the heavier one). Then rework R26/R27 cases.
+3. **Rule C activation (D65)** — one-step user action, whenever convenient.
+4. **First projects run** — `run --seed --project-dir .` once R26/R27 reworked. Expect 55 cases. On failure, classify rule / case / app before touching anything.
 
 ## Standing review gate — `# TODO verify`
 
 Tracks Alexander's word-by-word review, NOT test-pass; he clears it.
-- **Carrying:** R17, R18, R20, R21, R22, R24.
-- **Cleared:** R1, R2, R3, R4, R5, R12, R13, R14, R15, R16, R19, R23, R25, R28, R29, R30.
-- **On `# TODO build+verify`** (approved text, needs a build to pass): R26, R27.
+- **Carrying:** none — the PR/PO/po_lines backlog word-review finished 2026-07-05 (fifteenth session). All of R1–R25, R28–R30 are cleared. Stale `# TODO verify` markers on R19/R23 (verified earlier, marker removal missed) were also removed.
+- **On `# TODO build+verify`** (approved text, needs a build to pass): R26, R27 — wait on D66/D67.
+- **Review protocol changed 2026-07-05 (Alexander):** reviews are now short verdicts — verify the cited mechanism (guard enabled+condition, grant+scope), state holds/doesn't, stop. Coverage is one case per mechanism, not per role; never flag missing role×action matrix combinations. Codified in the nb-test SKILL.md "Coverage scope" section and auto-memory `feedback_test_coverage_lean.md`. Existing fanned-out green cases (e.g. R20/R24) stay as-is — no churn.
 
 ## Live-state cleanups flagged, not done (Alexander's call — live writes)
 

@@ -31,11 +31,11 @@ rules:
   R15: Procurement can create a purchase order from a purchase request whose status is approved (the allow counterpart to R16). Reviewed + verified live 2026-07-02.
   R16: 'Procurement cannot create a PO from a purchase request that is not approved. Verified live 2026-07-04 — "Guard: Create PO (PR must be approved)" (global on purchase_orders:create) blocks when the source PR''s status is not approved (also blocks if the PR already has a PO).'
   R17: Procurement can update a PO's header fields at any non-terminal status (draft/issued/partially_received/received) — the update ACL grant is unscoped and the PO Immutability guard blocks only the terminal statuses (completed/closed) — and cannot delete a PO at any status — procurement has no destroy grant on purchase_orders (D56/D59, ACL re-verified live 2026-07-04; D69 retired the sent/confirmed statuses).
-  R20: Director, finance, and operations users cannot update or delete a purchase order — none has an independent grant, so they fall through to member's view-only baseline (D59). # TODO verify
-  R18: Once a PO is terminal (completed/closed), no role — including procurement, which can edit a draft PO — can update it; the PO-immutability guard blocks it independent of ACL (D33). # TODO verify
-  R21: Procurement can add and update po_lines on a non-terminal (draft) PO and can delete a line only while the PO is draft; once the PO is non-draft the line-destroy guard blocks deletion. A line create that would push the PO total over the source PR's quoted_total is blocked by the PO-line budget-ceiling guard (D47/D49). # TODO verify
-  R22: Procurement records receiving by updating a po_line's received_quantity, allowed only once the PO is issued (receivable set = issued/partially_received/received) — the Receive guard blocks a received_quantity update while the PO is still draft. Director, finance, and operations users cannot record receiving at all (no update grant, member view-only baseline; receiving sits on procurement as a deliberate interim, D59). # TODO verify (D69 trimmed the guard's dead sent/confirmed clauses)
-  R24: Director, finance, and operations users cannot update or delete po_lines — none has an independent grant, member view-only baseline (D59). # TODO verify
+  R20: Director, finance, and operations users cannot update or delete a purchase order — none has an independent grant, so they fall through to member's view-only baseline (D59).
+  R18: Once a PO is terminal (completed/closed), no role — including procurement, which can edit a draft PO — can update it; the PO-immutability guard blocks it independent of ACL (D33).
+  R21: Procurement can add and update po_lines on a non-terminal (draft) PO and can delete a line only while the PO is draft; once the PO is non-draft the line-destroy guard blocks deletion. A line create that would push the PO total over the source PR's quoted_total is blocked by the PO-line budget-ceiling guard (D47/D49).
+  R22: Procurement records receiving by updating a po_line's received_quantity, allowed only once the PO is issued (receivable set = issued/partially_received/received) — the Receive guard blocks a received_quantity update while the PO is still draft. Director, finance, and operations users cannot record receiving at all (no update grant, member view-only baseline; receiving sits on procurement as a deliberate interim, D59). # D69 trimmed the guard's dead sent/confirmed clauses; verified live 2026-07-05
+  R24: Director, finance, and operations users cannot update or delete po_lines — none has an independent grant, member view-only baseline (D59).
   # --- R15/R17-R24 drafted 2026-07-02 from the full purchase_orders/po_lines
   # ACL audit across all 5 roles (D59; audit begun in D56), business rules
   # approved by Alexander. R15/R19/R23 verified earlier; R17/R20/R21/R24
@@ -44,8 +44,8 @@ rules:
   # session) against the po_issued fixture — Issue PO is a one-click
   # custom-action workflow, fired via the dedicated purchase_orders:trigger
   # verb (verified live; see fixtures.actions below).
-  R19: Finance and operations users cannot create a purchase order (no independent create grant; view-only via member baseline). # TODO verify
-  R23: Finance and operations users cannot create po_lines (no independent create grant; view-only via member baseline). # TODO verify
+  R19: Finance and operations users cannot create a purchase order (no independent create grant; view-only via member baseline).
+  R23: Finance and operations users cannot create po_lines (no independent create grant; view-only via member baseline).
   # --- R25-R30 drafted 2026-07-04 (twelfth session) from the projects
   # backend hardened in D63/D64 (guard 2h75zryz3cb, Close Project
   # px2xvjaxoqf, D53 backstop) and the projects ACL re-verified live this
