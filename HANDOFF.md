@@ -66,8 +66,12 @@ Backlog word-review, one rule at a time, each claim re-verified against live sta
 
 ## Next session starts here
 
-1. **Finish the Step 6 audit surface**: `suppliers` and `departments` still have no rules at all. Draft from live inspection, present as one review group (plain language, concrete examples — see notes.md top), run.
-2. Then Step 7 (user-guide backfill for MVPs 1–16) / Step 8 (pilot-outcome report into `nb-project-suite`'s HANDOFF, retire `myNocobase-project-workflow`).
+**The nb-test model was reworked 2026-07-05** (see the suite's `nb-test/SKILL.md`): workflow branches are the primary runtime tests, plain permission rules become `type: acl` config checks (new, fast `runner.py acl` op), plus a few `canary`-tagged runtime cases per enforcement mechanism. This plan.yaml still reflects the old model — it stays green, but the next Step-6 work should follow the new model.
+
+1. **Convert existing ACL-ish runtime cases to `acl` checks** where they don't serve as canaries; pick and tag the canaries.
+2. **Draft the missing workflow-branch rules** from the live PR Approval node chain — board threshold, regular purchases (with the real USD boundary read from the condition node), custom approvers, return paths. `tests/manual-workflow-walkthrough.md` is the checklist of what used to be tested by hand.
+3. **Finish the Step 6 audit surface**: `suppliers` and `departments` (as `acl` checks + any guard/branch rules). One review group each, plain language.
+4. Then Step 7 (user-guide backfill for MVPs 1–16) / Step 8 (pilot-outcome report into the suite's HANDOFF, retire `myNocobase-project-workflow`).
 
 State at close of eighteenth session: suite green 58/58, all 24 rules reviewed and approved, no `# TODO` markers anywhere in plan.yaml, working tree clean.
 
@@ -90,7 +94,7 @@ Tracks Alexander's word-by-word review, NOT test-pass; he clears it.
 - `operations_proj` is the ONLY dept-bearing test user. **Do not add departments to the existing seeded PR users** — it would change the already-green PR approval chains (and is why PR fixtures skip the dept stage and stop at procurement).
 - `pr_draft_a` is shared by R2 (owner edit at info_requested), R13 (not-director-stage deny), R16 (not-approved PO-create deny). All three hold at `info_requested`.
 - Chains: projects need 3 steps (Pat dept → Pat procurement → Dana director; budgets 5000 < 15k board threshold). Drawdown PRs need 1 step each (Pat; drawdown branch replaces director/board — R30).
-- **Teardown:** project fixtures delete cleanly (guard exempts admin). The two terminal drawdown PRs do NOT (Guard A) — debris grows by 2 labeled PRs per full run, on top of the 4-PR/PO/line set (D60/D62 policy).
+- **Teardown:** clean since D71 (2026-07-05) — Guard A now exempts admin like the projects guard, so terminal PR fixtures delete too. All historical `[TEST]` debris was removed the same day; the old "debris grows each run" policy (D60/D62) is retired.
 - Case order in the file is load-bearing: R28's link-allow and the R29/R30 state cases sit BEFORE the R27 block, whose allow case completes `proj_approved`.
 - When reworking R26 cases: the new model needs owner-scoped edit allow, cross-operations edit deny, dept-head stage edit, `remaining_usd` write deny, and rejected-locked deny.
 
@@ -106,11 +110,6 @@ Tracks Alexander's word-by-word review, NOT test-pass; he clears it.
 - **Step 7** — `docs/user-guide.md` backfill for MVPs 1–16. Deferred.
 - **Step 8** — hand back: pilot-outcome report into `nb-project-suite`'s `HANDOFF.md`, then retire `myNocobase-project-workflow`.
 
-## How Alexander works (carried over, still applies)
+## How Alexander works
 
-- **Plain simple language, concrete examples** (2026-07-05): no jargon in anything he reads. Every rule/test explained as a story — "Oscar tries to edit Olga's draft — blocked", never "cross-role ownership-scope deny". Explain unavoidable technical terms in one sentence on first use.
-- **Review-gated by logical group** (changed 2026-07-05; was one step/rule at a time). Present one coherent group — rules or actions sharing a workflow, ACL grant, or mechanism — get feedback, proceed. No whole-plan blasts, no single-rule drip.
-- **Review rules, not payloads.** Business rules for approval; mechanism only if asked.
-- **Verify NocoBase claims against live state**, not docs/memory/prior sessions.
-- **Never touch VPS/production.** He builds all UI himself unless he delegates a screen. API keys: he pastes them into `.env.test` himself — never in chat or committed files.
-- Pragmatic about local dev-only risk, but explicit, specifically-named confirmation before mutating real accounts, data, or live ACL/config.
+Single home: auto-memory (`feedback_alexander_working_style`, `feedback_review_rules_not_payloads`, `feedback_test_coverage_lean`, `feedback_plain_language_concrete_examples`). Plus one project-level point: pragmatic about local dev-only risk, but explicit, specifically-named confirmation before mutating real accounts, data, or live ACL/config.

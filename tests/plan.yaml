@@ -122,10 +122,8 @@ fixtures:
       # with after_records: true below). fx_rate_to_usd: 1 keeps
       # quoted_total_usd == quoted_total. Budget 5000: within (1000) commits;
       # over (9500; 1000 + 9500 > 5000) trips the D53 backstop at
-      # procurement-approve. Both terminal PRs (approved/rejected) survive
-      # teardown — Guard A blocks destroy on terminal PRs — so this adds 2
-      # labeled debris PRs per run (accepted, same policy as pr_approved_*),
-      # with dangling project FKs once the project fixture is deleted.
+      # procurement-approve. Terminal PRs delete cleanly in teardown since
+      # D71 (Guard A exempts admin) — no debris policy needed anymore.
       - id_ref: pr_proj_within
         as: operations_a
         after_approvals: true

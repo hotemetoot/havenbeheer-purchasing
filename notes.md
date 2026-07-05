@@ -6,9 +6,9 @@ Migrated 2026-07-02 from the retired `project_current_state.md` (see D-entries i
 
 ---
 
-## How to write for Alexander (2026-07-05)
+## How to write for Alexander
 
-Plain simple language, always. No mechanism jargon in anything he reads — reviews, handoffs, summaries. Explain every rule or test as a concrete story with a named person: "Oscar tries to edit Olga's draft project — blocked." Say "permission" not "grant", "safety net that blocks the request" not "request-interception guard". If a technical term is unavoidable, explain it in one short sentence the first time. His words: "you explain everything using such convoluted language that i have no idea what you're talking about." Also saved in auto-memory (`feedback_plain_language_concrete_examples`) and the nb-test skill's review section.
+See auto-memory `feedback_plain_language_concrete_examples` (the single home): plain language, every rule/test as a concrete story with a named person, explain unavoidable technical terms on first use. Non-negotiable in everything he reads.
 
 ## Drift / open issues
 
@@ -40,7 +40,7 @@ Use the real personas above (`dana.director`=id 12, `pat.procurement`=id 11, `fi
 
 **Fully verified live this session, end to end.** A real gap was found and fixed first, in `runner.py` (`nb-project-suite`-side, see that project's `HANDOFF.md`): plain `<collection>:create` does not enter an approval workflow at all — needs `approvals:create` or `?triggerWorkflows=`; fixed via a new `trigger_workflow:` field on `fixtures.records` entries. After that fix, the full chain worked cleanly for a scratch PR (`quoted_total: 100`, plain synthetic `operations_a`-style submitter — no department needed on the submitter): Procurement Approval (pat.procurement) → approve → `pending_director_approval` → Director Approval (dana.director) → approve → `status: approved`. `find_pending_approval`'s `listMine` dot-path filter (`approval.collectionName`/`approval.dataKey`) is confirmed working live — no fallback needed. (A false alarm during this session — "no department = the chain skips straight past every approval node" — turned out to be a bad filter query silently returning nothing, not a real gap; see `nb-project-suite`'s `HANDOFF.md` for the full story.)
 
-**Leftover:** the scratch PR used for this verification landed at `status: approved` and is now locked by Guard A (PR Immutability Guard) — couldn't be destroyed via the API afterward. Still in the live database as `[TEST-SCRATCH] trigger_workflow check`. Needs manual cleanup or can be left as harmless labeled debris.
+**Leftover:** resolved — Guard A exempts admin since D71 (2026-07-05); all `[TEST]`-labeled debris (including the old scratch PR) was deleted that day and future teardowns stay clean.
 
 **Done since:** R12 landed (seventh session). R15/R17–R24 rule text derived via the D59 audit. **Eighth session (D60):** the full two-step chain is now a live fixture — `pr_approved` driven Procurement → Director → `approved`, chain derived from the live `PR Approval` workflow (id `372610390622208`), assignees `pat_procurement` (id 11) + `dana_director` (id 12, added this session). R15 active + verified live, suite 15/15. A `runner.py` `fields`-serialization bug was found + fixed along the way (see D60 / suite HANDOFF).
 

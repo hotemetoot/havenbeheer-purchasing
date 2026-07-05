@@ -16,7 +16,7 @@ NocoBase-based PR/PO approval workflow. This file is auto-loaded every session.
 - Non-queryable context (traps, reasons behind manual changes, env facts, the go-live checklist): [notes.md](notes.md)
 - Client-facing docs, grows per chunk: [docs/user-guide.md](docs/user-guide.md) — starts empty as of the 2026-07-02 retrofit; backfilling docs for MVPs 1–16 (already shipped before this convention existed) is deferred to its own future chunk, not assumed done.
 - Tests: [tests/plan.yaml](tests/plan.yaml) (rules + cases), `tests/.env.test` (gitignored, human-filled only)
-- Cross-project NocoBase patterns: auto-memory `feedback_*.md` (read-only reference)
+- Cross-project NocoBase traps: `nb-bootstrap`'s `references/gotchas.md` — the single home; auto-memory only points there
 - Kept non-standard folders (organically grown pre-retrofit, deliberately not restructured — real, load-bearing content with no better home in the standard tree): [Planning and Design/](Planning%20and%20Design/) (design validation docs), [nocobase docs/](nocobase%20docs/) (doc cache), [Outputs/](Outputs/), [snippets/](snippets/) (reusable JS, e.g. `po-line-items-total.js` — RunJS isn't version-controlled, so this is the source of truth for it), [templates/](templates/) (PO print-template source, `build_po_template.py`), [archive/](archive/), `backups/` (gitignored — `nb backup create/restore` output), [role-acl-guidelines.md](role-acl-guidelines.md) (standalone ACL reference, kept at root rather than folded into `design/permissions.md`).
 
 One fact, one home: if you're about to write the same fact in two of these files, stop — pick its home and pointer-reference it from elsewhere instead of duplicating it.
@@ -46,7 +46,7 @@ At session end:
 - Update docs/user-guide.md for anything user-visible that changed — written from what the live app actually shows, not from what was planned.
 - Update roadmap.md status.
 - Commit.
-- If you learned a NocoBase gotcha that applies to ANY NocoBase project, save it to auto-memory as `feedback_<topic>.md`. If it's specific to this project, put it in notes.md instead.
+- If you learned a NocoBase gotcha that applies to ANY NocoBase project, append it to `nb-bootstrap`'s `references/gotchas.md` (the single cross-project home — never a second copy in auto-memory). If it's specific to this project, put it in notes.md instead.
 
 ## Live environment changes
 
