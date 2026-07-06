@@ -1,109 +1,78 @@
-# HANDOFF — havenbeheer retrofit, Step 6 (updated 2026-07-05, eighteenth session)
+# HANDOFF — havenbeheer retrofit, Step 6 (updated 2026-07-05, nineteenth session)
 
-**Read this first, then:** `~/.claude/skills/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (authoritative step list), this project's `CLAUDE.md`, and `decisions.md` D63–D70. `notes.md` holds non-queryable traps and the go-live checklist (and, top of file, **how to write for Alexander** — plain language, concrete examples; non-negotiable). Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py`.
+**Read this first, then:** `~/.claude/skills/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (authoritative step list), this project's `CLAUDE.md`, and `decisions.md` D63–D71. `notes.md` holds non-queryable traps and the go-live checklist (and, top of file, **how to write for Alexander** — plain language, concrete examples; non-negotiable). Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py`.
 
-## What landed 2026-07-05 (eighteenth session — SUITE FULLY GREEN, 58/58)
+## What landed 2026-07-05 (nineteenth session — new-model conversion + R31–R41 drafts)
 
-1. **R26 case rework finished, reviewed, approved.** The seventeenth session's draft was completed with one new test: procurement tries a direct edit at its own review stage — permission says yes, the safety-net workflow says no. That's the only test that isolates the projects guard (every other deny is stopped by a permission scope first). New fixture `proj_purchasing` (one dept approve, parks at `pending_purchasing_review`). Alexander approved the group; R26's `# TODO verify` is cleared.
-2. **First full projects run** → found 3 failures → **D70**: the PR-to-project link guards only saw the UI's payload format. Plain `project: 5` / `projectId: 5` / string ids bypassed the "project must be approved" block AND the budget block; the update-side guard checked the old link, not the new one, and skipped pure re-link edits entirely. Fixed via new revisions of `lylobzvlh5p` (create) and `ebq41ibq60r` (update) — payload-id normalizer node first, all checks read it; update guard now loads the project being SET and fires on project edits too. All bypass shapes retested by hand: blocked. Predecessors disabled as rollback. Full detail in D70.
-3. **Smuggle case rewritten** (runner lesson): the runner verifies an allowed update by checking every sent field got saved, so a deliberately-ignored field must be expressed as a deny-style case ("value must NOT get saved"). Plan is now 24 rules / **58** cases.
-4. **Suite green 58/58** after the guard fix — first fully green run including all projects rules, the `pr_draft_a` return-for-info seeding, and the `proj_purchasing` seeding.
-5. **Writing rule saved everywhere** (Alexander, this session): plain language, concrete examples, no jargon — see `notes.md` top, auto-memory `feedback_plain_language_concrete_examples`, and the nb-test SKILL.md review section.
+All three items from the previous handoff's "next session" list, in two commits (`290df42`, `bfd1a40`), working tree clean:
 
-> **Concurrency note:** on 2026-07-04 Alexander committed D68 from a second terminal *during* the prior session. Before any write-heavy step, make sure no other session is open on this repo.
+1. **Conversion to the new nb-test model done and green.** 29 ACL-ish runtime cases became 24 `type: acl` config checks (`runner.py acl`, seconds). Six runtime cases are tagged `canary` — one per enforcement mechanism class: R2 pair (scoped grant inside/outside), R17 allow (plain grant), R20 operations deny (no grant), R26 remaining_usd (field whitelist), R27 operations trigger deny (trigger gating). Guard/workflow runtime cases untouched. Full suite after conversion: **52/53 — the one red is a real finding, not a bug in the suite** (next point).
+2. **Finding: R2's scope trim never reached the live grant.** The fourteenth session's "live ACL trimmed" edit landed in the DEAD `rolesResourcesScopes` table (row 2, "PR — own and editable", updatedAt 2026-07-04 proves it). The live operations `purchase_requests:update` grant points at the generic "Own records" scope (`363334209503234`, `createdById` only). Concrete effect: Oscar submits a PR, Pat approves it to the director stage — Oscar can still edit title and amount, so Dana approves something Pat never saw. Only approved/rejected are saved by Guard A. Also: R2's "or submitterId" ownership alternative is not in the live scope. **The R2 config check stays red until the live scope is fixed — a live ACL change, Alexander's call.** (The fourteenth session's R2 "verified" row in old handoffs is wrong.)
+3. **Finding: procurement's role strategy is view+update+trigger on everything.** Any collection without a per-collection procurement entry falls back to it — `departments` included, so Pat can update any department's `main_approver` and steer approval routing. Flagged on R41's config check (expected red). Alexander picks: trim the strategy (live change) or amend the rule.
+4. **R31–R38 drafted** from the live PR Approval node chain (current revision `373617786945536`): dept stage + submitter/department stamps, dept-head approve, head-skip (submitter is their own dept's main approver), custom approver, director threshold (live condition `is_regular != true OR quoted_total_usd >= 300`; fixtures at 250 regular / 300 regular boundary / 100 not-regular), board (live `>= 15000`; a 15000 fixture through the full 3-step chain incl. the board task), returns (procurement + director), reject with stored comment. **R39** formalizes proj_rejected (project dept-stage reject). **R29** gained an exactly-on-budget drawdown fixture (4000; strict `>` still approves) — its committed_usd case expects **5000** now (1000 + 4000), not 1000. **R40/R41** cover suppliers/departments as pure config checks. All `# TODO verify`, hygiene-checked (35 rules / 77 cases), **NOT run** — review gate.
+5. **Mechanism notes for the new fixtures:** `is_regular` is not in the operations create whitelist and the runner's approval steps can't carry form values, so the two R35 "regular" fixtures are created `as: admin` via `approvals:create` — that path persisting `is_regular` was verified live with a throwaway PR (deleted after). `custom_approver` is in the PR Approval trigger's appends, so the R34 condition resolves. `oliver_owner` (id 10, password nbtest, verified) joined `fixtures.users` as the head-skip witness. `departmentId` DOES resolve on PRs (real PRs carry it) — no D65-class null here.
+
+> **Concurrency note:** before any write-heavy step, make sure no other session is open on this repo (D68 was once committed from a second terminal mid-session).
 
 Per-session narrative lives in `decisions.md` and git history — not repeated here.
 
 ## What this is
 
-`Havenbeheer Purchasing` is `nb-project-suite`'s deliverable-6 pilot: proving the test suite works end-to-end on a real, mature project (16+ MVPs shipped). Steps 0–5 done. **Step 6** (extend `tests/plan.yaml` with a full ACL/workflow audit, reviewed in workflow/mechanism groups, verified live) is in progress. PR / PO / po_lines and the projects rules R25–R30 are reviewed; `suppliers` and `departments` still have no audit.
-
-## What landed 2026-07-05 (sixteenth session — D67 rename built + live-verified)
-
-**D67 is done.** Full detail in `decisions.md` D67 Status; short version:
-- `projects.status`: `closed` → `completed` (label "Completed"); no rows held `closed`, zero migration.
-- `completed_at` created, `closed_at` dropped (all null); role whitelists auto-swapped both ways (D64 auto-append behavior, confirmed also on removal).
-- Same-key revisions built, diffed clean, **activated**: Complete Project `373721283493888` (`px2xvjaxoqf`), guard `373721390448640` (`2h75zryz3cb`). Predecessors `373522687393792` / `373520806248448` disabled as rollback.
-- Smoke-tested 5/5 with real signed-in users (Pat) via the real `projects:trigger` verb: reject-draft message, complete-approved (status+`completed_at`), guard-deny on completed, re-complete deny, admin teardown. Throwaway project deleted; live data untouched (the 2 real projects, both `approved`).
-- `plan.yaml` vocabulary renamed throughout the projects sections (fixture `proj_approved_2` comments/values, R26/R27/R28 case names, status matches, order-sensitivity comments). PO `closed` untouched — still a legitimate PO status. Validates 24 rules / 55 cases. R27 downgraded to `# TODO verify`.
-- **New CLI trap** recorded (auto-memory `reference_nb_workflow_revision_gotchas`): top-level `executed`/`allExecuted` on `workflows list/get` read 0 even for executed workflows — read `versionStats.executed` via `--appends stats,versionStats`. Both D67 workflows showed `executed: 0` but were frozen (6 and 20).
-
-## What landed 2026-07-04 (fourteenth — review + one live ACL trim, no runner execution)
-
-Backlog word-review, one rule at a time, each claim re-verified against live state. Two commits, **working tree clean**:
-- `9fbb03f` — R2 rewrite + `pr_draft_a` fixture rework (D68).
-- `54aa7d5` — R4, R5, R12, R13, R14, R16 verified + cleared.
-
-| Rule | Outcome |
-|---|---|
-| R2 | **Rewritten** to info_requested-only (D68 retired `draft`); ownership = createdById or submitterId. **Live ACL trimmed:** operations update scope dropped its dead `draft` clause → now `status == info_requested AND own`. Fixture `pr_draft_a` reworked (see below). |
-| R4 | Verified — only procurement holds `purchase_orders:create`; director has no entry + view-only role strategy |
-| R5 | Verified — same for `po_lines:create` |
-| R12 | Verified — director update scope `status $eq pending_director_approval`; fields exactly the 3 render-enablers, no project/projectId (D58) |
-| R13 | Verified — same scope proves the deny outside that stage; case wording draft→info_requested |
-| R14 | Verified — director PR grant is view+update only, no create; case dropped invalid `status: draft` |
-| R16 | Verified — "Guard: Create PO (PR must be approved)" blocks PO create from a not-approved PR |
-
-**D68 reconcile done** for every rule touched: no `status: draft` literal remains anywhere in `plan.yaml` (grep clean). R1 create case, R14 case, R13 wording all fixed. Header Guard-A note corrected.
-
-**`pr_draft_a` is now Option-A seeded** (Alexander picked A): it is created **into** the PR Approval flow (`trigger_workflow: cv237r8h7k9`), lands at the procurement stage (test users carry no department, so the dept stage is skipped), then `fixtures.approvals` has **procurement RETURN it for info** → `status: info_requested`. Verified live: the Procurement Approval node's return branch (branchIndex 1) is wired to "Procurement Returned → Info Requested" (node 373617786945546), which sets `status: info_requested`; a plain return needs no `returnToNodeKey` (node `returnTo: null`). This is the only way to reach the one operations-editable status after D68 — operations cannot write `status` directly. **This fixture path has NOT been executed yet** (review-only session).
+`Havenbeheer Purchasing` is `nb-project-suite`'s deliverable-6 pilot: proving the test suite works end-to-end on a real, mature project (16+ MVPs shipped). Steps 0–5 done. **Step 6** (extend `tests/plan.yaml` with a full ACL/workflow audit, reviewed in workflow/mechanism groups, verified live) is nearly done: all collections now have drafted coverage; R31–R41 await review.
 
 ## Current state
 
-**Suite fully green: 58/58 (2026-07-05, eighteenth session).** `plan.yaml` = **24 rules / 58 cases**. Run with:
+**`plan.yaml` = 35 rules / 77 cases.** Suite standing: **52/53 on the reviewed set** (R1–R30; the one red is the R2 scope finding above). R31–R41's 24 cases are drafted and NOT yet run. Run with:
 
 ```
 /opt/homebrew/bin/python3 ~/.claude/skills/nb-project-suite/tools/nb-test/runner.py run --project-dir .
 ```
 
-**Use the explicit `/opt/homebrew/bin/python3`** (3.14, has `requests`+`pyyaml`). Bare `python3` non-deterministically resolves to system 3.9.6 without deps.
+**Use the explicit `/opt/homebrew/bin/python3`** (3.14, has `requests`+`pyyaml`). Bare `python3` non-deterministically resolves to system 3.9.6 without deps. `runner.py acl --project-dir .` runs just the config checks (seconds); `--tag canary` the canaries; `--tag prflow` the new PR-branch cases (after review).
 
-**Rule C revision (D65) ACTIVATED 2026-07-05 (seventeenth session)** — `373589018214400` enabled+current. Predecessor `372552255471616` still enabled (not current) as rollback; disabling it awaits Alexander's explicit word.
-
-**D66 done and green** — ACL + guard live (see D66 Status), R26 cases reworked, reviewed, approved, and passing. Dept-head editable fields on the Dept Owner Approval approver interface: Alexander's UI, no runner case until built.
-
-**D70 guard fix live** — both PR-to-project link guards revised (payload-shape bypass closed); predecessors `372589928710144` / `372610438856704` disabled as rollback.
+D63–D71 all built + live-verified (see decisions.md). Rule C revision activated; D70 guard fix live; D71 Guard A admin exemption live — teardown fully clean.
 
 ## Next session starts here
 
-**The nb-test model was reworked 2026-07-05** (see the suite's `nb-test/SKILL.md`): workflow branches are the primary runtime tests, plain permission rules become `type: acl` config checks (new, fast `runner.py acl` op), plus a few `canary`-tagged runtime cases per enforcement mechanism. This plan.yaml still reflects the old model — it stays green, but the next Step-6 work should follow the new model.
-
-1. **Convert existing ACL-ish runtime cases to `acl` checks** where they don't serve as canaries; pick and tag the canaries.
-2. **Draft the missing workflow-branch rules** from the live PR Approval node chain — board threshold, regular purchases (with the real USD boundary read from the condition node), custom approvers, return paths. `tests/manual-workflow-walkthrough.md` is the checklist of what used to be tested by hand.
-3. **Finish the Step 6 audit surface**: `suppliers` and `departments` (as `acl` checks + any guard/branch rules). One review group each, plain language.
-4. Then Step 7 (user-guide backfill for MVPs 1–16) / Step 8 (pilot-outcome report into the suite's HANDOFF, retire `myNocobase-project-workflow`).
-
-State at close of eighteenth session: suite green 58/58, all 24 rules reviewed and approved, no `# TODO` markers anywhere in plan.yaml, working tree clean.
+1. **Alexander reviews, per group** (short verdicts — verify the cited mechanism, state holds/doesn't, stop):
+   - **Group A — conversion + canaries** (committed, already green): spot-check that the acl checks say what the rules say; bless the canary choice. Also decide the **R2 scope fix** (live ACL change: point the operations PR-update grant at a scope with `status = info_requested` + own via createdById OR submitterId — the intended clause sits, ironically correct, in dead row 2).
+   - **Group B — R31–R39** (PR Approval branches + project reject): word-by-word rule review, then first run: `runner.py run --project-dir . --tag prflow` (R39 rides `--tag projects` or the full run).
+   - **Group C — R40–R41** (suppliers/departments): word-by-word, then `runner.py acl`. Decide the **procurement strategy question** (R41 red): trim strategy or amend rule.
+2. After all groups: full suite run — target green across 77, then clear the `# TODO verify` markers Alexander approves.
+3. Branches deliberately not drafted (runner can't express them): in-app notifications, resubmit-after-return, board document-required form validation — walkthrough/UI territory; say so if Alexander asks where they went. The Project Approval ladder's own board branch (>= 15k) also has no case — flag if he wants it.
+4. Then **Step 7** (user-guide backfill for MVPs 1–16) / **Step 8** (pilot-outcome report into the suite's HANDOFF, retire `myNocobase-project-workflow`).
 
 ## Standing review gate — `# TODO verify`
 
 Tracks Alexander's word-by-word review, NOT test-pass; he clears it.
-- **Carrying:** none — the PR/PO/po_lines backlog word-review finished 2026-07-05 (fifteenth session). All of R1–R25, R28–R30 are cleared. Stale `# TODO verify` markers on R19/R23 (verified earlier, marker removal missed) were also removed.
-- **Nothing marked.** R27 cleared 2026-07-05 (eighteenth session, Alexander's explicit word after the mechanism re-check); R26 cleared same day. **Every rule in plan.yaml is now reviewed and approved, and the suite is green** — the review backlog for PR / PO / po_lines / projects is fully closed.
-- **Review protocol changed 2026-07-05 (Alexander):** reviews are now short verdicts — verify the cited mechanism (guard enabled+condition, grant+scope), state holds/doesn't, stop. Coverage is one case per mechanism, not per role; never flag missing role×action matrix combinations. Codified in the nb-test SKILL.md "Coverage scope" section and auto-memory `feedback_test_coverage_lean.md`. Existing fanned-out green cases (e.g. R20/R24) stay as-is — no churn.
+- **Carrying: R31–R41** (drafted 2026-07-05, nineteenth session — see "Next session starts here").
+- R1–R30: all reviewed and approved (backlog closed 2026-07-05, eighteenth session). The conversion changed only their CASE layer (machine layer, regenerate-freely); rule texts untouched.
+- **Review protocol (Alexander, 2026-07-05):** short verdicts; coverage is one case per mechanism, not per role; never flag missing role×action matrix combinations. Codified in nb-test SKILL.md + auto-memory `feedback_test_coverage_lean.md`.
 
 ## Live-state cleanups flagged, not done (Alexander's call — live writes)
 
-- **Guard A (PR Immutability, id 366217145548800) still carries a dead `cancelled` clause** in its "Status is terminal?" condition (approved OR rejected OR cancelled). Harmless — no PR reaches `cancelled` after D68 — but out of sync. Trimming is a live workflow edit (needs version/revision care). *(The parallel dead `draft` clause on the operations update ACL scope WAS trimmed live this session.)*
-- ~~Project guard's reject message stale~~ **FIXED 2026-07-05** (same session, Alexander's go-ahead): new revision `373836840763392` of `2h75zryz3cb` — "or rejected" removed from the message. Also fixed the Receive guard's message (said "sent", a D69-retired status; now "issued") via revision `373836909969408` of `mhfp4d15uee`. Message-only changes, copies diffed identical first; suite re-ran green 58/58 after.
-- **Trap hit while re-running:** right after enabling a revision, `triggerWorkflows`-bound actions can 500 with "Workflow on your action hangs" (no execution row). `nb api workflow workflows sync --filter '{"enabled": true}'` fixes it. Recorded in auto-memory (`reference_nb_workflow_revision_gotchas` #4).
-- **Predecessor housekeeping**: Rule C's old revision `372552255471616` still enabled-not-current (D65 rollback); D70's two guard predecessors + the two message-fix predecessors (`373789698883584`, `373672421949440`) disabled as rollback. Alexander says leave them for now (2026-07-05).
+- **R2 scope fix** — see finding above. The suite stays 1-red until fixed (deliberate).
+- **Procurement role strategy** (view+update+trigger global fallback) — see finding above; R41 will read red until decided.
+- **Guard A still carries a dead `cancelled` clause** in "Status is terminal?" (harmless post-D68; trimming is a workflow revision).
+- **Predecessor housekeeping**: Rule C's old revision `372552255471616` still enabled-not-current; D70/D71 + message-fix predecessors disabled as rollback. Alexander says leave them (2026-07-05).
+- Right after enabling a workflow revision, `triggerWorkflows`-bound actions can 500 ("Workflow on your action hangs") — `nb api workflow workflows sync --filter '{"enabled": true}'` fixes it (auto-memory `reference_nb_workflow_revision_gotchas` #4).
 
 ## Fixture design notes (carry over)
 
-- `operations_proj` is the ONLY dept-bearing test user. **Do not add departments to the existing seeded PR users** — it would change the already-green PR approval chains (and is why PR fixtures skip the dept stage and stop at procurement).
-- `pr_draft_a` is shared by R2 (owner edit at info_requested), R13 (not-director-stage deny), R16 (not-approved PO-create deny). All three hold at `info_requested`.
-- Chains: projects need 3 steps (Pat dept → Pat procurement → Dana director; budgets 5000 < 15k board threshold). Drawdown PRs need 1 step each (Pat; drawdown branch replaces director/board — R30).
-- **Teardown:** clean since D71 (2026-07-05) — Guard A now exempts admin like the projects guard, so terminal PR fixtures delete too. All historical `[TEST]` debris was removed the same day; the old "debris grows each run" policy (D60/D62) is retired.
+- `operations_proj` is the ONLY dept-bearing test user; its dept is Procurement (363554444476416, main approver Pat). **Do not add departments to the other seeded PR users** — it would change the already-green PR approval chains. New dept-stage fixtures (pr_dept_pending, pr_dept_flow) reuse operations_proj for exactly this reason.
+- `pr_draft_a` is shared by R2 (owner edit at info_requested), R13-era comments, R16 (not-approved PO-create deny), R37 (procurement return witness). It holds at `info_requested`.
+- `pr_regular_small`/`pr_regular_300` are created **as admin** (is_regular not in the operations create whitelist); everything else follows the old patterns.
+- Approvals-entry order is load-bearing in the after_records pass: within (1000) → boundary (4000) → over (9500) against the 5000 budget.
 - Case order in the file is load-bearing: R28's link-allow and the R29/R30 state cases sit BEFORE the R27 block, whose allow case completes `proj_approved`.
-- When reworking R26 cases: the new model needs owner-scoped edit allow, cross-operations edit deny, dept-head stage edit, `remaining_usd` write deny, and rejected-locked deny.
+- Teardown: clean since D71 (Guard A exempts admin) — terminal PR fixtures delete too.
 
 ## Before go-live (detail in `notes.md`)
 
 - Re-negate `member`'s `ui.*` snippet (dev convenience; grants UI-edit to everyone under `only-use-union`).
 - Assign `finance` role to `fiona.finance` (id 14).
 - Move PO payment set-rights to `finance`; move receiving to a warehouse role if created (D59).
-- Re-run D57's dead-scope-table check across the whole schema (only PR/PO/po_lines covered).
+- Re-run D57's dead-scope-table check across the whole schema — note the R2 finding above is exactly this class; dead rows 2/4/5 still exist.
+- Revisit procurement's global strategy (this session's finding) as part of that sweep.
 
 ## Steps 7–8 (not started)
 
