@@ -488,15 +488,32 @@ fixtures:
       timeout_s: 30
 
 cases:
+  # ==========================================================================
+  # Converted to config checks 2026-07-05 (new nb-test model, see the nb-test
+  # SKILL.md): plain grant / scope / field-whitelist facts are now asserted
+  # against the live ACL config (type: acl; run alone with `runner.py acl`,
+  # milliseconds each, admin reads only). A small `canary`-tagged runtime set
+  # keeps proving the engine ENFORCES each mechanism class the project uses:
+  #   - scoped grant, inside/outside  -> the R2 pair below
+  #   - plain grant applies           -> R17 header-edit allow
+  #   - no grant blocks               -> R20 operations-update deny
+  #   - field whitelist ignores       -> R26 remaining_usd deny
+  #   - trigger verb is ACL-gated     -> R27 operations trigger deny
+  # Run canaries alone with `--tag canary`.
+  # ==========================================================================
   - rule: R1
-    name: operations user can create a purchase request
-    as: operations_a
-    action: purchase_requests:create
-    values: { title: "[TEST] New PR" }   # status omitted — defaults to pending_dept_approval (D68)
-    expect: allow
+    name: operations holds purchase_requests:create (config)
+    type: acl
+    role: operations
+    collection: purchase_requests
+    action: create
+    expect: granted
 
+  # The R2 runtime pair doubles as the scoped-grant canaries (inside the
+  # scope applies / outside it blocks).
   - rule: R2
-    name: operations user can update their own info_requested PR
+    name: operations user can update their own info_requested PR (canary)
+    tags: [canary]
     as: operations_a
     action: purchase_requests:update
     target: pr_draft_a
@@ -504,68 +521,108 @@ cases:
     expect: allow
 
   - rule: R2
-    name: operations user cannot update another operations user's info_requested PR
+    name: operations user cannot update another operations user's info_requested PR (canary)
+    tags: [canary]
     as: operations_b
     action: purchase_requests:update
     target: pr_draft_a
     values: { title: "[TEST] hijacked" }
     expect: deny
 
+  # EXPECTED RED until Alexander decides the fix (found 2026-07-05, nineteenth
+  # session): the 2026-07-04 scope trim landed in the DEAD rolesResourcesScopes
+  # table (row 2, "PR — own and editable", updatedAt matches that session).
+  # The live grant points at the generic "Own records" scope (363334209503234,
+  # createdById only — no status clause, no submitterId alternative). Live
+  # effect: a submitter can edit their own PR at any pending_* stage; only
+  # approved/rejected are saved by Guard A. Fixing the scope is a live ACL
+  # change — Alexander's call; this check stays red until live matches R2.
+  - rule: R2
+    name: operations PR update grant is scoped to status info_requested (config)
+    type: acl
+    role: operations
+    collection: purchase_requests
+    action: update
+    expect: granted
+    scope: { status: { $eq: info_requested } }
+
   - rule: R3
-    name: operations user cannot destroy a purchase request
-    as: operations_a
-    action: purchase_requests:destroy
-    target: pr_draft_a
-    expect: deny
+    name: operations cannot destroy purchase requests (config)
+    type: acl
+    role: operations
+    collection: purchase_requests
+    action: destroy
+    expect: absent
 
   # --- R4/R5: only procurement has independent create config on these two
   # collections (D56); director/finance/member/operations all fall through
-  # to member's view-only baseline, no create action registered at all —
-  # confirmed via live ACL audit 2026-07-02. No PO fixture needed since ACL
-  # denies create before any record/association is touched.
+  # to member's view-only baseline. Config checks — `absent` adds the base
+  # `member` role automatically (union role mode).
   - rule: R4
-    name: director cannot create a purchase order
-    as: director_a
-    action: purchase_orders:create
-    values: { currency: USD, total: 100 }
-    expect: deny
+    name: procurement holds purchase_orders:create (config)
+    type: acl
+    role: procurement
+    collection: purchase_orders
+    action: create
+    expect: granted
+
+  - rule: R4
+    name: director has no purchase_orders:create (config)
+    type: acl
+    role: director
+    collection: purchase_orders
+    action: create
+    expect: absent
 
   - rule: R5
-    name: director cannot create a po_line
-    as: director_a
-    action: po_lines:create
-    values: { quantity_ordered: 1 }
-    expect: deny
+    name: procurement holds po_lines:create (config)
+    type: acl
+    role: procurement
+    collection: po_lines
+    action: create
+    expect: granted
 
-  # --- R12: director's render-enabler update grant works at its own
-  # approval stage (D55/D57/D58) — pr_pending_director is driven to
-  # pending_director_approval via fixtures.approvals above.
+  - rule: R5
+    name: director has no po_lines:create (config)
+    type: acl
+    role: director
+    collection: po_lines
+    action: create
+    expect: absent
+
+  # --- R12/R13: director's render-enabler update grant (D55/D57/D58) as
+  # config checks: the grant exists, its scope is the director stage, and
+  # the field whitelist is exactly the three render-enablers. R13 (deny
+  # outside the stage) is the same scope read: any other status falls
+  # outside the one scope clause. Scoped-grant ENFORCEMENT is proven by the
+  # R2 canary pair — same mechanism class.
   - rule: R12
-    name: director can update PR fields while it's at its own approval stage (pending_director_approval)
-    as: director_a
-    action: purchase_requests:update
-    target: pr_pending_director
-    values: { rejection_comment: "[TEST] director comment at own stage" }
-    expect: allow
+    name: director PR update is stage-scoped with exactly the 3 render-enabler fields (config)
+    type: acl
+    role: director
+    collection: purchase_requests
+    action: update
+    expect: granted
+    scope: { status: { $eq: pending_director_approval } }
+    fields_equal: [rejection_comment, rejection_reason_category, signature]
 
-  # --- R13: director's render-enabler update grant is scoped to its own
-  # approval stage (D55 fix) — pr_draft_a is status=info_requested, not
-  # pending_director_approval, so this must be denied.
   - rule: R13
-    name: director cannot update PR fields while it's at info_requested (not their approval stage)
-    as: director_a
-    action: purchase_requests:update
-    target: pr_draft_a
-    values: { rejection_comment: "[TEST] should be blocked" }
-    expect: deny
+    name: director PR update scope is the director stage only (config)
+    type: acl
+    role: director
+    collection: purchase_requests
+    action: update
+    expect: granted
+    scope: { status: { $eq: pending_director_approval } }
 
-  # --- R14: regression test locking in the D55 fix (stray create action removed)
+  # --- R14: regression lock on the D55 fix (stray create action removed)
   - rule: R14
-    name: director cannot create a purchase request
-    as: director_a
-    action: purchase_requests:create
-    values: { title: "[TEST] director attempt" }   # status omitted (D68 retired draft); ACL denies create regardless
-    expect: deny
+    name: director has no purchase_requests:create (config)
+    type: acl
+    role: director
+    collection: purchase_requests
+    action: create
+    expect: absent
 
   # --- R15: allow counterpart to R16. pr_approved is driven to status:
   # approved via fixtures.approvals above, so "Guard: Create PO (PR must be
@@ -589,43 +646,31 @@ cases:
     expect: deny
 
   # --- R19/R23: finance and operations have no independent create grant on
-  # purchase_orders/po_lines (D59 audit) — they fall through to member's
-  # view-only baseline, same as director in R4/R5. ACL denies create before
-  # any record is touched, so no PO fixture is needed here.
+  # purchase_orders/po_lines (D59 audit) — member view-only baseline, same
+  # as director in R4/R5. Multi-role config checks (member auto-included).
   - rule: R19
-    name: finance cannot create a purchase order
-    as: finance_a
-    action: purchase_orders:create
-    values: { currency: USD, total: 100 }
-    expect: deny
-
-  - rule: R19
-    name: operations cannot create a purchase order
-    as: operations_a
-    action: purchase_orders:create
-    values: { currency: USD, total: 100 }
-    expect: deny
+    name: finance and operations have no purchase_orders:create (config)
+    type: acl
+    roles: [finance, operations]
+    collection: purchase_orders
+    action: create
+    expect: absent
 
   - rule: R23
-    name: finance cannot create a po_line
-    as: finance_a
-    action: po_lines:create
-    values: { quantity_ordered: 1 }
-    expect: deny
+    name: finance and operations have no po_lines:create (config)
+    type: acl
+    roles: [finance, operations]
+    collection: po_lines
+    action: create
+    expect: absent
 
-  - rule: R23
-    name: operations cannot create a po_line
-    as: operations_a
-    action: po_lines:create
-    values: { quantity_ordered: 1 }
-    expect: deny
-
-  # --- R17: procurement can edit a draft PO's header (update grant + "PO
-  # Immutability" guard only bites on completed/closed), but cannot delete a
-  # PO — procurement has no destroy grant on purchase_orders (ACL denies).
-  # internal_notes is in procurement's update whitelist and touches no guard.
+  # --- R17: procurement's PO update grant is unscoped (any non-terminal
+  # status; the "PO Immutability" guard alone blocks terminal — R18) and
+  # there is no destroy grant. The header-edit allow is kept as the
+  # plain-grant canary; internal_notes touches no guard.
   - rule: R17
-    name: procurement can update a draft PO's header
+    name: procurement can update a draft PO's header (canary)
+    tags: [canary]
     as: procurement_a
     action: purchase_orders:update
     target: po_draft
@@ -633,39 +678,43 @@ cases:
     expect: allow
 
   - rule: R17
-    name: procurement cannot delete a PO (no destroy grant)
-    as: procurement_a
-    action: purchase_orders:destroy
-    target: po_draft
-    expect: deny
+    name: procurement holds purchase_orders:update (config)
+    type: acl
+    role: procurement
+    collection: purchase_orders
+    action: update
+    expect: granted
+
+  - rule: R17
+    name: procurement has no purchase_orders:destroy (config)
+    type: acl
+    role: procurement
+    collection: purchase_orders
+    action: destroy
+    expect: absent
 
   # --- R20: director/finance/operations have no independent grant on
-  # purchase_orders -> member view-only baseline, so update/destroy deny.
+  # purchase_orders -> member view-only baseline. Config checks; one
+  # runtime deny kept as the no-grant canary.
   - rule: R20
-    name: director cannot update a PO
-    as: director_a
-    action: purchase_orders:update
-    target: po_draft
-    values: { internal_notes: "[TEST] should be blocked" }
-    expect: deny
+    name: director, finance, and operations have no purchase_orders:update (config)
+    type: acl
+    roles: [director, finance, operations]
+    collection: purchase_orders
+    action: update
+    expect: absent
 
   - rule: R20
-    name: director cannot delete a PO
-    as: director_a
-    action: purchase_orders:destroy
-    target: po_draft
-    expect: deny
+    name: director, finance, and operations have no purchase_orders:destroy (config)
+    type: acl
+    roles: [director, finance, operations]
+    collection: purchase_orders
+    action: destroy
+    expect: absent
 
   - rule: R20
-    name: finance cannot update a PO
-    as: finance_a
-    action: purchase_orders:update
-    target: po_draft
-    values: { internal_notes: "[TEST] should be blocked" }
-    expect: deny
-
-  - rule: R20
-    name: operations cannot update a PO
+    name: operations cannot update a PO (canary)
+    tags: [canary]
     as: operations_a
     action: purchase_orders:update
     target: po_draft
@@ -699,40 +748,24 @@ cases:
     values: { purchase_order: "@ref:po_draft", description: "[TEST] over budget", quantity_ordered: 100, unit_price: 10 }
     expect: deny
 
-  # --- R24: director/finance/operations have no independent grant on po_lines
-  # -> member view-only baseline, so update/destroy deny (ACL bites before any
-  # guard). Setting only `description` avoids the receive/budget guards, so a
-  # non-deny result would be a real ACL leak, not a guard artifact.
+  # --- R24: director/finance/operations have no independent grant on
+  # po_lines -> member view-only baseline. Config checks; the no-grant
+  # canary is R20's (same mechanism class, no per-collection repeat).
   - rule: R24
-    name: director cannot update a po_line
-    as: director_a
-    action: po_lines:update
-    target: po_draft_line
-    values: { description: "[TEST] should be blocked" }
-    expect: deny
+    name: director, finance, and operations have no po_lines:update (config)
+    type: acl
+    roles: [director, finance, operations]
+    collection: po_lines
+    action: update
+    expect: absent
 
   - rule: R24
-    name: director cannot delete a po_line
-    as: director_a
-    action: po_lines:destroy
-    target: po_draft_line
-    expect: deny
-
-  - rule: R24
-    name: finance cannot update a po_line
-    as: finance_a
-    action: po_lines:update
-    target: po_draft_line
-    values: { description: "[TEST] should be blocked" }
-    expect: deny
-
-  - rule: R24
-    name: operations cannot update a po_line
-    as: operations_a
-    action: po_lines:update
-    target: po_draft_line
-    values: { description: "[TEST] should be blocked" }
-    expect: deny
+    name: director, finance, and operations have no po_lines:destroy (config)
+    type: acl
+    roles: [director, finance, operations]
+    collection: po_lines
+    action: destroy
+    expect: absent
 
   # --- R18: po_closed is driven to `closed` by fixtures.actions. Procurement
   # can edit a DRAFT PO's header (R17), so a deny here isolates the "PO
@@ -784,14 +817,8 @@ cases:
     target: po_draft_line
     values: { received_quantity: 1 }
     expect: deny
-
-  - rule: R22
-    name: operations cannot record receiving at all
-    as: operations_a
-    action: po_lines:update
-    target: po_issued_line
-    values: { received_quantity: 5 }
-    expect: deny
+  # (R22's "director/finance/operations cannot record receiving" side is the
+  # same no-update-grant fact R24's config check asserts — no runtime repeat.)
 
   # ==========================================================================
   # R25-R30: projects. All tagged [projects] for scoped first runs
@@ -809,48 +836,84 @@ cases:
   # ==========================================================================
 
   # --- R25: only operations has create on projects (ACL audit 2026-07-04).
+  # Config checks; the allow side is also exercised every run by the
+  # projects fixtures (all created as operations users).
   - rule: R25
-    name: operations user can create a project
-    as: operations_a
-    action: projects:create
-    values: { title: "[TEST] R25 project", budget_usd: 100, justification: "[TEST] R25" }
-    expect: allow
+    name: operations holds projects:create (config)
+    type: acl
+    role: operations
+    collection: projects
+    action: create
+    expect: granted
     tags: [projects]
 
   - rule: R25
-    name: procurement cannot create a project
-    as: procurement_a
-    action: projects:create
-    values: { title: "[TEST] R25 blocked", budget_usd: 100 }
-    expect: deny
+    name: procurement, director, and finance have no projects:create (config)
+    type: acl
+    roles: [procurement, director, finance]
+    collection: projects
+    action: create
+    expect: absent
     tags: [projects]
 
-  - rule: R25
-    name: director cannot create a project
-    as: director_a
-    action: projects:create
-    values: { title: "[TEST] R25 blocked", budget_usd: 100 }
-    expect: deny
+  # --- R26 (D66 built 2026-07-05): the three scoped update grants and the
+  # no-delete fact are config checks below (scope + exact field whitelist,
+  # read live 2026-07-05). Runtime keeps four cases, each for something
+  # config can't show: the guard's pass side (draft edit goes through),
+  # the guard's block side isolated from ACL (proj_purchasing), the
+  # owner's mid-flow deny (second deny side D63 asked for), and the
+  # whitelist canary. Ownership/stage-scope ENFORCEMENT class is the R2
+  # canary pair. Dept-head content edit at pending_dept_approval is an
+  # approver-interface mechanism (editable fields on the Dept Owner
+  # Approval node): UI not built yet, no runner case — manual check when
+  # Alexander builds the form.
+  - rule: R26
+    name: operations project update is own + draft/info_requested, content fields only (config)
+    type: acl
+    role: operations
+    collection: projects
+    action: update
+    expect: granted
+    scope:
+      $and:
+        - createdBy: { id: { $eq: "{{$user.id}}" } }
+        - status: { $in: [draft, info_requested] }
+    fields_equal: [attachments, budget_usd, description, id, justification, title]
     tags: [projects]
 
-  - rule: R25
-    name: finance cannot create a project
-    as: finance_a
-    action: projects:create
-    values: { title: "[TEST] R25 blocked", budget_usd: 100 }
-    expect: deny
+  - rule: R26
+    name: procurement project update is purchasing-stage, metadata fields only (config)
+    type: acl
+    role: procurement
+    collection: projects
+    action: update
+    expect: granted
+    scope: { status: { $eq: pending_purchasing_review } }
+    fields_equal: [approval_document, id, rejection_comment, rejection_reason_category]
     tags: [projects]
 
-  # --- R26 (D66 built 2026-07-05): operations update is scoped own AND
-  # status in (draft, info_requested), content fields only; procurement/
-  # director updates are stage-scoped render-enablers; the guard's locked
-  # list now includes rejected. Non-draft/info denies hit the ACL scope
-  # first — the guard is the backstop layer behind it (and the only layer
-  # for admin-exempt paths). Dept-head content edit at pending_dept_approval
-  # is an approver-interface mechanism (editable fields on the Dept Owner
-  # Approval node): UI not built yet and the runner's approvals steps carry
-  # no content edits, so it has NO case here — manual check when Alexander
-  # builds the form.
+  - rule: R26
+    name: director project update is director-stage, metadata fields only (config)
+    type: acl
+    role: director
+    collection: projects
+    action: update
+    expect: granted
+    scope: { status: { $eq: pending_director_approval } }
+    fields_equal: [approval_document, id, rejection_comment, rejection_reason_category]
+    tags: [projects]
+
+  - rule: R26
+    name: no business role holds projects:destroy (config)
+    type: acl
+    roles: [operations, procurement, director, finance]
+    collection: projects
+    action: destroy
+    expect: absent
+    tags: [projects]
+
+  # Guard pass side: the immutability guard must NOT fire on a draft
+  # project — the owner's edit goes through.
   - rule: R26
     name: owner can edit their own draft project (content fields)
     as: operations_a
@@ -860,30 +923,24 @@ cases:
     expect: allow
     tags: [projects]
 
-  - rule: R26
-    name: another operations user cannot edit someone else's draft project (ownership scope)
-    as: operations_b
-    action: projects:update
-    target: proj_draft
-    values: { title: "[TEST] should be blocked (not owner)" }
-    expect: deny
-    tags: [projects]
-
   # remaining_usd is not in any update whitelist: the app silently ignores
   # it (no 403). The runner's update-deny check is "the sent values were
   # NOT applied", which is exactly the intent here — this case fails only
-  # if a whitelist change ever lets the value through. (First-run lesson:
-  # an `expect: allow` carrying an ignored field fails the runner's
-  # applied-values check — don't mix writable and ignored fields.)
+  # if a whitelist change ever lets the value through. Field-whitelist
+  # canary. (First-run lesson: an `expect: allow` carrying an ignored
+  # field fails the runner's applied-values check — don't mix writable
+  # and ignored fields.)
   - rule: R26
-    name: owner cannot write remaining_usd directly (field is ignored)
+    name: owner cannot write remaining_usd directly (canary — field is ignored)
+    tags: [projects, canary]
     as: operations_a
     action: projects:update
     target: proj_draft
     values: { remaining_usd: 999 }
     expect: deny
-    tags: [projects]
 
+  # Second deny side (D63): the owner's direct edit on their own mid-flow
+  # project — outside the ACL scope AND inside the guard's locked list.
   - rule: R26
     name: owner cannot edit a mid-flow project (pending dept approval)
     as: operations_proj
@@ -893,56 +950,19 @@ cases:
     expect: deny
     tags: [projects]
 
-  - rule: R26
-    name: owner cannot edit an approved project
-    as: operations_proj
-    action: projects:update
-    target: proj_approved
-    values: { title: "[TEST] should be blocked" }
-    expect: deny
-    tags: [projects]
-
-  - rule: R26
-    name: owner cannot edit a rejected project (rejected is locked)
-    as: operations_proj
-    action: projects:update
-    target: proj_rejected
-    values: { title: "[TEST] should be blocked" }
-    expect: deny
-    tags: [projects]
-
-  # procurement's update grant is now scoped to pending_purchasing_review,
-  # so this deny hits the ACL scope; the guard's completed clause backstops.
-  - rule: R26
-    name: procurement cannot edit a completed project
-    as: procurement_a
-    action: projects:update
-    target: proj_approved_2
-    values: { rejection_comment: "[TEST] should be blocked" }
-    expect: deny
-    tags: [projects]
-
   # Guard isolation: procurement's stage scope MATCHES here (ACL passes),
   # so this deny can only come from the guard's pending_purchasing_review
-  # clause (sync request-interception, HTTP 400). Every other R26 deny hits
-  # an ACL scope before the guard. Proves the stage grants are render-
-  # enablers — direct API writes at a pending stage are blocked; real
-  # metadata edits ride the approval interface, which bypasses the guard
-  # (D63). One representative case: director's grant is the same mechanism.
+  # clause (sync request-interception, HTTP 400). Proves the stage grants
+  # are render-enablers — direct API writes at a pending stage are blocked;
+  # real metadata edits ride the approval interface, which bypasses the
+  # guard (D63). One representative case: director's grant is the same
+  # mechanism.
   - rule: R26
     name: procurement cannot directly edit a project even at its own stage (guard blocks; edits ride the approval interface)
     as: procurement_a
     action: projects:update
     target: proj_purchasing
     values: { rejection_comment: "[TEST] should be blocked by the guard" }
-    expect: deny
-    tags: [projects]
-
-  - rule: R26
-    name: operations cannot delete a project (even a draft)
-    as: operations_a
-    action: projects:destroy
-    target: proj_draft
     expect: deny
     tags: [projects]
 
@@ -1009,14 +1029,16 @@ cases:
     tags: [projects]
 
   # --- R27: complete action. KEEP LAST (the allow case completes proj_approved).
+  # The operations deny doubles as the trigger-gating canary (403 = no
+  # `trigger` grant on the collection).
   - rule: R27
-    name: operations cannot fire the complete action (no trigger grant)
+    name: operations cannot fire the complete action (canary — no trigger grant)
     as: operations_a
     action: projects:trigger
     target: proj_approved
     trigger_workflows: px2xvjaxoqf
     expect: deny
-    tags: [projects]
+    tags: [projects, canary]
 
   - rule: R27
     name: a draft project cannot be completed
