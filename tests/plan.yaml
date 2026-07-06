@@ -58,6 +58,29 @@ rules:
   R28: A purchase request cannot be created linked to a project whose status is anything other than approved — draft, any pending stage, info_requested, rejected, or the completed terminal all block; linking to an approved project is allowed. The same not-approved check also guards project re-links on PR update.
   R29: When procurement approves a project-linked PR, it is auto-rejected if the total of already-approved sibling PRs plus this PR exceeds the project's budget (strict greater-than — exactly on budget still approves); within budget it is approved, and the project's committed amount recomputes from approved PRs only.
   R30: A PR drawing on an approved project skips the director and board stages unconditionally — procurement approval is the final human step, regardless of amount.
+  # --- R31-R39 drafted 2026-07-05 (nineteenth session) from the live PR
+  # Approval node chain (current revision 373617786945536, key cv237r8h7k9)
+  # — the workflow-branch tier of the new nb-test model. Every boundary is
+  # quoted from the live condition node, not from memory. Source checklist:
+  # tests/manual-workflow-walkthrough.md (hand-passed 2026-06-13). Branches
+  # deliberately NOT drafted (walkthrough-only, runner can't express them):
+  # in-app notifications (A3/A8 FYIs), resubmit-after-return (applicant UI
+  # action), board document-required form validation (A7). NOT YET RUN.
+  R31: A purchase request created by someone who belongs to a department starts at pending_dept_approval, and the workflow stamps the submitter's id and their department onto the PR. # TODO verify
+  R32: The department head approving the dept stage moves the PR to pending_purchasing_review. # TODO verify
+  R33: When the submitter is their own department's main approver, the dept stage is skipped — the PR goes straight to pending_purchasing_review (nobody reviews their own request at their own stage). # TODO verify
+  R34: When the submitter picked a custom approver (all three read from the live condition — the flag is on, an approver is set, and it is not the submitter), that person replaces the dept head for the first stage; their approve moves the PR to pending_purchasing_review. The dept head only gets an FYI notification (notification itself not runner-checked). # TODO verify
+  R35: 'After procurement approves, the director is required unless the purchase is regular AND under 300 USD — live condition: is_regular != true OR quoted_total_usd >= 300. So a regular 250 USD purchase is approved with no director; a regular purchase of exactly 300 USD still goes to the director (>= is inclusive); and a 100 USD purchase that is NOT regular also goes to the director (the D37 default flip). # TODO verify'
+  R36: 'From 15000 USD up the director''s approve routes the PR to the board instead of approving it — live condition: quoted_total_usd >= 15000, checked after the director approves. The board''s approve then makes it approved. Below 15000 the director''s approve is final. # TODO verify'
+  R37: An approver returning a PR to ask for more information sets it to info_requested — checked at the procurement and director stages (the dept, custom-approver, and board return branches are the same one-node pattern; walkthrough-covered). # TODO verify
+  R38: An approver rejecting a PR ends the flow — status rejected, with the approver's comment stored as the rejection comment. Checked at the procurement stage. # TODO verify
+  R39: Rejecting a project at its department stage ends the project ladder — status rejected. (Formalizes the proj_rejected fixture outcome as a rule-cited case.) # TODO verify
+  # --- R40-R41 drafted 2026-07-05 (nineteenth session): the Step-6 audit
+  # surface for suppliers and departments, from the live ACL read. No
+  # enabled workflow touches either collection, so these are pure config
+  # checks — enforcement mechanism classes are already canary-covered.
+  R40: Procurement maintains the supplier list — it can create and update suppliers; nobody can delete one; every signed-in user can view them (member baseline). # TODO verify
+  R41: Departments — including who each department's main approver is, which steers approval routing — are admin-maintained reference data. No business role may create, update, or delete a department; everyone can view them. # TODO verify — KNOWN LIVE MISMATCH: procurement's role strategy (view/update/trigger on everything without its own entry) grants departments:update; the config check below stays red until Alexander picks rule or live as right.
 
 fixtures:
   users:
@@ -68,6 +91,10 @@ fixtures:
     finance_a: { role: finance }
     pat_procurement: { existing: true, email: "pat@havenbeheer.test", password: "nbtest" }
     dana_director: { existing: true, email: "dana@havenbeheer.test", password: "nbtest" }
+    # oliver_owner: real persona (id 10), Operations dept main approver —
+    # the R33 head-skip witness. Password set to nbtest 2026-07-02 (verified
+    # by sign-in, see notes.md). existing: true = sign-in only, never touched.
+    oliver_owner: { existing: true, email: "oliver@havenbeheer.test", password: "nbtest" }
     # operations_proj: dept-bearing project submitter. The Project Approval
     # ladder routes its dept stage via createdBy.mainDepartment.mainApproverId
     # — a dept-less user stalls there (HANDOFF fixture note). main_department
@@ -88,10 +115,14 @@ fixtures:
         as: operations_a
         trigger_workflow: cv237r8h7k9   # PR Approval workflow key
         values: { title: "[TEST] Office chairs", quoted_total: 100 }
+      # pr_pending_director: 100 USD, is_regular never set -> after Pat's
+      # approve the director condition fires on its is_regular != true side
+      # (the D37 flip) and the PR waits for Dana. Cited by R35 (its R12 use
+      # became a config check 2026-07-05).
       - id_ref: pr_pending_director
         as: operations_a
         trigger_workflow: cv237r8h7k9   # PR Approval workflow key
-        values: { title: "[TEST] R12 fixture", quoted_total: 100 }
+        values: { title: "[TEST] R35 not-regular 100 PR", quoted_total: 100, fx_rate_to_usd: 1 }
       - id_ref: pr_approved
         as: operations_a
         trigger_workflow: cv237r8h7k9   # PR Approval workflow key
@@ -115,20 +146,92 @@ fixtures:
         as: operations_a
         trigger_workflow: cv237r8h7k9   # PR Approval workflow key
         values: { title: "[TEST] po_issued fixture source PR", quoted_total: 100 }
+      # --- R31-R38 branch fixtures (2026-07-05). Dept-stage witnesses use
+      # operations_proj (the ONLY dept-bearing test user; its dept's main
+      # approver is Pat — known creds, and NOT the submitter, so the dept
+      # stage actually waits). pr_dept_pending is never advanced; its state
+      # case is the R31 assert.
+      - id_ref: pr_dept_pending
+        as: operations_proj
+        trigger_workflow: cv237r8h7k9
+        values: { title: "[TEST] R31 dept-stage PR", quoted_total: 100, fx_rate_to_usd: 1 }
+      - id_ref: pr_dept_flow
+        as: operations_proj
+        trigger_workflow: cv237r8h7k9
+        values: { title: "[TEST] R32 dept-approve PR", quoted_total: 100, fx_rate_to_usd: 1 }
+      # pr_head_skip: created by oliver_owner, who IS his department's main
+      # approver -> the head-skip condition (createdById ==
+      # createdBy.mainDepartment.mainApproverId) fires and the PR lands at
+      # pending_purchasing_review with zero approvals. No steps needed.
+      - id_ref: pr_head_skip
+        as: oliver_owner
+        trigger_workflow: cv237r8h7k9
+        values: { title: "[TEST] R33 head-skip PR", quoted_total: 100, fx_rate_to_usd: 1 }
+      # pr_custom: dept-less submitter + custom approver Pat (id 11). The
+      # live condition needs use_custom_approver true AND custom_approver
+      # set AND != submitter; custom_approver is in the trigger appends, so
+      # the FK resolves. The only pending task after create is the custom
+      # node's — Pat approving it (fixtures.approvals) is itself the
+      # assignment witness.
+      - id_ref: pr_custom
+        as: operations_a
+        trigger_workflow: cv237r8h7k9
+        values: { title: "[TEST] R34 custom-approver PR", quoted_total: 100, fx_rate_to_usd: 1, use_custom_approver: true, customApproverId: 11 }
+      # pr_regular_small / pr_regular_300: created AS ADMIN because
+      # is_regular is not in the operations create whitelist (procurement
+      # normally sets it on the approval form, which the runner's steps
+      # can't carry). approvals:create as admin persists is_regular —
+      # verified live 2026-07-05 with a throwaway PR, deleted after. The
+      # director condition reads is_regular + quoted_total_usd from the
+      # procurement node's snapshot; fx 1 keeps USD == quoted_total.
+      # 250 sits below the live >= 300 boundary, 300 exactly ON it.
+      - id_ref: pr_regular_small
+        as: admin
+        trigger_workflow: cv237r8h7k9
+        values: { title: "[TEST] R35 regular 250 PR", quoted_total: 250, fx_rate_to_usd: 1, is_regular: true }
+      - id_ref: pr_regular_300
+        as: admin
+        trigger_workflow: cv237r8h7k9
+        values: { title: "[TEST] R35 regular 300 boundary PR", quoted_total: 300, fx_rate_to_usd: 1, is_regular: true }
+      # pr_board: 15000 sits exactly ON the live >= 15000 board boundary.
+      # Chain: Pat (procurement) -> Dana (director) -> Pat (board; the board
+      # node's assignee is the Procurement dept main approver — intended,
+      # D63 notes: real board approval is a physical document procurement
+      # uploads). The board step only exists if the board branch fired, so
+      # the 3-step chain succeeding IS the branch witness.
+      - id_ref: pr_board
+        as: operations_a
+        trigger_workflow: cv237r8h7k9
+        values: { title: "[TEST] R36 board 15000 PR", quoted_total: 15000, fx_rate_to_usd: 1 }
+      # pr_return_dir / pr_reject_proc: return and reject branch witnesses.
+      - id_ref: pr_return_dir
+        as: operations_a
+        trigger_workflow: cv237r8h7k9
+        values: { title: "[TEST] R37 director-return PR", quoted_total: 100, fx_rate_to_usd: 1 }
+      - id_ref: pr_reject_proc
+        as: operations_a
+        trigger_workflow: cv237r8h7k9
+        values: { title: "[TEST] R38 procurement-reject PR", quoted_total: 100, fx_rate_to_usd: 1 }
       # --- drawdown PRs (R29/R30): linked to proj_approved, so they can only
       # be created AFTER the project's approval chain ran (create guard
       # lylobzvlh5p blocks linking a non-approved project) -> after_approvals.
       # Their own approval steps run in the SECOND approvals pass (entries
-      # with after_records: true below). fx_rate_to_usd: 1 keeps
-      # quoted_total_usd == quoted_total. Budget 5000: within (1000) commits;
-      # over (9500; 1000 + 9500 > 5000) trips the D53 backstop at
-      # procurement-approve. Terminal PRs delete cleanly in teardown since
-      # D71 (Guard A exempts admin) — no debris policy needed anymore.
+      # with after_records: true below), in order: within (1000 <= 5000,
+      # approved) -> boundary (1000 + 4000 = exactly 5000; the live check is
+      # strict `>`, so exactly-on-budget still approves) -> over (1000 +
+      # 4000 + 9500 = 14500 > 5000, auto-rejected by the D53 backstop).
+      # fx_rate_to_usd: 1 keeps quoted_total_usd == quoted_total. Terminal
+      # PRs delete cleanly in teardown since D71 (Guard A exempts admin).
       - id_ref: pr_proj_within
         as: operations_a
         after_approvals: true
         trigger_workflow: cv237r8h7k9
         values: { title: "[TEST] project PR within budget", quoted_total: 1000, fx_rate_to_usd: 1, project: "@ref:proj_approved" }
+      - id_ref: pr_proj_boundary
+        as: operations_a
+        after_approvals: true
+        trigger_workflow: cv237r8h7k9
+        values: { title: "[TEST] project PR exactly on budget", quoted_total: 4000, fx_rate_to_usd: 1, project: "@ref:proj_approved" }
       - id_ref: pr_proj_over
         as: operations_a
         after_approvals: true
@@ -341,6 +444,71 @@ fixtures:
           match: { status: approved }
       timeout_s: 30
 
+    # --- R31-R38 branch chains (2026-07-05). No asserts here — each
+    # outcome is a rule-cited state case, so a failure classifies per rule
+    # (same pattern as the drawdown chains). pr_dept_pending and
+    # pr_head_skip need no entry at all: their state cases poll directly.
+    # pr_dept_flow: Pat approves the DEPT stage (he is operations_proj's
+    # dept main approver) — one step, lands at purchasing review.
+    - target: pr_dept_flow
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] dept head approve -> purchasing review"
+      timeout_s: 30
+    # pr_custom: Pat approves as the CUSTOM approver (the only pending task
+    # on this PR after create).
+    - target: pr_custom
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] custom approver approve -> purchasing review"
+      timeout_s: 30
+    # pr_regular_small: regular + 250 -> procurement approve is final.
+    - target: pr_regular_small
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement approve, regular under 300 -> approved"
+      timeout_s: 30
+    # pr_regular_300: regular + exactly 300 -> director still required.
+    - target: pr_regular_300
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement approve, regular at 300 -> director"
+      timeout_s: 30
+    # pr_board: 15000 -> board after director; Pat holds the board task.
+    - target: pr_board
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement approve -> director stage"
+        - as: dana_director
+          decision: approve
+          comment: "[TEST] director approve, 15000 -> board stage"
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] board approve -> approved"
+      timeout_s: 30
+    # pr_return_dir: director returns for info.
+    - target: pr_return_dir
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement approve -> director stage"
+        - as: dana_director
+          decision: return
+          comment: "[TEST] director returns for info -> info_requested"
+      timeout_s: 30
+    # pr_reject_proc: procurement rejects outright.
+    - target: pr_reject_proc
+      steps:
+        - as: pat_procurement
+          decision: reject
+          comment: "[TEST] procurement rejects — not needed"
+      timeout_s: 30
+
     # --- projects approval chains (R25-R30 preconditions). Ladder audited
     # node-by-node 2026-07-03: dept stage (assignee = submitter's
     # mainDepartment.mainApproverId = Pat via operations_proj) ->
@@ -428,6 +596,15 @@ fixtures:
         - as: pat_procurement
           decision: approve
           comment: "[TEST] procurement approve -> drawdown, within budget"
+      timeout_s: 30
+    # boundary runs AFTER within (order matters: approved total must be
+    # exactly 1000 + 4000 = the 5000 budget when this one is judged).
+    - target: pr_proj_boundary
+      after_records: true
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement approve -> drawdown, exactly on budget"
       timeout_s: 30
     - target: pr_proj_over
       after_records: true
@@ -1010,11 +1187,20 @@ cases:
     match: { status: approved }
     tags: [projects]
 
+  # The boundary drawdown (4000) sits exactly ON the 5000 budget: the live
+  # check is strict `>`, so it still approves — R29's rule text says so.
   - rule: R29
-    name: project committed_usd recomputed from approved PRs only (1000, not 10500)
+    name: exactly-on-budget project PR still approves (strict greater-than)
+    type: state
+    target: pr_proj_boundary
+    match: { status: approved }
+    tags: [projects]
+
+  - rule: R29
+    name: project committed_usd recomputed from approved PRs only (1000 + 4000, not 14500)
     type: state
     target: proj_approved
-    match: { committed_usd: 1000 }
+    match: { committed_usd: 5000 }
     tags: [projects]
 
   # --- R30: the within-budget PR reached `approved` off ONE procurement
@@ -1026,6 +1212,106 @@ cases:
     type: state
     target: pr_proj_within
     match: { status: approved }
+    tags: [projects]
+
+  # ==========================================================================
+  # R31-R38: PR Approval branch outcomes (drafted 2026-07-05, NOT YET RUN —
+  # review gate first). The chains ran in fixtures.approvals; these state
+  # cases assert where each PR landed, so a failure classifies per rule.
+  # Tagged [prflow] for a scoped first run: --tag prflow.
+  # ==========================================================================
+  - rule: R31
+    name: dept-bearing submitter's PR waits at the dept stage, stamped with submitter and department
+    type: state
+    target: pr_dept_pending
+    match: { status: pending_dept_approval, submitterId: "@user:operations_proj", departmentId: 363554444476416 }
+    tags: [prflow]
+
+  - rule: R32
+    name: dept head's approve moves the PR to purchasing review
+    type: state
+    target: pr_dept_flow
+    match: { status: pending_purchasing_review }
+    tags: [prflow]
+
+  - rule: R33
+    name: dept-head submitter skips their own dept stage (straight to purchasing review, zero approvals)
+    type: state
+    target: pr_head_skip
+    match: { status: pending_purchasing_review }
+    tags: [prflow]
+
+  - rule: R34
+    name: custom approver's approve moves the PR to purchasing review (their task, not the dept head's)
+    type: state
+    target: pr_custom
+    match: { status: pending_purchasing_review }
+    tags: [prflow]
+
+  - rule: R35
+    name: regular 250 USD purchase is approved with no director
+    type: state
+    target: pr_regular_small
+    match: { status: approved }
+    tags: [prflow]
+
+  - rule: R35
+    name: regular purchase of exactly 300 USD still goes to the director (boundary, >= is inclusive)
+    type: state
+    target: pr_regular_300
+    match: { status: pending_director_approval }
+    tags: [prflow]
+
+  - rule: R35
+    name: 100 USD purchase that is NOT regular goes to the director (D37 flip)
+    type: state
+    target: pr_pending_director
+    match: { status: pending_director_approval }
+    tags: [prflow]
+
+  # pr_board's 3-step chain (procurement -> director -> BOARD) can only
+  # complete if the board branch fired at exactly 15000 — the board step
+  # finds no task otherwise and the fixture phase fails loudly.
+  - rule: R36
+    name: 15000 USD PR went through the board and ended approved (boundary, >= is inclusive)
+    type: state
+    target: pr_board
+    match: { status: approved }
+    tags: [prflow]
+
+  - rule: R36
+    name: below 15000 the director's approve is final (pr_approved reached approved with no board step)
+    type: state
+    target: pr_approved
+    match: { status: approved }
+    tags: [prflow]
+
+  - rule: R37
+    name: procurement returning a PR sets info_requested
+    type: state
+    target: pr_draft_a
+    match: { status: info_requested }
+    tags: [prflow]
+
+  - rule: R37
+    name: director returning a PR sets info_requested
+    type: state
+    target: pr_return_dir
+    match: { status: info_requested }
+    tags: [prflow]
+
+  - rule: R38
+    name: procurement rejecting ends the flow at rejected with the comment stored
+    type: state
+    target: pr_reject_proc
+    match: { status: rejected, rejection_comment: "[TEST] procurement rejects — not needed" }
+    tags: [prflow]
+
+  - rule: R39
+    name: dept-stage reject ends the project ladder at rejected
+    type: state
+    target: proj_rejected
+    match: { status: rejected }
     tags: [projects]
 
   # --- R27: complete action. KEEP LAST (the allow case completes proj_approved).
@@ -1073,6 +1359,98 @@ cases:
     target: proj_approved
     match: { status: completed }
     tags: [projects]
+
+  # ==========================================================================
+  # R40-R41: suppliers + departments audit (drafted 2026-07-05, NOT YET RUN
+  # — review gate first). Pure config checks: no enabled workflow touches
+  # either collection, and every enforcement mechanism class already has a
+  # canary. `absent` includes the base member role automatically.
+  # ==========================================================================
+  - rule: R40
+    name: procurement holds suppliers:create (config)
+    type: acl
+    role: procurement
+    collection: suppliers
+    action: create
+    expect: granted
+
+  - rule: R40
+    name: procurement holds suppliers:update (config)
+    type: acl
+    role: procurement
+    collection: suppliers
+    action: update
+    expect: granted
+
+  - rule: R40
+    name: nobody can delete a supplier (config)
+    type: acl
+    roles: [procurement, operations, director, finance]
+    collection: suppliers
+    action: destroy
+    expect: absent
+
+  - rule: R40
+    name: operations, director, and finance cannot create suppliers (config)
+    type: acl
+    roles: [operations, director, finance]
+    collection: suppliers
+    action: create
+    expect: absent
+
+  - rule: R40
+    name: operations, director, and finance cannot update suppliers (config)
+    type: acl
+    roles: [operations, director, finance]
+    collection: suppliers
+    action: update
+    expect: absent
+
+  - rule: R40
+    name: every signed-in user can view suppliers (member strategy view)
+    type: acl
+    role: member
+    collection: suppliers
+    action: view
+    expect: granted
+
+  - rule: R41
+    name: no business role can create a department (config)
+    type: acl
+    roles: [operations, procurement, director, finance]
+    collection: departments
+    action: create
+    expect: absent
+
+  # EXPECTED RED until Alexander decides (found 2026-07-05): procurement's
+  # role STRATEGY is view+update+trigger on every collection that has no
+  # per-collection entry — departments has none, so Pat can update any
+  # department, including main_approver (which steers approval routing).
+  # Either the strategy gets trimmed (live ACL change, Alexander's call)
+  # or the rule is wrong and gets amended.
+  - rule: R41
+    name: no business role can update a department (config)
+    type: acl
+    roles: [operations, procurement, director, finance]
+    collection: departments
+    action: update
+    expect: absent
+
+  - rule: R41
+    name: no business role can delete a department (config)
+    type: acl
+    roles: [operations, procurement, director, finance]
+    collection: departments
+    action: destroy
+    expect: absent
+
+  - rule: R41
+    name: every signed-in user can view departments (member strategy view)
+    type: acl
+    role: member
+    collection: departments
+    action: view
+    expect: granted
 
 teardown:
   sweep_collections: []
