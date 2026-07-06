@@ -1312,3 +1312,17 @@ Note: the existing scope id 10 ("PR — director stage") covers **two** statuses
 **Verified live:** condition truth-table checked with `flow-nodes test` both ways; admin delete of a locked test PR now succeeds (was HTTP 400); Pat's edit of a locked PR still gets the lock message (HTTP 400); Pat's delete still gets "No permissions" (HTTP 403). All 24 `[TEST]` debris PRs deleted; purchase_orders / po_lines / projects checked — no debris left anywhere.
 **Affects:** runner teardown can now remove terminal PR fixtures — the "debris grows each run" policy (D60/D62) is retired. plan.yaml debris comments updated.
 **Status:** done + live-verified 2026-07-05. Rollback = disable `373846756098048`, re-enable `366217145548800`.
+
+## D72 — Operations PR-update scope actually enforced: own + info_requested (2026-07-05)
+**Decision:** Point the operations role's `purchase_requests:update` grant at a NEW live scope `373881040338944` "PR — own and info requested": `status = info_requested` AND (createdBy.id or submitter.id = current user). Applied via `acl roles apply-data-permissions` (full three-action payload, create/view reproduced verbatim; readback clean).
+**Why:** The R2 config check (new nb-test model) found the 2026-07-04 "scope trim" had landed in the dead `rolesResourcesScopes` table (row 2, updatedAt proves it) while the live grant pointed at generic "Own records" — Oscar could edit his own PR while it sat at Dana's approval stage, so Dana approved something Pat never saw. The D57 failure class, caught by the suite as designed. Alexander approved the fix.
+**How to apply:** nothing further — live. The dead row 2 still exists (holding the "right" clause, ironically); the go-live dead-scope sweep should delete rows 2/4/5.
+**Affects:** R2's config check green; suite 77/77. No behavior change for the legitimate window (own + info_requested edits still work — R2 canaries green).
+**Status:** done + verified 2026-07-05 (acl 34/34, full suite 77/77). Rollback = repoint the update action to scope `363334209503234`.
+
+## D73 — Procurement role strategy trimmed: update fallback removed (2026-07-05)
+**Decision:** Procurement's role strategy `{view, trigger, update}` → `{view, trigger}` (via `acl data-sources roles update`; both the role and data-source layers read back trimmed).
+**Why:** The strategy's `update` reached every collection WITHOUT a per-collection procurement entry — departments, users, roles, files, pr_comments — so Pat could rewrite any department's `main_approver` (steering approval routing) or edit user records. Found by R41's config check on draft; Alexander approved the trim.
+**How to apply:** nothing further — live. Products and units_of_measure are unaffected (full per-collection entries: view/create/update/destroy). Procurement's real update needs all sit in per-collection entries (PR/PO/po_lines/projects/suppliers/delivery_addresses).
+**Affects:** R41 green; suite 77/77. If a procurement "edit my PR comment" UI flow ever existed, it is gone — it rode the unscoped fallback (Pat could edit ANYONE's comment); a proper scoped grant on pr_comments should replace it if wanted.
+**Status:** done + verified 2026-07-05 (acl 34/34, full suite 77/77). Rollback = restore strategy actions `[view, trigger, update]`.

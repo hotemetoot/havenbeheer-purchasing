@@ -65,22 +65,24 @@ rules:
   # tests/manual-workflow-walkthrough.md (hand-passed 2026-06-13). Branches
   # deliberately NOT drafted (walkthrough-only, runner can't express them):
   # in-app notifications (A3/A8 FYIs), resubmit-after-return (applicant UI
-  # action), board document-required form validation (A7). NOT YET RUN.
-  R31: A purchase request created by someone who belongs to a department starts at pending_dept_approval, and the workflow stamps the submitter's id and their department onto the PR. # TODO verify
-  R32: The department head approving the dept stage moves the PR to pending_purchasing_review. # TODO verify
-  R33: When the submitter is their own department's main approver, the dept stage is skipped — the PR goes straight to pending_purchasing_review (nobody reviews their own request at their own stage). # TODO verify
-  R34: When the submitter picked a custom approver (all three read from the live condition — the flag is on, an approver is set, and it is not the submitter), that person replaces the dept head for the first stage; their approve moves the PR to pending_purchasing_review. The dept head only gets an FYI notification (notification itself not runner-checked). # TODO verify
-  R35: 'After procurement approves, the director is required unless the purchase is regular AND under 300 USD — live condition: is_regular != true OR quoted_total_usd >= 300. So a regular 250 USD purchase is approved with no director; a regular purchase of exactly 300 USD still goes to the director (>= is inclusive); and a 100 USD purchase that is NOT regular also goes to the director (the D37 default flip). # TODO verify'
-  R36: 'From 15000 USD up the director''s approve routes the PR to the board instead of approving it — live condition: quoted_total_usd >= 15000, checked after the director approves. The board''s approve then makes it approved. Below 15000 the director''s approve is final. # TODO verify'
-  R37: An approver returning a PR to ask for more information sets it to info_requested — checked at the procurement and director stages (the dept, custom-approver, and board return branches are the same one-node pattern; walkthrough-covered). # TODO verify
-  R38: An approver rejecting a PR ends the flow — status rejected, with the approver's comment stored as the rejection comment. Checked at the procurement stage. # TODO verify
-  R39: Rejecting a project at its department stage ends the project ladder — status rejected. (Formalizes the proj_rejected fixture outcome as a rule-cited case.) # TODO verify
+  # action), board document-required form validation (A7).
+  # All of R31-R41 reviewed + approved by Alexander 2026-07-05 (nineteenth
+  # session); first run green same day, full suite 77/77.
+  R31: A purchase request created by someone who belongs to a department starts at pending_dept_approval, and the workflow stamps the submitter's id and their department onto the PR.
+  R32: The department head approving the dept stage moves the PR to pending_purchasing_review.
+  R33: When the submitter is their own department's main approver, the dept stage is skipped — the PR goes straight to pending_purchasing_review (nobody reviews their own request at their own stage).
+  R34: When the submitter picked a custom approver (all three read from the live condition — the flag is on, an approver is set, and it is not the submitter), that person replaces the dept head for the first stage; their approve moves the PR to pending_purchasing_review. The dept head only gets an FYI notification (notification itself not runner-checked).
+  R35: 'After procurement approves, the director is required unless the purchase is regular AND under 300 USD — live condition: is_regular != true OR quoted_total_usd >= 300. So a regular 250 USD purchase is approved with no director; a regular purchase of exactly 300 USD still goes to the director (>= is inclusive); and a 100 USD purchase that is NOT regular also goes to the director (the D37 default flip).'
+  R36: 'From 15000 USD up the director''s approve routes the PR to the board instead of approving it — live condition: quoted_total_usd >= 15000, checked after the director approves. The board''s approve then makes it approved. Below 15000 the director''s approve is final.'
+  R37: An approver returning a PR to ask for more information sets it to info_requested — checked at the procurement and director stages (the dept, custom-approver, and board return branches are the same one-node pattern; walkthrough-covered). Note the director's return node requires picking a target stage (returnTo 1) — the runner returns to the procurement stage; status still reads info_requested and the procurement task re-opens.
+  R38: An approver rejecting a PR ends the flow — status rejected, with the approver's comment stored as the rejection comment. Checked at the procurement stage.
+  R39: Rejecting a project at its department stage ends the project ladder — status rejected. (Formalizes the proj_rejected fixture outcome as a rule-cited case.)
   # --- R40-R41 drafted 2026-07-05 (nineteenth session): the Step-6 audit
   # surface for suppliers and departments, from the live ACL read. No
   # enabled workflow touches either collection, so these are pure config
   # checks — enforcement mechanism classes are already canary-covered.
-  R40: Procurement maintains the supplier list — it can create and update suppliers; nobody can delete one; every signed-in user can view them (member baseline). # TODO verify
-  R41: Departments — including who each department's main approver is, which steers approval routing — are admin-maintained reference data. No business role may create, update, or delete a department; everyone can view them. # TODO verify — KNOWN LIVE MISMATCH: procurement's role strategy (view/update/trigger on everything without its own entry) grants departments:update; the config check below stays red until Alexander picks rule or live as right.
+  R40: Procurement maintains the supplier list — it can create and update suppliers; nobody can delete one; every signed-in user can view them (member baseline).
+  R41: Departments — including who each department's main approver is, which steers approval routing — are admin-maintained reference data. No business role may create, update, or delete a department; everyone can view them. # The live mismatch found on draft (procurement's strategy update fallback) was fixed 2026-07-05, Alexander's approval — see D73.
 
 fixtures:
   users:
@@ -491,7 +493,12 @@ fixtures:
           decision: approve
           comment: "[TEST] board approve -> approved"
       timeout_s: 30
-    # pr_return_dir: director returns for info.
+    # pr_return_dir: director returns for info. The Director Approval node
+    # is configured returnTo: 1 — the approver MUST pick a target node
+    # (plain return 400s "returnToNodeKey is required"; probed live
+    # 2026-07-05). Returning to the Procurement Approval node (ec2h8cqal32)
+    # sets status info_requested AND re-opens Pat's procurement task — the
+    # flow rewinds to that stage. Dana's UI will ask the same question.
     - target: pr_return_dir
       steps:
         - as: pat_procurement
@@ -500,6 +507,7 @@ fixtures:
         - as: dana_director
           decision: return
           comment: "[TEST] director returns for info -> info_requested"
+          returnToNodeKey: ec2h8cqal32
       timeout_s: 30
     # pr_reject_proc: procurement rejects outright.
     - target: pr_reject_proc
@@ -706,14 +714,12 @@ cases:
     values: { title: "[TEST] hijacked" }
     expect: deny
 
-  # EXPECTED RED until Alexander decides the fix (found 2026-07-05, nineteenth
-  # session): the 2026-07-04 scope trim landed in the DEAD rolesResourcesScopes
-  # table (row 2, "PR — own and editable", updatedAt matches that session).
-  # The live grant points at the generic "Own records" scope (363334209503234,
-  # createdById only — no status clause, no submitterId alternative). Live
-  # effect: a submitter can edit their own PR at any pending_* stage; only
-  # approved/rejected are saved by Guard A. Fixing the scope is a live ACL
-  # change — Alexander's call; this check stays red until live matches R2.
+  # Found red on draft (2026-07-05): the 2026-07-04 scope trim had landed in
+  # the DEAD rolesResourcesScopes table; the live grant pointed at generic
+  # "Own records" (no status clause), letting a submitter edit their own
+  # mid-flow PR. Fixed same day with Alexander's approval — new scope
+  # 373881040338944 "PR — own and info requested" (status + createdBy/
+  # submitter ownership), grant repointed. See D72. Green since.
   - rule: R2
     name: operations PR update grant is scoped to status info_requested (config)
     type: acl
@@ -1215,10 +1221,10 @@ cases:
     tags: [projects]
 
   # ==========================================================================
-  # R31-R38: PR Approval branch outcomes (drafted 2026-07-05, NOT YET RUN —
-  # review gate first). The chains ran in fixtures.approvals; these state
-  # cases assert where each PR landed, so a failure classifies per rule.
-  # Tagged [prflow] for a scoped first run: --tag prflow.
+  # R31-R38: PR Approval branch outcomes (approved + first run green
+  # 2026-07-05). The chains ran in fixtures.approvals; these state cases
+  # assert where each PR landed, so a failure classifies per rule.
+  # Tagged [prflow] for scoped runs: --tag prflow.
   # ==========================================================================
   - rule: R31
     name: dept-bearing submitter's PR waits at the dept stage, stamped with submitter and department
@@ -1361,10 +1367,10 @@ cases:
     tags: [projects]
 
   # ==========================================================================
-  # R40-R41: suppliers + departments audit (drafted 2026-07-05, NOT YET RUN
-  # — review gate first). Pure config checks: no enabled workflow touches
-  # either collection, and every enforcement mechanism class already has a
-  # canary. `absent` includes the base member role automatically.
+  # R40-R41: suppliers + departments audit (approved + green 2026-07-05).
+  # Pure config checks: no enabled workflow touches either collection, and
+  # every enforcement mechanism class already has a canary. `absent`
+  # includes the base member role automatically.
   # ==========================================================================
   - rule: R40
     name: procurement holds suppliers:create (config)
@@ -1422,12 +1428,13 @@ cases:
     action: create
     expect: absent
 
-  # EXPECTED RED until Alexander decides (found 2026-07-05): procurement's
-  # role STRATEGY is view+update+trigger on every collection that has no
-  # per-collection entry — departments has none, so Pat can update any
-  # department, including main_approver (which steers approval routing).
-  # Either the strategy gets trimmed (live ACL change, Alexander's call)
-  # or the rule is wrong and gets amended.
+  # Found red on draft (2026-07-05): procurement's role STRATEGY was
+  # view+update+trigger — the update fallback reached every collection
+  # without a per-collection entry (departments, users, roles, files,
+  # pr_comments), so Pat could update any department's main_approver.
+  # Trimmed to view+trigger same day with Alexander's approval (products/
+  # units_of_measure unaffected — they have full per-collection entries).
+  # See D73. Green since.
   - rule: R41
     name: no business role can update a department (config)
     type: acl
