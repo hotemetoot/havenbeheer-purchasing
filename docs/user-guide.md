@@ -25,7 +25,7 @@ the roles below add specific rights on top.
 | Role | Who they are | What they do here |
 |---|---|---|
 | **Operations** | Staff who need to buy something | Create purchase requests. Creating one submits it straight into approval. |
-| **Department head** | Owner of a department | First approval on requests from their department. Not a separate app role — the system routes the request to the department's owner (or a stand-in the submitter picks). |
+| **Department head** | Owner of a department | First approval on requests from their department. Not a separate app role — the system routes the request to the department's owner (or a **Custom approver** the submitter picks). |
 | **Procurement** | The purchasing team | Second review of every request; turn approved requests into purchase orders; run the order through to receiving and closing. |
 | **Director** | The director | Approval for larger or non-routine requests. |
 | **Board** | The board | Final sign-off on the largest requests (USD 15,000 and above), with a signed document on file. |
@@ -60,10 +60,10 @@ A purchase moves through two linked records:
                          └──────────────────────────────────────┘    creates a PO
                                                                        │
    (requests of USD 15,000+ also pass Pending Board Approval           ▼
-    before reaching Approved)                             Draft ► Issued ► Sent ►
-                                                          Confirmed ► Partially
-                                                          Received ► Received ►
-                                                          Completed ► Closed
+    before reaching Approved)                             Draft ► Issued ►
+                                                          Partially Received ►
+                                                          Received ► Completed ►
+                                                          Closed
 ```
 
 The exact route through the approval stages depends on the amount and the type of
@@ -79,7 +79,7 @@ Every PR and PO shows a colored status tag. Here is what each one means.
 
 | Status | Meaning |
 |---|---|
-| **Pending Dept Approval** | The status a request starts in. Waiting for the department head (or chosen stand-in) to approve. |
+| **Pending Dept Approval** | The status a request starts in. Waiting for the department head (or the chosen **Custom approver**) to approve. |
 | **Pending Purchasing Review** | Waiting for Procurement to review. |
 | **Pending Director Approval** | Waiting for the Director. |
 | **Pending Board Approval** | Waiting for the Board (requests of USD 15,000+). |
@@ -92,9 +92,7 @@ Every PR and PO shows a colored status tag. Here is what each one means.
 | Status | Meaning |
 |---|---|
 | **Draft** | Just created from the PR. Being prepared by Procurement. |
-| **Issued** | Locked in and ready to send to the supplier. |
-| **Sent** | Sent to the supplier. |
-| **Confirmed** | Supplier has confirmed the order. |
+| **Issued** | Locked in and issued to the supplier. This is the point the order goes out. |
 | **Partially Received** | Some ordered lines have arrived, not all. |
 | **Received** | Everything ordered has arrived. |
 | **Completed** | Order finished and invoiced. |
@@ -115,13 +113,18 @@ Each line on a purchase order tracks its own delivery:
 ## Stage 1 — Create and submit a purchase request
 **Responsible role: Operations (the submitter)**
 
-This is where every purchase starts. You describe what you need, attach a quote, and
-create the request. **Creating it submits it** — there is no separate draft step, so
-fill it in completely before you save.
+This is where every purchase starts. You describe what you need and create the request.
+**Creating it submits it** — there is no separate draft step, so get the details right
+before you save.
+
+The form marks **required** fields with a red asterisk (*). You cannot save until those
+are filled; everything else is optional. Some fields also become required only in certain
+situations, and the form shows this as you go — for example, once you enter a quoted
+price the exchange rate is needed to convert it.
 
 ### Create the request
 
-Open **Purchase Requests** and start a new one. Fill in:
+Open **Purchase Requests** and start a new one. The main fields:
 
 - **Title** — a short name for the request.
 - **Description** — what you want to buy.
@@ -131,16 +134,20 @@ Open **Purchase Requests** and start a new one. Fill in:
 - **Needed by** — the date you need it.
 - **Is emergency** — tick if this is urgent.
 - **Expenditure type** — the kind of spend.
+
+### Supplier and quote (optional)
+
+You do **not** have to name a supplier or attach a quote to raise a request. Often you
+know what you need but not who to buy it from. In that case leave these blank — Procurement
+sources a supplier and requests quotes later. Fill them in only when you already have them:
+
 - **Suggested Supplier** — the supplier you propose (chosen from the supplier list).
-
-### Add the quote and amount
-
 - **Quoted Total** — the price from the supplier's quote.
 - **Quoted Currency** — the currency of that price.
 - **FX Rate to USD** — the exchange rate to US dollars. Enter the rate as **local
   currency per 1 USD**. The system fills in **Quoted Total (USD)** for you from this
   rate — you do not type the USD figure yourself. The USD figure is what decides the
-  approval route, so the rate matters.
+  approval route, so if you do enter a price, the rate matters.
 - **Quotation Attachment** — upload the supplier's quote.
 - **Other attachments** — any supporting files.
 
@@ -171,19 +178,183 @@ details before you save.
 ## Stage 2 — Approval ladder (dept → procurement → director → board)
 **Responsible roles: Department head, Procurement, Director, Board**
 
-_(Draft — to be expanded.)_ The submitted request climbs an approval ladder. Each
-approver can **approve** it (send it up), **request more information** (send it back to
-the submitter), or **reject** it. The route depends on the amount and whether
-Procurement marks it a regular purchase:
+Once a request is submitted it climbs an approval ladder. It always starts with the
+**department head**, then goes to **Procurement**. From there it may stop, or continue to
+the **Director**, and for the largest requests to the **Board**. How far it climbs
+depends on the amount and on whether Procurement marks it a regular purchase — the rules
+are in [2.2](#22--procurement-review--and-the-regular-purchase-flag) and
+[2.3](#23--director-approval).
 
-- Every request starts with **department approval**, then **Procurement review**.
-- **Regular purchases under USD 300** can finish at Procurement (no Director needed).
-- Larger or non-routine requests also need **Director approval**.
-- Requests of **USD 15,000 and above** additionally need **Board approval**, with a
-  signed board document uploaded before final approval.
+### The three actions every approver has
 
-_To write: exact button labels for each action; who the board approver is; how
-"Info Requested" comes back to the submitter; how the regular-purchase flag is set._
+Wherever you sit on the ladder, you act on a request the same way. You open it and choose
+one of three buttons:
+
+| Action | What it does | Where the request goes |
+|---|---|---|
+| **Approve** | Accepts the request at your stage. | Up to the next stage — or to **Approved** if you are the last approver. |
+| **Return** | Sends it back to the submitter for changes. Add a comment saying what you need. | Back to the submitter as **Info Requested**. |
+| **Reject** | Turns the request down for good. Add a reason. | To **Rejected**. This is final — nobody can revive it. |
+
+> 📷 **Screenshot — the approval form with its three buttons.**
+> Show a request open in approval, with the **Approve**, **Return**, and **Reject**
+> buttons visible. Confirm the exact button labels here match what the app shows.
+
+### Where you find requests waiting for you
+
+When a request reaches your stage, the system creates an **approval task** for you and
+notifies you in the app. Open the task to see the full request and the three action
+buttons above.
+
+> 📷 **Screenshot — where an approver's waiting tasks appear.**
+> Show the place a new approver goes to find requests waiting on them (a to-do / tasks
+> list, the notification bell, or the request itself). This is the one part the written
+> steps below can't pin down — the screenshot settles where to click.
+
+---
+
+### 2.1 — Department approval (first stage)
+**Responsible role: Department head (or the Custom approver the submitter picked)**
+
+Every request lands here first, at status **Pending Dept Approval**. The task goes to the
+head of the request's department — for an Operations request that is Oliver, the
+Operations department head. If the submitter chose a custom approver in Stage 1, the task
+goes to that person instead, and the department head gets an FYI notification so they stay
+in the loop.
+
+Open the task and choose an action:
+
+- **Approve** → the request moves to **Pending Purchasing Review** and a task opens for
+  Procurement.
+- **Return** → the request goes back to the submitter as **Info Requested** (see
+  [2.5](#25--when-a-request-is-returned-to-you-submitter)).
+- **Reject** → the request is **Rejected** and stops here.
+
+> **One exception — the submitter is the department head.** If Oliver (the Operations
+> head) raises his own request, there is no point asking him to approve it. The request
+> skips the department stage and starts straight at **Pending Purchasing Review**. No
+> department task is created.
+
+> 📷 **Screenshot — a request at Pending Dept Approval, open in the approval form.**
+> Show the department head's view: the request details on one side, the Approve / Return
+> / Reject buttons on the other.
+
+---
+
+### 2.2 — Procurement review — and the regular-purchase flag
+**Responsible role: Procurement (Pat)**
+
+Every request passes through Procurement, at status **Pending Purchasing Review**. This
+stage does two things: Procurement reviews the request, and Procurement decides whether
+the Director needs to see it.
+
+That decision is made with one checkbox on the Procurement approval form:
+
+- **Is regular** — tick it if this is a routine, everyday purchase.
+
+The rule for whether the Director is needed:
+
+- **Regular *and* under USD 300** → Procurement can approve it outright. Ticking
+  **Is regular** and approving takes the request straight to **Approved**. No Director, no
+  Board.
+- **Everything else** → **Approve** sends it up to **Pending Director Approval**.
+
+Three concrete cases make the rule clear:
+
+- Pat opens Alice's **USD 250** request, ticks **Is regular**, and approves. It goes
+  straight to **Approved** — small and routine, no Director needed.
+- Pat opens a different **USD 250** request but leaves **Is regular** unticked and
+  approves. It still goes to the **Director**. Under USD 300 alone is not enough; it also
+  has to be marked regular.
+- Pat opens a **USD 5,000** request. The amount is USD 300 or more, so the **Is regular**
+  flag makes no difference — approving always sends it to the **Director**.
+
+Procurement can also **Return** the request (→ **Info Requested**) or **Reject** it, the
+same as any other approver.
+
+> 📷 **Screenshot — the Procurement approval form showing the Is regular checkbox.**
+> Show Pat's view with the **Is regular** checkbox and the Approve button.
+
+---
+
+### 2.3 — Director approval
+**Responsible role: Director (Dana)**
+
+A request reaches **Pending Director Approval** when Procurement approved it and it was
+not a regular purchase under USD 300. The task goes to the Director, Dana.
+
+Open the task and choose an action:
+
+- **Approve** →
+  - if the request is **under USD 15,000**, it goes straight to **Approved** — the ladder
+    ends here.
+  - if the request is **USD 15,000 or more**, it goes to **Pending Board Approval** for a
+    final board sign-off (see [2.4](#24--board-approval-usd-15000-and-above)).
+- **Return** → back to the submitter as **Info Requested**.
+- **Reject** → **Rejected**, final.
+
+> 📷 **Screenshot — a request at Pending Director Approval, open in the Director's approval form.**
+
+---
+
+### 2.4 — Board approval (USD 15,000 and above)
+**Responsible role: Board, recorded by the head of Procurement**
+
+Only the largest requests reach here — **USD 15,000 or more**, after the Director has
+approved. Status is **Pending Board Approval**.
+
+The board makes its decision outside the app and signs a document. That signed decision is
+then recorded in the system by the **head of Procurement** (Pat), who holds the board task.
+Before approving, Pat must upload the signed board document:
+
+- **Board Approval Document** — the board's signed sign-off. This is **required**. Trying
+  to **Approve** without it is blocked until a document is attached.
+
+Once the document is attached, **Approve** takes the request to **Approved** — the ladder
+ends. Pat can also **Reject** the board task, which sets the request to **Rejected**.
+
+Example: a **USD 20,000** request has cleared the Director. Pat opens the board task and
+clicks **Approve** with nothing attached — the system blocks it and asks for the document.
+Pat uploads the board's signed PDF and approves again — the request becomes **Approved**
+and the document stays on file.
+
+> 📷 **Screenshot — the board task showing the required Board Approval Document upload.**
+> Ideally show the blocked-without-document state and the upload field.
+
+---
+
+### 2.5 — When a request is returned to you (submitter)
+**Responsible role: Operations (the submitter)**
+
+When any approver clicks **Return**, the request comes back to you at status **Info
+Requested**, with the approver's comment saying what they need. This is the *only* time a
+submitted request becomes editable again — normally you cannot touch it once it is in the
+approval flow.
+
+To move it forward again:
+
+1. Open your request. It is now editable (only while it is **Info Requested**, and only
+   your own request).
+2. Make the changes the approver asked for.
+3. Resubmit. The request returns to **Pending Dept Approval** and climbs the ladder again
+   from the start.
+
+Example: Oliver returns Alice's request asking for a clearer quote. Alice's request shows
+**Info Requested** with his comment. She opens it, uploads the better quote, and resubmits.
+It goes back to **Pending Dept Approval**, and Oliver sees it again.
+
+> 📷 **Screenshot — a submitter's request at Info Requested, showing the approver's comment
+> and the request editable again.**
+
+---
+
+### 2.6 — When a request is rejected
+
+If any approver clicks **Reject**, the request becomes **Rejected**. This is final. The
+request is locked — the submitter can no longer edit it, and there is no way to reopen or
+resubmit it. If the purchase is still needed, raise a new request.
+
+> 📷 **Screenshot — a Rejected request, showing it locked / no edit action for the submitter.**
 
 ---
 

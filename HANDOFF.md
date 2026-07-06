@@ -1,4 +1,4 @@
-# HANDOFF — havenbeheer retrofit, Step 6 COMPLETE (updated 2026-07-05, nineteenth session)
+# HANDOFF — havenbeheer retrofit, Step 7 IN PROGRESS (updated 2026-07-06, twentieth session)
 
 **Read this first, then:** `~/.claude/skills/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (authoritative step list), this project's `CLAUDE.md`, and `decisions.md` D63–D73. `notes.md` holds non-queryable traps and the go-live checklist (and, top of file, **how to write for Alexander** — plain language, concrete examples; non-negotiable). Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py`.
 
@@ -34,9 +34,17 @@ D63–D73 all built + live-verified. Rule C revision activated; D70 guard fix, D
 
 ## Next session starts here
 
-**Step 7 — `docs/user-guide.md` backfill for MVPs 1–16.** Starts empty (see CLAUDE.md "Where things live"). Write from what the live app actually shows, not from plans; `tests/manual-workflow-walkthrough.md` and `roadmap.md` are good source maps of what exists. Likely spans sessions; agree scope with Alexander first (which MVPs, what depth).
+**Step 7 — `docs/user-guide.md` backfill, IN PROGRESS.** The guide is **not** empty (CLAUDE.md's "starts empty" note is stale, corrected there). A prior session scaffolded §1 who-does-what, §2 lifecycle, §3 status reference, and a full **Stage 1** (create/submit). This twentieth session (2026-07-06) wrote **Stage 2 — the whole approval ladder** (dept → procurement → director → board: the three actions Approve/Return/Reject, the Is-regular routing rule with worked examples, board document gate, return→resubmit, reject) at task-walkthrough depth, and revised Stage 1 (supplier + quote now marked **optional** — Procurement sources them later; added required-field guidance). **That completes the spine, MVP 001.**
 
-**Step 8 — hand back:** pilot-outcome report into `nb-project-suite`'s own `HANDOFF.md` (what the pilot proved: D70 guard bypass, D72 dead-table scope, D73 strategy fallback — all found by the suite, all fixed and locked by green checks), then retire `myNocobase-project-workflow` (uninstall/archive the old skill). Only after Alexander confirms.
+**Still to write** (still `_(Draft — to be expanded.)_` stubs in the file): Stage 3 create-PO, Stage 4 issue/send, Stage 5 receiving, Stage 6 complete/invoice/close, Stage 7 print, Appendix suppliers. Plus the two areas the guide's own scope note defers: Projects & budget drawdown (MVP 014) and bulk PO line import (MVP 016). Source maps: `tests/manual-workflow-walkthrough.md` (a verified click-through — treat as live-derived, not a plan) + `roadmap.md`.
+
+**Sourcing method (Alexander, 2026-07-06):** Claude writes each walkthrough from the live app + the verified walkthrough, inserting **screenshot placeholders** (`> 📷 **Screenshot — …**`) with a clear description; Alexander adds the real screenshots after. Every stage's placeholders must still confirm two things on screen: exact button labels, and **where an approver finds a waiting task** (a to-do list / notification / the record itself — the one thing the written steps can't pin down). Verify field labels live before writing (`nb api resource list --resource fields --filter '{"collectionName":"..."}'` → `uiSchema.title`).
+
+**Doc-writing rules now enforced suite-wide** (Alexander, 2026-07-06): match the app's exact labels ("Is regular", "Custom approver" — not "Regular purchase"/"stand-in"); don't present optional fields as mandatory (required lives on the form + linkage rules, not the collection field); drop retired states from docs. Homes: `nb-bootstrap/references/gotchas.md` → "Docs / user-facing writing" + Fields "Required-ness isn't on the field"; auto-memory `feedback-nocobase-docs-app-language`.
+
+**Live cleanup done this session:** removed `sent`/`confirmed` from the `purchase_orders.status` enum (see D69 addendum — D69's "no field-level enum" claim was wrong; there was a `uiSchema.enum`). Enum now `draft, issued, partially_received, received, completed, closed`.
+
+**Step 8 — DONE 2026-07-06.** Pilot-outcome report written into `nb-project-suite`'s `HANDOFF.md` (the three bugs D70/D72/D73, all found by the suite, all locked green). `myNocobase-project-workflow` retired on Alexander's explicit confirm — archived to `~/.claude/skills-archive/`, `my-setup.md` updated. Only Step 7 remains.
 
 Optional small items if Alexander raises them: delete dead scope rows 2/4/5 (go-live sweep covers it), Guard A's dead `cancelled` clause, the Project Approval board-branch case, a scoped pr_comments grant for procurement if comment-editing was a real flow (D73 note).
 
