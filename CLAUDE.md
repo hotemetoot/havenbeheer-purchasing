@@ -27,7 +27,7 @@ There is no state-mirror file. The live app, queried via `nb api`, is the source
 
 When the user names an MVP (e.g. "let's do 014.5"):
 
-1. Query the live env via `nb api` for whatever the MVP touches (collections, roles, workflows, pages). Compare against roadmap.md, decisions.md, and recent git history. **Report drift before doing anything else** — anything live that doesn't match what's expected. Handle consequences immediately: update `tests/plan.yaml`, update `docs/user-guide.md`, adjust the chunk plan.
+1. Delegate the live reads to the `nb-drift-scout` subagent (see "Delegated reads" below): pass it the env name (`havenbeheer`), what the MVP touches (collections, roles, workflows, pages), and the expected state from roadmap.md, decisions.md, and recent git history. It returns a drift report plus fresh live IDs. **Report drift before doing anything else** — anything live that doesn't match what's expected. Handle consequences immediately: update `tests/plan.yaml`, update `docs/user-guide.md`, adjust the chunk plan.
 2. Read the roadmap.md entry for the MVP.
 3. Check decisions.md for D-entries with "Affects: <MVP>".
 4. Read design/ files only if the chunk touches that area. Read notes.md for anything flagged relevant.
@@ -37,13 +37,23 @@ When the user names an MVP (e.g. "let's do 014.5"):
 8. Once the user approves the plan (once), execute **phase by phase**: after each phase, pause with a summary of what was done and a preview of the next phase before continuing. Irreversible actions (deletes, dropping pages, destroying workflow history) always get an explicit stop and confirmation, regardless of phase boundary.
 9. Backend only. Claude does not build UI unless the user explicitly delegates a screen — see "Test gate" below.
 
+## Delegated reads
+
+Bulk `nb api` reads go to read-only Sonnet subagents (defined in `~/.claude/agents/`), so raw JSON dumps never enter the main conversation and stop being re-billed every turn. Always pass the env name (`havenbeheer`) — each agent verifies it before reading. They quote config values verbatim; if a report is ambiguous or contradicts expectations, re-read that one object directly rather than guessing.
+
+- `nb-drift-scout` — session-start drift check (step 1 above). In: MVP scope + expected state. Out: drift report + live IDs.
+- `nb-live-reader` — workflow node chains and ACL reads for `nb-test draft`. Out: condition expressions and grants as verbatim JSON.
+- `nb-ui-labels` — exact UI labels (menu, block, field, button texts) for `docs/user-guide.md` updates.
+
+Never delegate: rule wording, review gates, user approvals, or any `nb api` write — those stay here.
+
 ## Test gate
 
 A chunk isn't complete until `nb-test run` is fully green AND the user has verbally confirmed the UI/behavior works. Not a checkbox ritual — an actual "yes this works" from the user. Once the backend is tested green, write a descriptive interface brief into the chunk file (blocks, field bindings, actions, linkage suggestions) and stop; the human builds the screen. The brief is a suggestion sheet, not a contract — the result may differ completely.
 
 At session end:
 - If the plan changed during the build: edit chunks/NNN-*.md in place AND append a D-entry to decisions.md listing affected downstream chunks.
-- Update docs/user-guide.md for anything user-visible that changed — written from what the live app actually shows, not from what was planned.
+- Update docs/user-guide.md for anything user-visible that changed — written from what the live app actually shows, not from what was planned. Get the exact labels via the `nb-ui-labels` subagent.
 - Update roadmap.md status.
 - Commit.
 - If you learned a NocoBase gotcha that applies to ANY NocoBase project, append it to `nb-bootstrap`'s `references/gotchas.md` (the single cross-project home — never a second copy in auto-memory). If it's specific to this project, put it in notes.md instead.
