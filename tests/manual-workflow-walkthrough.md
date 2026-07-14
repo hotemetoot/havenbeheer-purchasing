@@ -128,9 +128,25 @@ Use **USD, fx_rate_to_usd = 1** on every PR/PO so `quoted_total_usd = quoted_tot
 
 ## Section B — Purchase Order lifecycle
 
+> ⚠️ **STALE for the PO side (as of 2026-07-08) — do not trust B3–B6 or the `sent`/`confirmed`
+> statuses.** This section was verified 2026-06-13, before the PO lifecycle was reworked. What
+> changed since:
+> - **`sent` and `confirmed` statuses are gone.** The PO status enum is now
+>   `draft → issued → partially_received → received → completed → closed`. The action that used
+>   to be **Send PO** is now **Issue PO** (`issue_po`), which flips `draft → issued`.
+> - **The Send-zone budget model (Zone 1/2/3, ±10% tolerance, `budget_override_comment`) is gone.**
+>   The budget rule is now a **hard ceiling at the approved PR amount**: line totals may not exceed
+>   `purchase_request.quoted_total`, enforced per line at create/update (guards `8u81nd3vxhc` /
+>   `c9c14tyn876`) and re-checked at Issue. B4/B5 (the override-comment path) no longer exist.
+> - **`budget_override_comment` field deleted** 2026-07-08 (D74).
+>
+> For the current PO lifecycle, the authoritative source is now `docs/user-guide.md` Stages 3–7,
+> written from the live workflows 2026-07-08. The PR side (Section A) and the ACL section (C) are
+> still accurate. **This section needs a fresh re-run and rewrite before it's trusted again.**
+
 > PO work is done as **pat.procurement**. You need at least one `approved` PR with a known
-> `quoted_total_usd` to generate a PO. Reuse A6's approved $5,000 PR (PR USD = 5000) for the
-> Send-zone math below, or approve a fresh one.
+> `quoted_total_usd` to generate a PO. Reuse A6's approved $5,000 PR (PR USD = 5000), or approve a
+> fresh one.
 
 ### B1 — Generate PO (number derivation)
 - [x] As **pat**, open an `approved` PR (e.g. PR-26-00xx) → click **Generate PO**.

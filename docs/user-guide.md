@@ -359,52 +359,221 @@ resubmit it. If the purchase is still needed, raise a new request.
 ---
 
 ## Stage 3 — Create the purchase order
-**Responsible role: Procurement**
+**Responsible role: Procurement (Pat)**
 
-_(Draft — to be expanded.)_ Once a request is **Approved**, Procurement generates a
-**Purchase Order** from it and adds the order lines (products, quantities, prices).
+Once a request is **Approved**, Procurement turns it into a **Purchase Order (PO)**. The
+PO is where you record what is actually being ordered — the individual lines, quantities,
+and prices — before the order goes to the supplier.
 
-_To write: the Generate-PO action; adding PO lines; the budget cap at the Issue gate._
+### Generate the PO from the approved request
+
+Open the approved request and click **Generate PO**. This creates one purchase order and
+carries these details straight over from the request:
+
+- **Supplier** — copied from the request.
+- **Currency** and **FX Rate to USD** — copied from the request.
+- **Invoice Total** — set to the request's approved amount. This is the ceiling for the
+  order (see the budget rule below).
+- **Delivery Address** — set to the default delivery address on file.
+- **PO Number** — the request's number with `PR-` changed to `PO-`
+  (PR-26-0001 → PO-26-0001).
+
+The new order opens at **Draft**.
+
+> **One PO per request.** Once a request has a purchase order, the **Generate PO** button
+> disappears from it — you cannot generate a second one. And you can only generate from an
+> **Approved** request: trying it on a request that is still in approval is blocked
+> ("You cannot generate a PO for this purchase request").
+
+> 📷 **Screenshot — the Generate PO button on an Approved request.**
+> Show an approved request with the **Generate PO** action. Confirm the exact button label.
+
+### Add the order lines
+
+A Draft PO starts with no lines. Open the **Lines** area and add one line per item:
+
+- **Description** — what the line is for (or pick a **Product**).
+- **Unit of Measure** — how it is counted (each, box, hour, …).
+- **Quantity Ordered** — how many.
+- **Unit Price** — price per unit, in the PO's currency.
+
+The system fills in **Line Total** (Quantity Ordered × Unit Price) for you.
+
+While the PO is **Draft** you can freely add, edit, and delete lines. That freedom ends
+when you issue the order (Stage 4).
+
+### The budget ceiling — lines can't exceed the approved amount
+
+The lines together may not add up to more than the approved request amount (the PO's
+**Invoice Total**). This is checked the moment you add or change a line, so you cannot
+save a line that would push the order over budget.
+
+Example: the request was approved for **USD 5,000**. Pat adds lines totalling USD 4,800 —
+fine. Pat then adds one more line for USD 400, which would bring the order to USD 5,200.
+The system blocks the save: "Adding this line would bring the PO to 5200 USD, over the
+approved 5000 USD. Reduce the quantity or unit price." Pat lowers the quantity so the
+order stays at or under USD 5,000.
+
+If the order genuinely needs to cost more than approved, the request has to go back
+through approval for the higher amount — the PO cannot exceed what was approved.
+
+> 📷 **Screenshot — the add-line form, showing Description, Quantity Ordered, and Unit Price.**
+> Show where lines are added on a Draft PO and where the line list appears.
 
 ---
 
-## Stage 4 — Issue and send the order
-**Responsible role: Procurement**
+## Stage 4 — Issue the order
+**Responsible role: Procurement (Pat)**
 
-_(Draft — to be expanded.)_ Procurement issues the order (locking it), sends it to the
-supplier, and records the supplier's confirmation.
+Issuing is the point the order becomes final and goes to the supplier. There is one action
+for it — **Issue PO** — and it does everything: it locks the order and moves it from
+**Draft** to **Issued**. There is no separate "send" or "confirm" step.
 
-_To write: Issue / Send / Confirm actions and what each locks._
+### What must be ready before you can issue
+
+**Issue PO** runs a set of checks first. If any fails, the order stays at **Draft** and you
+get a message saying what is missing:
+
+| Must be true | Message if not |
+|---|---|
+| The order is still **Draft**, and has a **Supplier**, a **Delivery Address**, a **Currency**, and an **Invoice Total** greater than 0 | "Cannot issue this PO: it needs a supplier, a delivery address, a currency, a total greater than 0, and at least one line." |
+| There is **at least one line** | "Cannot issue this PO: add at least one PO line first." |
+| **Every line has a Unit Price greater than 0** | "Cannot issue this PO: every line needs a unit price greater than 0." |
+| The **line totals do not exceed the approved request amount** | "Cannot issue this PO: line items total … exceeds the approved PR amount …. Reduce the lines or revise the PR before issuing." |
+
+Most of these are already filled in from the request (supplier, currency, delivery
+address, invoice total). In practice the two you check yourself are that every line has a
+price and that the lines stay within budget.
+
+### What issuing locks
+
+Once the order is **Issued**:
+
+- You can no longer **delete** a line ("Cannot delete a PO line once the PO has been
+  issued.").
+- You can still record deliveries against the lines — that is the next stage.
+
+Example: Pat has a Draft PO with two lines, both priced, totalling USD 4,800 against a
+USD 5,000 request. Pat clicks **Issue PO**. The order becomes **Issued** and the issue
+date is stamped. If Pat had left one line's Unit Price at 0, the click would have been
+blocked with the unit-price message instead.
+
+> 📷 **Screenshot — the Issue PO button on a Draft order.**
+> Show the **Issue PO** action. Confirm the exact button label and, if easy, capture one
+> of the blocked messages above.
 
 ---
 
 ## Stage 5 — Receive the goods
-**Responsible role: Procurement (warehouse in future)**
+**Responsible role: Procurement (a warehouse role in future)**
 
-_(Draft — to be expanded.)_ As goods arrive, the received quantity is recorded per
-line. The order moves to **Partially Received** and then **Received**.
+As the ordered goods arrive, record what came in against each line. You do this by setting
+the **Received Quantity** on the line — the statuses update themselves from there.
 
-_To write: entering received quantity per line; how line and order status update._
+### Record what arrived
+
+On each line of an **Issued** order, set **Received Quantity** to how many have arrived so
+far. The line's own status follows automatically:
+
+| Received Quantity | Line Status |
+|---|---|
+| None yet | **Pending** |
+| Some, but less than ordered | **Partially Received** |
+| Equal to (or more than) ordered | **Received** |
+
+The whole order's status follows the lines:
+
+- If any line has something received but not everything is in, the order is **Partially
+  Received**.
+- When every line is fully **Received**, the order becomes **Received**.
+
+### The "ready to complete" nudge
+
+The moment the last line is fully received and the order flips to **Received**,
+Procurement gets an in-app notification: "PO … is fully received and ready to complete."
+That is the cue to move to Stage 6.
+
+Example: a line ordered **10** units. Ten arrive in two deliveries. Pat first sets
+**Received Quantity = 4** — the line shows **Partially Received** and the order shows
+**Partially Received**. When the rest arrive Pat sets **Received Quantity = 10** — the
+line shows **Received**, the order shows **Received**, and the "ready to complete"
+notification appears.
+
+> 📷 **Screenshot — a PO line with the Received Quantity field.**
+> Show where **Received Quantity** is entered on a line.
+
+> 📷 **Screenshot — where the "ready to complete" notification appears.**
+> Show the place Procurement sees the notification (the notification bell / in-app
+> message). This is the one thing the written steps can't pin down.
 
 ---
 
 ## Stage 6 — Complete, invoice, and close
 **Responsible roles: Procurement, Finance**
 
-_(Draft — to be expanded.)_ The order is completed with an invoice total, Finance
-records payment details, and the order is closed.
+A received order is finished off in one of two ways: **completed** (the normal ending,
+with an invoice) or **closed** (an early exit when the order will not be completed).
 
-_To write: the Complete action and its invoice/USD requirement; the Close action;
-Finance's payment fields; what becomes locked._
+### Complete the order (the normal ending)
+
+When the order is **Received** and the supplier's invoice is in, complete it:
+
+1. Attach the supplier's invoice in **Invoice**.
+2. Set the **Invoice Total** (the amount actually invoiced) and make sure the **Currency**
+   and **FX Rate to USD** are right — the system works out **Invoice Total (USD)** from
+   them, and that USD figure must be greater than 0.
+3. Click **Complete**.
+
+The order moves to **Completed** and the completion date is stamped.
+
+Two things are checked, each with its own message:
+
+- No invoice attached → "An invoice attachment is required to complete this PO."
+- Not fully received, or the USD total is 0 → "Complete is only available for a
+  fully-received PO with an invoice total (USD)."
+
+### Finance records payment
+
+Payment details on the order are Finance's part. Finance records the **Payment Date** once
+the supplier has been paid.
+
+### Close the order (the early exit)
+
+**Close** ends an order that will not run to completion — for example a supplier who
+cannot deliver, or a duplicate order. Click **Close**, pick a **Close Reason**, and submit.
+The order moves to **Closed** and the close date is stamped.
+
+Close is only allowed while the order is **Draft**, **Issued**, or **Partially Received**.
+It is deliberately blocked once the order is **Received**: "This PO cannot be closed in
+its current status — only draft, issued, or partially-received POs can be closed. A
+received PO should be completed; to bail out, correct a received line down to revert it to
+partially-received first." In other words, a fully received order should be **completed**,
+not closed.
+
+### Completed and closed orders are locked
+
+Once an order is **Completed** or **Closed** it is final. Nobody can edit the order header
+("This PO is finalized and can no longer be edited.") or its lines ("Lines of a finalized
+PO can no longer be edited.").
+
+> 📷 **Screenshot — the Complete action with the Invoice attachment and Invoice Total fields.**
+> Show the **Complete** button and the invoice fields it requires.
+
+> 📷 **Screenshot — the Close form showing the Close Reason field.**
+> Show the **Close** action and the **Close Reason** picker.
 
 ---
 
 ## Stage 7 — Print the purchase order
 **Responsible role: Procurement**
 
-_(Draft — to be expanded.)_ A branded PO can be printed to PDF for the supplier.
+A purchase order can be printed — for example to send or file a copy for the supplier. The
+print action sits on the purchase order record.
 
-_To write: the Print action and what the PDF contains._
+> 📷 **Screenshot — the Print action on a purchase order, and the printed result.**
+> Show the **Print** action on the PO and what it produces. Confirm the exact button label
+> and whether it prints a branded PO layout or the plain record view — this decides how the
+> paragraph above should read.
 
 ---
 
