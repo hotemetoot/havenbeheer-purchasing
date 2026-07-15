@@ -4,7 +4,8 @@ NocoBase-based PR/PO approval workflow. This file is auto-loaded every session.
 
 ## Environment
 - NocoBase 2.1.0-beta.47 at http://localhost:13000
-- Canonical working tree (compose + storage + Postgres data): `~/nocobase-dev/havenbeheer`, containers `havenbeheer-app-1`/`havenbeheer-postgres-1`. Never start this app from `~/nocobase` or the iCloud `TTGA/nocobase` tree — see notes.md "Environment" and D76 (iCloud sync reverted the DB once already).
+- Canonical working tree (compose + storage + Postgres data): `~/nocobase-dev/havenbeheer`, containers `havenbeheer-app-1`/`havenbeheer-postgres-1`. Never start this app from `~/nocobase` or the iCloud `TTGA/nocobase` tree — see notes.md "Environment" and D76 (a twin tree ran for 3 weeks and the DB silently reverted).
+- **HARD RULE (D76): one tree, verified before start.** Never copy or relocate the working tree, never create a second runnable copy anywhere (iCloud or otherwise). Before any `podman compose up` / `podman start` / container recreate, verify the postgres bind mount (`podman inspect havenbeheer-postgres-1 --format '{{range .Mounts}}{{.Source}}{{end}}'`) resolves to `~/nocobase-dev/havenbeheer/storage/db/postgres`; wrong path → stop and ask Alexander. Copies for recovery go to `~/nocobase-recovery/` and are never started as the app; the only sanctioned backup form is `nb backup create` (.nbdata).
 - CLI env name: `havenbeheer`
 - Auth: OAuth (auto-refreshes)
 - Multi-project shell isolation: `nb` scopes "current env" per shell session via `NB_SESSION_ID`. Run `nb session setup --shell <shell>` once per shell if not already done. If a chunk's `nb api` calls seem to hit the wrong environment, sanity-check with `nb session id` — this matters because agrofix/qhse are worked on concurrently in other shells.
@@ -28,7 +29,7 @@ There is no state-mirror file. The live app, queried via `nb api`, is the source
 
 When the user names an MVP (e.g. "let's do 014.5"):
 
-1. Delegate the live reads to the `nb-drift-scout` subagent (see "Delegated reads" below): pass it the env name (`havenbeheer`), what the MVP touches (collections, roles, workflows, pages), and the expected state from roadmap.md, decisions.md, and recent git history. It returns a drift report plus fresh live IDs. **Report drift before doing anything else** — anything live that doesn't match what's expected. Handle consequences immediately: update `tests/plan.yaml`, update `docs/user-guide.md`, adjust the chunk plan.
+1. Delegate the live reads to the `nb-drift-scout` subagent (see "Delegated reads" below): pass it the env name (`havenbeheer`), the canonical tree path (`~/nocobase-dev/havenbeheer` — it verifies the postgres container's bind mount against it, catching a wrong-tree start per D76), what the MVP touches (collections, roles, workflows, pages), and the expected state from roadmap.md, decisions.md, and recent git history. It returns a drift report plus fresh live IDs. **Report drift before doing anything else** — anything live that doesn't match what's expected. Handle consequences immediately: update `tests/plan.yaml`, update `docs/user-guide.md`, adjust the chunk plan.
 2. Read the roadmap.md entry for the MVP.
 3. Check decisions.md for D-entries with "Affects: <MVP>".
 4. Read design/ files only if the chunk touches that area. Read notes.md for anything flagged relevant.
