@@ -57,6 +57,7 @@ At session end:
 - If the plan changed during the build: edit chunks/NNN-*.md in place AND append a D-entry to decisions.md listing affected downstream chunks.
 - Update docs/user-guide.md for anything user-visible that changed — written from what the live app actually shows, not from what was planned. Get the exact labels via the `nb-ui-labels` subagent.
 - Update roadmap.md status.
+- **After every completed chunk: create an off-site backup** — `nb backup create --output "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Nocobase/Backups/havenbeheer/havenbeheer_$(date +%Y-%m-%d_%H%M).nbdata"`. Backups are **write-once: create new ones, never modify, overwrite, delete, or restore from them** without Alexander's explicit instruction (restore is a D76-class destructive action — plan + confirmation required).
 - Commit.
 - If you learned a NocoBase gotcha that applies to ANY NocoBase project, append it to `nb-bootstrap`'s `references/gotchas.md` (the single cross-project home — never a second copy in auto-memory). If it's specific to this project, put it in notes.md instead.
 
