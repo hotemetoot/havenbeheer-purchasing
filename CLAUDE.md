@@ -4,6 +4,7 @@ NocoBase-based PR/PO approval workflow. This file is auto-loaded every session.
 
 ## Environment
 - NocoBase 2.1.0-beta.47 at http://localhost:13000
+- Canonical working tree (compose + storage + Postgres data): `~/nocobase-dev/havenbeheer`, containers `havenbeheer-app-1`/`havenbeheer-postgres-1`. Never start this app from `~/nocobase` or the iCloud `TTGA/nocobase` tree — see notes.md "Environment" and D76 (iCloud sync reverted the DB once already).
 - CLI env name: `havenbeheer`
 - Auth: OAuth (auto-refreshes)
 - Multi-project shell isolation: `nb` scopes "current env" per shell session via `NB_SESSION_ID`. Run `nb session setup --shell <shell>` once per shell if not already done. If a chunk's `nb api` calls seem to hit the wrong environment, sanity-check with `nb session id` — this matters because agrofix/qhse are worked on concurrently in other shells.

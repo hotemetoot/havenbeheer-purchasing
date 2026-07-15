@@ -54,6 +54,8 @@ Use the real personas above (`dana.director`=id 12, `pat.procurement`=id 11, `fi
 ## Environment
 
 - Env name `havenbeheer`, `http://localhost:13000`. NocoBase runtime as of this retrofit: `2.1.0-beta.47` (was `2.1.0-beta.36` in the old state doc — keep current via `nb env list`, don't hardcode).
+- **Canonical working tree: `~/nocobase-dev/havenbeheer`** (compose + `storage/`, containers `havenbeheer-app-1` / `havenbeheer-postgres-1`) — since the 2026-07-14 recovery (D76). **Never run a live Postgres data dir from an iCloud-synced folder** — that caused the June-25 DB revert. Only `.nbdata` logical backups may live in iCloud.
+- Legacy locations (do not start containers from these): `~/nocobase` (stale June-25 copy, old `nocobase-*` containers stopped but kept ~2 weeks post-2026-07-14), iCloud `TTGA/nocobase` (the July source, kept untouched as insurance, deletable a few weeks after 2026-07-14). Snapshots: `~/nocobase-recovery/{july08-postgres,stale-june25-postgres}`.
 
 ## Known traps (project-specific)
 
