@@ -227,8 +227,13 @@ approved anymore).
 
 "Guard" = a workflow that runs synchronously inside the save/delete request,
 and either lets it through or cancels it with an error message. Admin (and
-root) are exempt from all of them. UI-side you find them in the workflow list
-as type "Pre-action event".
+root) are exempt from every **lock** guard — the ones that freeze finished
+records (PR Immutability, Project Immutability, and since 2026-07-16 also the
+PO-side locks: PO Immutability, PO Line Immutability, PO Line Destroy — D82).
+That keeps cleanup possible without disabling guards. The **rule-checking**
+guards (Create PO, budget ceilings, Close, Receive, line-create) apply to
+everyone, admin included. UI-side you find them in the workflow list as type
+"Pre-action event".
 
 | Guard | Watches | Rule in one line |
 |---|---|---|
