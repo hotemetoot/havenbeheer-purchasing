@@ -1,18 +1,13 @@
-# HANDOFF — havenbeheer retrofit, Step 7 IN PROGRESS (updated 2026-07-14, twenty-second session)
+# HANDOFF — havenbeheer retrofit, Step 7 IN PROGRESS (updated 2026-07-16, maintenance pass)
 
-**Read this first, then:** `~/.claude/skills/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (authoritative step list), this project's `CLAUDE.md`, and `decisions.md` D63–D75. `notes.md` holds non-queryable traps and the go-live checklist (and, top of file, **how to write for Alexander** — plain language, concrete examples; non-negotiable). Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py`.
+**Read this first, then:** `~/.claude/skills/nb-project-suite/plans/havenbeheer-retrofit-plan.md` (authoritative step list), this project's `CLAUDE.md`, and `decisions.md` D63–D79. `notes.md` holds non-queryable traps and the go-live checklist (and, top of file, **how to write for Alexander** — plain language, concrete examples; non-negotiable). Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py`.
 
-## What landed 2026-07-14 (twenty-second session — D69 applied for real, D75)
+## Where things stand (2026-07-16)
 
-**Drift finding: some "done + live-verified" decisions were written before being applied.** A drift check for the PO `sent`/`confirmed` simplification found D69's changes **absent** from the live app (enum still had all 8 options, `sent_at`/`confirmed_at` columns still present, old Receive-guard version still enabled). Alexander confirmed: the decisions were written ahead of the edits; **nothing was restored or lost**. Re-applied D69 for real this session (all live-verified — see D75):
-1. `purchase_orders.status` enum trimmed to 6 (`draft, issued, partially_received, received, completed, closed`).
-2. Dropped columns `sent_at` + `confirmed_at` (both null; 2 live POs: PO-26-0043 completed, PO-26-0044 issued).
-3. Receive guard `mhfp4d15uee` revised — new version `375488013926400` enabled+current, old `369970105614336` disabled; condition now `received_quantity != null` AND status ∉ {issued, partially_received, received}. **The D69 revision-copy trap struck again** (copy silently dropped the `status != issued` clause) — corrected by overwriting the node.
-
-**⚠️ Two open items from this session:**
-- **D74 (`budget_override_comment` drop) was ALSO never applied — the field is still live.** Out of scope for the sent/confirmed request; awaiting Alexander's go to drop it (dead field, safe — see D74/D75).
-- **Test suite can't run — runner auth is stale.** Both the runner admin token (`INVALID_TOKEN`) and seeded test-user logins (401) fail in this out-of-sync DB. Handed off per the auth rule, not patched. My 3 edits don't touch users/ACL/auth and were each verified directly, so no regression — but the suite needs its auth restored (re-seed test users / refresh runner admin creds) before it's green again.
-- **Broader caution:** if D69 and D74 were both written-but-not-applied, other recent "done + live-verified" D-entries may not match live either. Worth a wider drift pass before trusting the log on anything queryable.
+- **The 2026-07-14 "decisions were never applied" scare is resolved — see D76.** The live DB had silently reverted to a June-25 snapshot (a twin working tree ran Postgres from iCloud). Recovered from the iCloud July-8 copy; canonical tree is now `~/nocobase-dev/havenbeheer`, containers `havenbeheer-app-1`/`havenbeheer-postgres-1`. D69 and D74 *were* applied all along; D75's "never applied" findings were artifacts of the stale snapshot (D75 is superseded by D76). `budget_override_comment` is gone from live.
+- **Suite green 77/77 (2026-07-16)** — runner auth works again post-recovery; latest report `tests/reports/20260716-011948.md`.
+- **Since D75:** D77 trimmed the stale `purchase_requests.status` top-level enum; D78 moved the `committed_usd` write inside the PR Approval workflow (the standalone recompute `j2fp3wa4o1k` is deliberately disabled — do NOT re-enable, see D78); D79 set `deleteExecutionOnStatus: []` on all five sync guards (dispatcher race fix). `workflows-explained.md` is the plain-English reference for the approval ladders, guards, and committed_usd mechanism.
+- D79's queued task (prune the status-0 execution backlog) is closed: the backlog is gone (status-0 count 0, checked 2026-07-16). Completed-execution history older than July 1 was pruned the same day (maintenance pass, approved).
 
 ## What landed 2026-07-05 (nineteenth session — Step 6 finished, suite 77/77)
 
@@ -34,7 +29,7 @@ Per-session narrative lives in `decisions.md` and git history — not repeated h
 
 ## Current state
 
-**`plan.yaml` = 35 rules / 77 cases, all reviewed and approved, suite fully green 77/77 (2026-07-05).** No `# TODO verify` markers anywhere. Run with:
+**`plan.yaml` = 35 rules / 77 cases, all reviewed and approved, suite fully green 77/77 (last run 2026-07-16).** No `# TODO verify` markers anywhere. Run with:
 
 ```
 /opt/homebrew/bin/python3 ~/.claude/skills/nb-project-suite/tools/nb-test/runner.py run --project-dir .
