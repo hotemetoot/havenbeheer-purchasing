@@ -931,7 +931,7 @@ downstream of each terminal `status=approved` node — `jy1365pvsce` (requester 
 (requester + procurement), `8gqeq6djrfj` (requester only). Channel `approval-todo-in-app-message` (only
 configured channel; email deferred — needs SMTP). Requester = `{{$context.data.createdById}}`; head of
 procurement = `{{$jobsMapByNodeKey.yrl9kgkrb3x.main_approver.id}}`. Required a same-key revision (workflow
-has executed). As-built version + node keys in [chunks/015-pr-approved-notifications.md](chunks/015-pr-approved-notifications.md)
+has executed). As-built version + node keys in [completed/015-pr-approved-notifications.md](completed/015-pr-approved-notifications.md)
 and `project_current_state.md`.
 
 **Affects:** **MVP015** (new). Downstream: any future change to PR-Approval terminal `approved` nodes, or a
