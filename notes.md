@@ -12,6 +12,8 @@ See auto-memory `feedback_plain_language_concrete_examples` (the single home): p
 
 ## Drift / open issues
 
+- **OPEN — manual check owed: R42's bulk-import claim has no automated case (2026-07-18, D84).** R42 says the PO's Lines Total catches up "no matter how the line arrived — typed by hand, written by a workflow, or bulk-imported". The first two are covered by runner cases; **bulk-imported is not**, because import is a UI action `runner.py` cannot drive. That clause currently rests on D83's one-off manual verification. It is the exact scenario the async reload was built for (on import-created rows the trigger payload's PO link is empty), so it is the clause most worth re-checking and the one least likely to be noticed if it breaks. **To check:** import PO lines via the UI onto a draft PO, then confirm the PO's Lines Total equals the sum of the imported lines' totals. Belongs with D83's parked 016 B-cases — do both in one pass.
+
 - **RESOLVED 2026-07-03 (tenth session): the Issue PO "missing delivery_address field" finding was wrong.** `purchase_orders.delivery_address` exists live: belongsTo → `delivery_addresses`, foreignKey `deliveryAddressId`, m2o interface (field key `td7idf8lg6p`). That matches both the Issue guard's `deliveryAddressId != null` check and procurement's ACL whitelist entry. `delivery_addresses` holds 2 records (Havenbeheer Hoofdkantoor id 366556185821184, Main Warehouse id 366562938650624). Alexander flagged the relation exists; re-verified live via `fields:list`. R22 is unblocked — the `po_issued` fixture sets `deliveryAddressId` to one of these records.
 
 ## Before go-live
