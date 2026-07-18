@@ -131,6 +131,12 @@ future development.
 
 ## Part 2 — Server rebuild (RackNerd VPS, from scratch)
 
+> The full teaching version of this part — with the why behind every step,
+> the Caddy-vs-tunnel reasoning, and a reusable template for future projects —
+> is [vps-setup-guide.md](vps-setup-guide.md). This part is the condensed,
+> Havenbeheer-specific run of the same steps; if the two ever disagree, the
+> general guide is the reference.
+
 ### 2.0 What changes vs. the old setup guide, and why
 
 The old guide (Caddy + proxied A record) was sound for its time. Rebuilding
