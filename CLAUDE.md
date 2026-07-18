@@ -99,6 +99,8 @@ Commit after:
 
 Don't commit half-built or unverified configuration. The commit history should read as a series of "this worked" milestones.
 
+**Push after every commit** (`git push origin master`). GitHub is the off-Mac copy of this documentation; unpushed commits defeat that. (Added 2026-07-18 after 20 commits sat local for 9 days.)
+
 ## Build discipline
 - One chunk per session, ideally 1–3 hours.
 - Manual verification by the user before marking a chunk complete.
