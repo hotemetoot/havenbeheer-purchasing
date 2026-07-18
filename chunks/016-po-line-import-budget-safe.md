@@ -1,6 +1,6 @@
 # 016 — PO line-item import (budget-safe)
 
-Status: Part A built + user-verified 2026-06-27; Part B (import action + hide rule) user-built in UI; import→lines_total recompute PARKED (not critical). D52.
+Status: Part A built + user-verified 2026-06-27; Part B (import action + hide rule) user-built in UI; import→lines_total recompute FIXED 2026-07-18 (D83 — new async workflow `1ugka88lngm` reloads the line post-commit; old sync `5ukanitoy74` disabled). Remaining: UI import re-test (B-cases) by the user. D52, D83.
 
 > **Lets Procurement bulk-import PO line items (useful for large orders) without opening the budget
 > hole that import creates.** Import bypasses *all* `po_lines` request-interception guards — the D47
@@ -167,6 +167,6 @@ hide-button handles the "lines added after issue" case D47 worried about.
 - Import action on the PO popup Line Items sub-table; hidden unless PO `status==draft` + Procurement. Import Pro enabled, per-row "trigger workflow" on. `purchase_order` confirmed in Procurement's `po_lines` create whitelist.
 - Imported lines attach to the correct PO (no orphans) → Part A's live aggregate counts them.
 
-**PARKED follow-up (not critical — cap unaffected):** import fires the `po_lines` create collection event, but **Recompute A `5ukanitoy74` (sync, live `370047322750976`) reads `$context.data.purchaseOrderId = null`** — the event fires before the association FK lands on the snapshot (verified on run `372353806172167`: trigger payload FK null, parent-load node empty, aggregates 0). So `lines_total` isn't recomputed on import (stale until a manual line touch). **Not a safety gap** — the Issue-gate cap aggregates lines live and imported lines carry the FK. **Fix when picked up:** re-query the line by `{{$context.data.id}}` (appends `purchase_order`) for the FK **and** flip Recompute A to **async** (the FK only lands post-commit, so a sync re-query still returns null — both changes needed). See auto-memory `feedback_collection_event_assoc_fk_null`.
+**~~PARKED follow-up~~ FIXED 2026-07-18 (D83):** import fires the `po_lines` create collection event before the association FK lands on the snapshot, so the old sync Recompute A (`5ukanitoy74`) read `$context.data.purchaseOrderId = null` and never recomputed. Fix as planned (re-query by `{{$context.data.id}}` + async), but shipped as a **new workflow** `1ugka88lngm` (id `376139238998016`) because `sync` is immutable — the server silently keeps `sync:true` on update and on revision, so the old lineage couldn't be flipped. Old workflow disabled as rollback. Live-verified via API fixture (create → 200, quantity edit → 300, execution jobs show the reloaded FK); suite 77/77 green. **Remaining:** one real UI import by the user to confirm `lines_total` updates per imported row (rolls into the B-case walkthrough).
 
 **Decision:** D52.
