@@ -149,7 +149,9 @@ When Olga creates a PR and picks a project, a guard checks **at save time**:
   already claim and checks the new PR wouldn't push past `budget_usd`.
 
 The create-time guard counts **every child PR that isn't rejected or
-cancelled** — including ones still mid-approval. That's "reserve on submit"
+cancelled** — including ones still mid-approval. (The filter still names
+`cancelled`; that status no longer exists on PRs, so the clause is a harmless
+no-op — D84.) That's "reserve on submit"
 (D49): if two people each submit a $6,000 PR against a $10,000 project, the
 second one is blocked at submit, not at approval. First come, first reserved.
 
@@ -208,7 +210,7 @@ flip its status. If an admin edits an approved PR's numbers by hand anyway,
 committed will NOT update — admin bypasses everything, on purpose.
 
 Note the deliberate asymmetry with §3.2: the **submit-time** guard counts all
-non-rejected/non-cancelled PRs (reservations), but **committed_usd** counts
+non-rejected PRs (reservations), but **committed_usd** counts
 only *approved* PRs (real commitments). A project can therefore have
 "remaining" room on its card while the submit guard still blocks a new PR,
 because pending PRs hold reservations that aren't committed yet.
@@ -237,8 +239,8 @@ everyone, admin included. UI-side you find them in the workflow list as type
 
 | Guard | Watches | Rule in one line |
 |---|---|---|
-| **Guard A — PR Immutability** | PR edits + deletes | If the PR's status is `approved`, `rejected`, or `cancelled` → "This record is locked and cannot be modified." Nothing terminal changes, ever, except by admin. |
-| **PR Budget (create)** | New PRs | Project must be approved; new PR's USD amount + all non-rejected/cancelled siblings must fit the budget (reserve-on-submit, §3.2). Handles every payload shape for the project id — `project: 5`, `projectId: 5`, `project: {id: 5}` — so it can't be dodged by formatting (D70 lesson). |
+| **Guard A — PR Immutability** | PR edits + deletes | If the PR's status is `approved` or `rejected` → "This record is locked and cannot be modified." Nothing terminal changes, ever, except by admin. (Until 2026-07-18 the condition also tested `cancelled`; that status was removed from PRs, so the clause was dropped — see D84.) |
+| **PR Budget (create)** | New PRs | Project must be approved; new PR's USD amount + all non-rejected siblings must fit the budget (reserve-on-submit, §3.2). Handles every payload shape for the project id — `project: 5`, `projectId: 5`, `project: {id: 5}` — so it can't be dodged by formatting (D70 lesson). |
 | **PR Budget (update)** | PR edits | Same checks, but only when the edit touches amount, fx rate, or project link; sums approved siblings only, excluding the PR being edited. |
 | **Project Immutability** | Project edits + deletes | Everything except `draft` and `info_requested` is locked. Once submitted, a project changes only through its approval flow or the Complete button. |
 | **Complete Project** (button guard) | The Complete button | Procurement role only; approved projects only. |
@@ -306,7 +308,7 @@ Leave it off; see D79 for the race it prevents.)
 1. **Board tasks go to procurement's main approver** in both ladders —
    intentional (D63), the board signs on paper. See §2 Fork C.
 2. **Three different "committed total" formulas exist** and they are *meant*
-   to differ: submit guard = all non-rejected/cancelled (reservations, D49);
+   to differ: submit guard = all non-rejected (reservations, D49);
    approval-time aggregate = approved + this PR (the commit moment, D53/D78);
    delete recompute = approved only (what remains). If you change one, decide
    explicitly whether the others should follow — and there's a test rule per
