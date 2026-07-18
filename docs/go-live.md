@@ -197,6 +197,11 @@ Docker log rotation, swap, pinned Postgres 16, `wal_level=logical`,
 > **Before wiping:** the old VPS runs an old NocoBase at app.ttga.cloud. If
 > anything on it matters (it shouldn't — it's months stale), pull a copy of
 > `/opt/apps/nocobase/data/` first. Wiping destroys it permanently.
+>
+> This is the **same VPS** being wiped and rebuilt, so app.ttga.cloud is
+> simply down from the wipe until Part 3 finishes. That's fine — no real
+> users exist on it yet. The restore source is the Mac, untouched by the
+> wipe.
 
 **0.** In the RackNerd control panel: reinstall the VPS with **Ubuntu 24.04**.
 Log in as root with the password they give you.
