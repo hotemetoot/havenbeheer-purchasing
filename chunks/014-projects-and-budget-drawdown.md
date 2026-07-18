@@ -11,8 +11,17 @@
 > **014.4 done** — PR-Approval drawdown branch (rev `372368060514304`; cond `492iwdlv0mr` → update
 > `48myq8dpqza` + notif `kykl9gnqj9h`). **014.2b/c done** — Project Approval `hzykothf9cx` ENABLED with
 > 4 approver surfaces + initiator (centralized) + ACL (operations/procurement/director). **Pending:**
-> 014.5 UI (Projects page/detail/Close button + PR `project` picker + PR field whitelists; board
-> `approval_document` required), 014.6 user E2E. See D49 update + `project_current_state.md` for IDs.
+> 014.5 remainder — **Close Project button only**, plus 014.6 user E2E.
+>
+> **Live inspection 2026-07-18** (describe-surface, following popup→template→template chains — the
+> method that avoids reference-block false negatives): Projects page `71k045k77w2` BUILT (table:
+> Project Number/Title/Status/Budget/Committed, Add new, View detail child page with remaining/committed
+> and a linked-PRs sub-table). PR creation form BUILT with the `project` picker (template
+> `0v8inq52okd` "New Purchase Request" → `n9f8v5vnhhc` "Form (Add new): Purchase Requests" → surface
+> `e76c40c8c79`). PR whitelists BUILT (`project`+`projectId` on member create/update, operations,
+> procurement, finance). Board `approval_document` BUILT, required:true on the Board Approval surface
+> `x1v23aiqd0z` (workflow `hzykothf9cx` rev `373589018214400`). NOT built: a Close button anywhere on
+> the Projects page tree (full resolved tree checked, no reference blocks hiding one).
 
 ## Goal
 - A `projects` collection holds a budget envelope (USD) + scope description, approved via its own
