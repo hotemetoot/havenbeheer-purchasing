@@ -87,6 +87,10 @@ rules:
   # checks — enforcement mechanism classes are already canary-covered.
   R40: Procurement maintains the supplier list — it can create and update suppliers; nobody can delete one; every signed-in user can view them (member baseline).
   R41: Departments — including who each department's main approver is, which steers approval routing — are admin-maintained reference data. No business role may create, update, or delete a department; everyone can view them. # The live mismatch found on draft (procurement's strategy update fallback) was fixed 2026-07-05, Alexander's approval — see D73.
+  # --- R42 drafted 2026-07-18 (D83) — PENDING Alexander's review, no cases
+  # yet. The recompute is now async, so a runner case must poll/re-read the
+  # PO after a short wait rather than asserting immediately.
+  R42: Whenever a PO line is created, its quantity or unit price is changed, or it is deleted, the parent PO's Lines Total catches up to the sum of its lines' line_total amounts shortly after (the recompute runs in the background). This holds no matter how the line arrived — typed by hand, written by a workflow, or bulk-imported — because the recompute re-reads the line from the database instead of trusting the trigger payload, whose PO link is empty on import-created rows (D83; create/update recompute is workflow 1ugka88lngm, delete recompute pnvp0dtitum).
 
 fixtures:
   users:

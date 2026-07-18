@@ -23,6 +23,32 @@
 > `x1v23aiqd0z` (workflow `hzykothf9cx` rev `373589018214400`). NOT built: a Close button anywhere on
 > the Projects page tree (full resolved tree checked, no reference blocks hiding one).
 
+## Interface brief — Complete Project button (last 014.5 item; human builds, suggestion sheet only)
+
+The backend is done and verified: the **Complete Project** custom-action workflow (key `px2xvjaxoqf`,
+D-entry 2026-07-05 renamed it from "Close") sets an approved project to `completed` + stamps
+`completed_at`, and rejects any project that isn't `approved`. Only procurement holds the trigger
+grant (R27, suite-green). The button is the only missing piece.
+
+- **Where:** the Projects page (`71k045k77w2`) — either the detail (View) child page's action bar or a
+  table row action. Detail page recommended: completing is deliberate, not a list-scan action.
+- **Button:** a **Trigger workflow** button (one-click, not a form Submit — custom-action workflows
+  only bind to these, see `feedback_workflow_form_button_pattern`), bound to workflow key
+  `px2xvjaxoqf`. Pick the workflow by name "Complete Project" in the binding dropdown.
+- **Confirmation:** enable the built-in "Secondary confirmation" — a completed project is locked by
+  the D63 guard, so this is one-way in practice. Suggested text: "Complete this project? No new PRs
+  can draw on it afterwards."
+- **Visibility linkage:** show only when `status == approved` (any other status would just get the
+  workflow's reject message). Optionally also hide for non-procurement via
+  `ctx.user.roles.title` `$includes` "Procurement" (capitalized title, not the lowercase name —
+  `feedback_linkage_rules_user_roles`); the server enforces the role either way.
+- **After success:** stay on the current popup/page with a refresh, so the status badge flips to
+  Completed immediately (`feedback_updaterecord_no_block_refresh`: trigger-workflow buttons refresh
+  correctly with afterSuccess "stay").
+- **Quick self-test:** as Pat on an approved project → confirm → badge shows Completed; the same
+  button on a draft project should be hidden (or rejected with the workflow's message if shown); a
+  new PR linked to the completed project must be blocked (R28).
+
 ## Goal
 - A `projects` collection holds a budget envelope (USD) + scope description, approved via its own
   ladder (dept → procurement → director → board ≥ $15k), reusing existing steps and thresholds.
