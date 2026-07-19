@@ -73,7 +73,7 @@ Auto-release with a director approval task on each release would restore the ove
 
 ### Separate finding, not part of this chunk
 
-**A Received PO can be walked backwards to Partially Received by correcting a line down.** The received-quantity record is not a one-way ratchet. Independent of anything above, that is how delivered goods disappear from the books. Worth its own decision — flagged here so it isn't lost.
+**A Received PO can be walked backwards to Partially Received by correcting a line down.** Checked against the live app 2026-07-18 and closed: reaching Received has no side effects beyond the status field and a notification, so there is nothing to reverse. Receipt accuracy is a physical control, not a software one. See D85.
 
 ---
 
