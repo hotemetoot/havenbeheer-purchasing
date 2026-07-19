@@ -100,13 +100,18 @@ outstanding work. Two additions land after chunks 017 and 019 (see §1.2b).
 
 Written 2026-07-18 when 017 and 019 were scheduled. Fill in after each builds.
 
-- [ ] **019** — on an **issued** PO, editing a line's Quantity or Unit Price is
-      rejected; on a **draft** PO the same edit still saves.
-- [ ] **019** — entering a Received Quantity on an issued PO's line still saves
-      (the freeze must not break receiving).
-- [ ] **019** — the **Add new** button is gone from the PO table, and Generate
-      PO on an approved PR still produces a draft PO carrying supplier,
-      currency, total and FX rate.
+- [ ] **019** — on an **Issued** PO, editing a line's Quantity Ordered or Unit
+      Price is rejected with *"Once a PO has been issued, its lines can only be
+      updated to record receiving…"*; on a **Draft** PO the same edit saves.
+- [ ] **019** — the row's **Receive** button still works on an Issued PO, and
+      typing a Received Quantity by hand still saves. *(This is the one that
+      would break receiving if the guard were wrong — check it properly.)*
+- [ ] **019** — clearing a line's Quantity Ordered on an Issued PO is rejected
+      too, not just changing it.
+- [ ] **019** — **Generate PO** on an approved PR still produces a Draft PO
+      carrying supplier, currency, total and FX rate. *(The one thing Claude
+      could not verify from the CLI — the whitelist change is readback-verified
+      but this end-to-end path is not.)*
 - [ ] **017** — reject a PR at each stage; the submitter, their dept head, and
       (where the PR reached them) the procurement head each get a notification
       naming the stage. The person who rejected gets nothing.

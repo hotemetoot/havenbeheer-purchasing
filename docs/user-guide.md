@@ -447,16 +447,30 @@ price and that the lines stay within budget.
 
 ### What issuing locks
 
+Issuing is the point of no return. The order has gone to the supplier, so from here the
+lines are the printed document — and the system keeps them matching it.
+
 Once the order is **Issued**:
 
+- You can no longer **add** a line (the **Import** button disappears).
 - You can no longer **delete** a line ("Cannot delete a PO line once the PO has been
   issued.").
-- You can still record deliveries against the lines — that is the next stage.
+- You can no longer **change** a line. Quantity Ordered, Unit Price, Description and
+  Line Status are all fixed. Clearing a value counts as changing it. You get:
+  *"Once a PO has been issued, its lines can only be updated to record receiving.
+  Quantity and unit price are fixed at issue."*
+- **Recording deliveries still works** — that is the next stage, and it is the one
+  change the order still accepts.
 
 Example: Pat has a Draft PO with two lines, both priced, totalling USD 4,800 against a
 USD 5,000 request. Pat clicks **Issue PO**. The order becomes **Issued** and the issue
 date is stamped. If Pat had left one line's Unit Price at 0, the click would have been
 blocked with the unit-price message instead.
+
+A week later the supplier says one item now costs more. Pat cannot edit the line — the
+supplier is holding a PO that says otherwise. The way through is to **Close** this order
+and generate a new one from a new request. If it is a genuine mistake rather than a price
+change, an administrator can still correct the line.
 
 > 📷 **Screenshot — the Issue PO button on a Draft order.**
 > Show the **Issue PO** action. Confirm the exact button label and, if easy, capture one

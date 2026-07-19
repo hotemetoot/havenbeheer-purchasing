@@ -1,6 +1,8 @@
 # 019 — PO is execution only: lock the approved terms, freeze line prices at issue
 
-**Status:** drafted 2026-07-18, not built
+**Status:** BUILT + suite-green 2026-07-18 (D87), pending Alexander's UI confirmation.
+Phase 1 and Phase 2 both live. **Phase 2 shipped a wider rule than drafted** —
+see "What was actually built" below; the narrow version had a real hole.
 **Depends on:** D46 (PR-copied fields locked on update), D52 (Issue-gate budget cap), D81 (line destroy blocked once issued), D82 (admin-exempt lock guards)
 
 ## The rule in plain language
@@ -79,11 +81,25 @@ if the freeze turns out to bite in practice.
 
 ## Expected UI result
 
+> **Superseded by what shipped** — the rule widened during the build (see "What
+> was actually built"). Kept for the reasoning; the accurate version follows.
+
 - On a **draft** PO, the Line Items sub-table behaves exactly as today.
 - On an **issued** (or later) PO, editing a line's Quantity or Unit Price and
   saving shows a rejection: *"Cannot change quantity or price once the PO has
   been issued."* The line is not saved.
 - Entering a received quantity on the same line still saves normally.
+
+**As built:**
+
+- On a **Draft** PO, the Line Items table behaves exactly as before.
+- On an **Issued** PO (or later), saving any change to a line shows:
+  *"Once a PO has been issued, its lines can only be updated to record
+  receiving. Quantity and unit price are fixed at issue."* The line is not
+  saved. This covers Quantity Ordered, Unit Price, Description and Line Status,
+  and it covers blanking a value as well as changing it.
+- The row's **Receive** button still works normally — it assigns only Received
+  Quantity, which is exactly the one change the guard permits.
 
 ## Verified live state (2026-07-18, before any change)
 
@@ -240,3 +256,79 @@ overlap, whichever rejects first wins.
 - **Revert-to-Draft button.** Deferred by decision, not oversight.
 - **PO header edits at non-terminal status** (D69) stay as they are; the
   D46 whitelist already covers the PR-derived terms.
+
+---
+
+## What was actually built (2026-07-18) — read this over the phases above
+
+The phases above describe the plan. Two things changed during the build; the
+plan text is left intact so the reasoning is still legible.
+
+### 1. Phase 2 shipped a wider rule than drafted
+
+**Drafted:** block an update that sets `quantity_ordered` or `unit_price` on a
+non-Draft PO.
+
+**Built:** on a non-Draft PO, block anything that is not a plain receiving
+entry. The condition is an OR of three clauses — quantity present, price
+present, or **Received Quantity absent** — evaluated on a non-Draft parent.
+
+**Why it changed.** The drafted condition had a hole, found by a test case
+written specifically to probe it (R45, drafted `# TODO verify` and expected to
+fail — it did). NocoBase renders an absent field and an explicitly-emptied one
+identically, so a guard asking "is quantity being set" cannot tell "I'm not
+touching quantity" (a receive) from "I'm erasing quantity". **Blanking a
+quantity sailed straight through the first version**, as would a quantity
+change smuggled alongside a receiving entry in the same save.
+
+Alexander chose the inverted rule over documenting the hole. Consequence worth
+knowing: `description` and `line_status` are now also frozen after issue. That
+was the deliberate trade — the line is the printed document.
+
+**Generalisable, and it applies beyond this chunk:** any guard testing
+`values.X != null` to mean "is X being changed" is blind to a blanking. The
+sibling budget guard `c9c14tyn876` has the same shape. It is harmless there
+(blanking a price only lowers the total, and the budget check has nothing to
+catch) but the pattern should not be copied into a new guard.
+
+### 2. Phase 1's verification is partly deferred
+
+The whitelist change is verified by readback. **Not re-proven this session:**
+that Generate PO still populates the five removed fields. The precedent is
+strong — D46 removed the same five from the *update* whitelist and Generate PO
+kept working, same workflow, same create node, because workflow create nodes
+write through the internal repository and never consult ACL. The end-to-end
+click is on Alexander's go-live list (§1.2b), not something Claude confirmed.
+
+The CLI could not drive it: Generate PO is a one-click custom action, `nb api`
+has no raw-HTTP verb, and the CLI's own session is root — which the guard
+exempts by design, so an admin call would prove nothing anyway.
+
+### Live IDs as built
+
+| Object | Value |
+|---|---|
+| Guard workflow (live) | `376238895661056`, key `eiscjvwiqr6`, enabled + current |
+| — predecessor (disabled) | `376235116593152` — the narrow first version |
+| — title | `Guard: PO Line Freeze — only receiving once PO issued` |
+| — nodes | `vsr6pqnkuka` not-a-plain-receive? → `x43xq5e4xqi` admin lookup → `vavyccg3cak` not-admin? → `zvd6f2zubra` fetch parent PO → `80ad1p7uzq2` PO not draft? → `kv4ie2b0vzd` reject → `wkjzs3cyngy` end (-1) |
+| — options | `{"timeout":0,"stackLimit":1,"deleteExecutionOnStatus":[]}` (D79) |
+| ACL create row edited | `373257175367682` |
+| Test rules added | R44 (4 cases), R45 (3 cases) — suite **94/94** |
+
+### Receiving was verified safe three ways
+
+1. **Execution history** — 108 runs across `mhfp4d15uee` and `c9c14tyn876`,
+   2026-07-03 to 2026-07-18: every real receive submits exactly
+   `{"received_quantity": N}`, never alongside `quantity_ordered`.
+2. **The Receive button's own config** — `UpdateRecordActionModel` uid
+   `6162e9dedc3` assigns exactly one field:
+   `received_quantity: {{ ctx.record.quantity_ordered }}`.
+3. **The suite** — R22's "procurement can record receiving on a line of an
+   issued PO" passes with the guard live.
+
+### Still open, deliberately
+
+- **Revert to Draft button** — deferred by decision, not oversight.
+- **The dead `flowModels` row `i2sb9sjg84d`** — an unparented `AddNewActionModel`
+  for `purchase_orders`. Cannot render. Cosmetic cleanup, unscheduled.
