@@ -4,7 +4,7 @@ Everything between "the app works locally" and "real users work in it at
 https://app.ttga.cloud". Written 2026-07-18. One file, four parts, in order:
 
 1. **App readiness** — finish and verify the app locally.
-2. **Server rebuild** — wipe the RackNerd VPS, set it up from scratch.
+2. **Server rebuild** — clear the netcup VPS, set it up from scratch.
 3. **Migration** — move the app from the Mac to the server.
 4. **Backups & maintenance** — keep it alive afterwards.
 
@@ -153,7 +153,12 @@ future development.
 
 ---
 
-## Part 2 — Server rebuild (RackNerd VPS, from scratch)
+## Part 2 — Server rebuild (netcup VPS)
+
+> **DONE 2026-07-18 ✓** — see §2.2, which records what was actually run. The
+> server was cleaned in place rather than reinstalled, because the netcup
+> Server Control Panel was unreachable that day and the hardening was already
+> in place and verified. Sections 2.3 onward are still outstanding.
 
 > The full teaching version of this part — with the why behind every step,
 > the Caddy-vs-tunnel reasoning, and a reusable template for future projects —
@@ -213,7 +218,7 @@ Docker log rotation, swap, pinned Postgres 16, `wal_level=logical`,
   Cloudflare (TLS, DNS, hides your IP)
        │  ← outbound-only tunnel, opened BY the server
        ▼
-  RackNerd VPS (Ubuntu 24.04)
+  netcup VPS (Ubuntu 24.04)
   ├── UFW: ONLY port 2222 (SSH) open. 80/443 closed.
   └── Docker (network "nocobase", nothing published to the internet)
       ├── cloudflared  ← keeps the tunnel to Cloudflare open
@@ -221,19 +226,48 @@ Docker log rotation, swap, pinned Postgres 16, `wal_level=logical`,
       └── postgres     ← the database, internal only
 ```
 
-### 2.2 Wipe and OS baseline
+### 2.2 OS baseline — DONE 2026-07-18 ✓
 
-> **Before wiping:** the old VPS runs an old NocoBase at app.ttga.cloud. If
-> anything on it matters (it shouldn't — it's months stale), pull a copy of
-> `/opt/apps/nocobase/data/` first. Wiping destroys it permanently.
->
-> This is the **same VPS** being wiped and rebuilt, so app.ttga.cloud is
-> simply down from the wipe until Part 3 finishes. That's fine — no real
-> users exist on it yet. The restore source is the Mac, untouched by the
-> wipe.
+**What was actually done: cleaned in place, not reinstalled.** The netcup
+Server Control Panel (SCP — separate from the CCP customer panel, separate
+password) was unreachable, and an OS reinstall can only be triggered there:
+it wipes the disk you would be SSH'd into. Both netcup install paths, the
+ready-made image and the "Boot from CD-ROM" DVD install, live in the SCP.
 
-**0.** In the RackNerd control panel: reinstall the VPS with **Ubuntu 24.04**.
-Log in as root with the password they give you.
+An audit showed the box already satisfied steps 1–9 below — Ubuntu 24.04.4,
+timezone America/Paramaribo, SSH on 2222 with no root and no password auth,
+fail2ban with 417 bans logged, unattended-upgrades without auto-reboot, 4G
+swap at swappiness 10, Docker with `log-driver: local`, `alex` in the
+`docker` group. No leftover cron jobs, no host-level web server. So the
+reinstall would only have rebuilt what was already correct.
+
+What was removed instead, from the old Caddy-based stack:
+
+```bash
+cd /opt/apps/nocobase && docker compose down -v   # containers, volumes, network
+cd ~ && sudo rm -rf /opt/apps                     # app dir incl. old DB + storage
+docker rmi caddy:2 nocobase/nocobase:beta-full \
+           nocobase/nocobase:latest-full hello-world:latest
+docker system prune -f                            # 2.5G reclaimed; disk 19G → 8.4G
+sudo ufw delete allow 80/tcp                      # the tunnel closes both
+sudo ufw delete allow 443/tcp
+```
+
+`postgres:16` was deliberately kept — §2.4 pins that exact image. The old
+app's data was **not** backed up first; it was months stale and Alexander
+confirmed nothing in it mattered. Verified after: `docker ps -a` empty, UFW
+showing 2222/tcp only, `ss -tulpn` showing no listener but SSH.
+
+**Caveat if this box is ever rebuilt again:** cleaning in place trusts the
+audit to catch every leftover. A reinstall guarantees it. Prefer the SCP
+reinstall when it's reachable.
+
+> **If you do reinstall:** in the netcup SCP, install **Ubuntu 24.04**, log
+> in as root with the password they give you, then run steps 1–9 below. The
+> restore source is the Mac, untouched either way, so app.ttga.cloud simply
+> stays down until Part 3 finishes. No real users exist on it yet.
+
+The steps below are kept as the from-scratch reference.
 
 **1. Update everything** (a datacenter image is weeks stale — patch first):
 
@@ -404,12 +438,11 @@ The token is the tunnel's credential — treat it like a password (it's in the
 ### 2.4 Application files
 
 ```bash
-# No /opt/backups here: the Backup manager writes inside the app's own
+# No backups directory here: the Backup manager writes inside the app's own
 # storage/ directory (which is bind-mounted below) and pushes copies to the
 # bucket. See 4.1.
-sudo mkdir -p /opt/apps/nocobase/storage
-sudo chown -R alex:alex /opt/apps/nocobase
-cd /opt/apps/nocobase
+mkdir -p ~/apps/nocobase/storage
+cd ~/apps/nocobase
 ```
 
 **`.env`** (`nano .env`, then `chmod 600 .env`):
@@ -500,10 +533,25 @@ upstream NocoBase uses, and it keeps "back up the app" = "back up one
 directory plus one pg_dump". No Caddy service, no published 80/443, and
 `container_name:` entries so cron jobs can address containers reliably.
 
+**Why `~/apps/nocobase` and not `/opt/apps/nocobase`** (decided 2026-07-18):
+`/opt` is for root-owned system-wide software, which this stack is not. In the
+home directory you create the tree, write `.env`, and run `docker compose` all
+as `alex` — no sudo, and no `chown` step. The compose file itself is unaffected;
+its paths are relative. The general
+[vps-setup-guide.md](vps-setup-guide.md) still says `/opt/apps/PROJECT`, which
+stays right as a default for a shared multi-project server; this is a
+deliberate deviation for a single-operator box.
+
+This does **not** remove the ownership oddity inside the bind mounts: Postgres
+writes `storage/db/postgres` as uid 999 mode 700, and NocoBase writes as root,
+wherever the directory lives. That is normal — it is why reading those files
+needs sudo. Only the parent directories and your own `.env` / `compose.yaml`
+belong to `alex`.
+
 ### 2.5 First boot
 
 ```bash
-cd /opt/apps/nocobase
+cd ~/apps/nocobase
 docker compose up -d
 docker compose logs -f nocobase   # wait for the ready message (first boot
                                   # runs migrations; takes a few minutes)
