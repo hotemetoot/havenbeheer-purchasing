@@ -19,7 +19,7 @@
 ## What lives where (vs. these design docs)
 
 - **Decisions that have superseded design-doc content** live in [decisions.md](../decisions.md) (e.g. D9 collapsed 1-PR-to-many-POs → 1:1; D22 replaced FX-lookup workflow with manual rate; D23 replaced `approval_limits` with manual checkbox). When design doc and decisions disagree, decisions wins.
-- **Current live state** (collection IDs, workflow node IDs, surface IDs) lives in [project_current_state.md](../project_current_state.md), never duplicated here.
+- **Current live state** (collection IDs, workflow node IDs, surface IDs) lives only in the running app — query it via `nb api`. (`project_current_state.md` was retired 2026-07-02; see CLAUDE.md.)
 
 See also:
 - [users-and-roles.md](users-and-roles.md)
