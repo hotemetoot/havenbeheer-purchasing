@@ -519,22 +519,89 @@ hands them to the container you named. WebSockets pass through fine.
 
 **Dashboard steps:**
 
-1. dash.cloudflare.com → confirm `YOUR_DOMAIN` is listed and **Active**.
-2. **DNS** → delete any existing `A`/`CNAME` record for the hostname you're
-   about to use (leftovers collide with the record the tunnel creates).
-3. **Zero Trust → Networks → Tunnels → Create a tunnel** → connector
-   **Cloudflared** → name it after the project.
-4. On the connector screen choose **Docker** — don't run their command, just
-   copy the token string (after `--token`) into the server's `.env`.
-5. **Public hostname** tab → Add: subdomain (e.g. `app`), your domain,
-   service **HTTP**, URL `appcontainer:PORT` — the *container name and
-   internal port* of your app as defined in compose. Save; Cloudflare
-   creates the DNS record itself.
-6. Zone settings → **SSL/TLS → Edge Certificates** → enable **Always Use
-   HTTPS**.
+Cloudflare's dashboard has two halves, and the steps below cross between
+them. **Zone settings** (DNS, SSL/TLS) live under the domain you clicked into.
+**Zero Trust** (tunnels) is a separate account-level section — leaving the
+zone to go there, and coming back afterwards, is normal, not a wrong turn.
+
+**1. Confirm the domain is in Cloudflare.**
+dash.cloudflare.com → the account home lists your domains ("zones"). Find
+`YOUR_DOMAIN`; it must say **Active**. If it says *Pending nameserver
+update*, stop — nothing below will work until the registrar's nameservers
+point at Cloudflare and Cloudflare has noticed. Click the domain; you are
+now inside the zone.
+
+**2. Delete any leftover record for the hostname.**
+Sidebar → **DNS → Records**. Look for a row whose **Name** matches the
+hostname you're about to use.
+
+> **The Name column shows the short form.** A record for
+> `app.YOUR_DOMAIN` is displayed as just `app` — Cloudflare drops the zone
+> name because every record in the zone ends with it. They are the same
+> record. (A record for the bare domain shows as `YOUR_DOMAIN` itself, or
+> `@`.)
+
+If a row named `app` exists — usually an `A` record pointing at the server's
+IP, left over from a direct/Caddy setup — edit it and **Delete** it. Leave
+every other record alone: the root record, MX records for mail, TXT records
+for SPF/DKIM, anything else.
+
+Why it must go rather than just being ignored: in step 5 the tunnel creates
+its *own* record with that same name — a `CNAME` pointing into the tunnel,
+not an `A` pointing at an IP. DNS forbids a `CNAME` and an `A` sharing one
+name, so the leftover blocks the tunnel's record and you get a confusing
+error several steps later, far from the cause.
+
+**3. Create the tunnel.**
+Sidebar → **Zero Trust** → **Networks → Tunnels → Create a tunnel**.
+Connector type **Cloudflared**. Name it after the project. Save.
+
+**4. Copy the token — don't run the command.**
+Cloudflare shows install instructions per platform. Pick the **Docker** tab.
+It displays something like:
+
+```
+docker run cloudflare/cloudflared:latest tunnel --no-autoupdate run --token eyJhIjoiN...
+```
+
+Don't run it — compose starts the connector for you (§12). Copy **only the
+long string after `--token`** into the server's `.env` as `TUNNEL_TOKEN=`.
+Then finish the wizard. The connector will show as **offline** or *down*
+until the server's container actually starts; at this point that's expected,
+not a fault.
+
+**5. Route the hostname into the tunnel.**
+On the tunnel's page → **Public Hostname** tab → **Add a public hostname**:
+
+| Field | Value |
+|---|---|
+| Subdomain | e.g. `app` |
+| Domain | `YOUR_DOMAIN` (dropdown) |
+| Path | leave empty |
+| Service Type | **HTTP** |
+| URL | `appcontainer:PORT` |
+
+`appcontainer:PORT` is the app's **container name and internal port** as
+defined in compose — e.g. `nocobase:80`. cloudflared resolves that name over
+the shared Docker network. It's **HTTP**, not HTTPS, because this last hop
+happens inside the server between two containers; no certificate is involved
+and none is wanted.
+
+Save. Cloudflare writes the DNS record itself. Go back to the zone's **DNS →
+Records** and confirm: a new **CNAME** named `app`, orange cloud (proxied),
+content ending in `.cfargotunnel.com`. Seeing that record is the proof that
+steps 2 and 5 both landed.
+
+**6. Force HTTPS.**
+Back in the zone → **SSL/TLS → Edge Certificates** → enable **Always Use
+HTTPS**, so `http://` visitors get redirected instead of served plaintext.
 
 Treat the token like a password: it lives only in `.env` (mode 600). If it
 ever leaks, revoke the tunnel in the dashboard and create a new one.
+
+> Cloudflare reshuffles its dashboard navigation every few months, so a label
+> may sit one level deeper or shallower than written here. The sequence and
+> the values are what matter.
 
 **Optional hardening:** Cloudflare **Access** can put a login page (email
 one-time-code, SSO) in front of the hostname *before* traffic ever reaches

@@ -420,7 +420,10 @@ point at Cloudflare — so all DNS is managed in the Cloudflare dashboard
 (that's the "indirectly managed" part). Porkbun is only the registrar now;
 you never touch it for this.
 
-**Setup (Cloudflare dashboard):**
+**Setup (Cloudflare dashboard)** — the step-by-step walkthrough, including
+what the DNS Name column actually shows and why the leftover record blocks
+the tunnel, is in [vps-setup-guide.md](vps-setup-guide.md) §11. The
+project-specific values:
 
 1. dash.cloudflare.com → verify **ttga.cloud** is listed and Active.
 2. **DNS** → delete the existing `A` record for `app`. **There is one, and as
