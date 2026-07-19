@@ -23,7 +23,7 @@ Two guards on PO lines, both found and fixed 2026-07-19:
 
 Four other interception guards on `po_lines` were checked and are clean — `c9c14tyn876`, `mhfp4d15uee`, `f3dkb37te22`, `v61hc3ou3pa`. They read only `quantity_ordered`, `unit_price` and `received_quantity`, which are plain numbers with nothing to misread.
 
-Covered by test rule R46 (6 cases).
+Covered by test rule R50 (6 cases).
 
 ## What is left
 
@@ -61,7 +61,7 @@ Normal revision discipline: new revision, force the same key, diff node by node 
 
 ### 4. Cover it
 
-Extend R46 or add a sibling rule. One case per guard, sending the link the nested way, expecting the refusal the guard exists to produce. A server error is not a refusal to the runner — 500 is not in `DENY_CODES` — so the case fails loudly if the fault returns. Pair each with an allow case, or a guard that blocks everything reads as green.
+Extend R50 or add a sibling rule. One case per guard, sending the link the nested way, expecting the refusal the guard exists to produce. A server error is not a refusal to the runner — 500 is not in `DENY_CODES` — so the case fails loudly if the fault returns. Pair each with an allow case, or a guard that blocks everything reads as green.
 
 ## Debugging technique worth reusing
 
