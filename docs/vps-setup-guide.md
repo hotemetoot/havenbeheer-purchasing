@@ -20,7 +20,7 @@ setup survives as Appendix A, for when a tunnel is not an option).
 | `YOUR_DOMAIN` | the zone managed in Cloudflare | `ttga.cloud` |
 | `app.YOUR_DOMAIN` | the public hostname for this app | `app.ttga.cloud` |
 | `PROJECT` | short name of the app/project | `havenbeheer` |
-| `/opt/apps/PROJECT` | where the app lives on disk | `/opt/apps/havenbeheer` |
+| `~/apps/PROJECT` | where the app lives on disk | `~/apps/havenbeheer` |
 
 ### How to edit files on the server
 
@@ -469,21 +469,34 @@ real pressure — the right bias for a server.
 backups, debugging, and future-you always know where to look.
 
 ```bash
-sudo mkdir -p /opt/apps/PROJECT /opt/backups
-sudo chown -R YOUR_USER:YOUR_USER /opt/apps/PROJECT /opt/backups
-cd /opt/apps/PROJECT
+mkdir -p ~/apps/PROJECT ~/backups
+cd ~/apps/PROJECT
 ```
 
 ```plaintext
-/opt/apps/PROJECT/
+~/apps/PROJECT/
 ├── compose.yaml     ← the services
 ├── .env             ← secrets (chmod 600, never in git)
 └── <data dirs>      ← whatever the app persists, bind-mounted (e.g. ./storage)
-/opt/backups/        ← only if you use the cron fallback (§13.2); apps that
+~/backups/           ← only if you use the cron fallback (§13.2); apps that
                        back themselves up write inside their own data dir
 ```
 
-Multiple projects = multiple `/opt/apps/<name>` directories, each with its
+**Why the home directory and not `/opt`:** `/opt` is the convention for
+root-owned, system-wide software, and it costs you a `sudo mkdir` plus a
+`chown` on every project. These stacks are run by one person under one
+account, so the home directory is simpler: you create the tree, write `.env`,
+and run `docker compose` as yourself, with no sudo anywhere. Use `/opt`
+instead only if several admin accounts must reach the same app — `/home/user`
+is mode 750, so nobody else can. Compose files are unaffected either way;
+their paths are relative.
+
+This does **not** change ownership *inside* the bind mounts. Container
+processes write there as their own users — Postgres as uid 999 mode 700, many
+app images as root — wherever the directory lives. That is normal, and it is
+why reading or archiving those files still needs sudo.
+
+Multiple projects = multiple `~/apps/<name>` directories, each with its
 own compose file, its own Docker network, and its own tunnel or its own
 public-hostname rule on a shared tunnel.
 
@@ -629,7 +642,7 @@ Why each choice:
 ### First boot
 
 ```bash
-cd /opt/apps/PROJECT
+cd ~/apps/PROJECT
 docker compose up -d
 docker compose logs -f app        # watch until the app reports ready
 ```
@@ -690,12 +703,12 @@ backup feature of its own.
 ### 13.1 Prove the backup works once, by hand
 
 ```bash
-docker exec PROJECT-postgres pg_dump -U appuser -Fc appdb > /opt/backups/db-manual-test.dump
-ls -lh /opt/backups/       # non-zero size
+docker exec PROJECT-postgres pg_dump -U appuser -Fc appdb > ~/backups/db-manual-test.dump
+ls -lh ~/backups/       # non-zero size
 
 # restore drill — a backup you never restored is a hope, not a backup:
 docker exec PROJECT-postgres psql -U appuser -c "CREATE DATABASE restore_test;"
-docker exec -i PROJECT-postgres pg_restore -U appuser -d restore_test < /opt/backups/db-manual-test.dump
+docker exec -i PROJECT-postgres pg_restore -U appuser -d restore_test < ~/backups/db-manual-test.dump
 docker exec PROJECT-postgres psql -U appuser -c "DROP DATABASE restore_test;"
 ```
 
@@ -707,19 +720,21 @@ docker exec PROJECT-postgres psql -U appuser -c "DROP DATABASE restore_test;"
 
 ```cron
 # 03:00 — database dump (custom format = compressed, flexible restore)
-0 3 * * * docker exec PROJECT-postgres pg_dump -U appuser -Fc appdb > /opt/backups/db-$(date +\%F).dump
+0 3 * * * docker exec PROJECT-postgres pg_dump -U appuser -Fc appdb > $HOME/backups/db-$(date +\%F).dump
 # 03:30 — app file storage (exclude a live DB dir if it lives inside)
-30 3 * * * tar -czf /opt/backups/storage-$(date +\%F).tar.gz -C /opt/apps/PROJECT --exclude=storage/db storage
+30 3 * * * tar -czf $HOME/backups/storage-$(date +\%F).tar.gz -C $HOME/apps/PROJECT --exclude=storage/db storage
 # 04:00 — keep 7 days locally
-0 4 * * * find /opt/backups \( -name "*.dump" -o -name "*.tar.gz" \) -mtime +7 -delete
+0 4 * * * find $HOME/backups \( -name "*.dump" -o -name "*.tar.gz" \) -mtime +7 -delete
 # 05:00 — off-site copy (rclone configured once against any S3-style bucket)
-0 5 * * * rclone copy /opt/backups remote:BUCKET/PROJECT/
+0 5 * * * rclone copy $HOME/backups remote:BUCKET/PROJECT/
 ```
 
-Notes: `%` must be escaped as `\%` inside crontab. The `docker exec
-PROJECT-postgres` form works *because* compose pins `container_name`. For
-the off-site leg, configure `rclone` once (`rclone config`; Backblaze B2 is
-a cheap, simple choice — see rclone's per-provider docs).
+Notes: `%` must be escaped as `\%` inside crontab. Use `$HOME` rather than `~`
+in cron lines — cron's shell is minimal and `$HOME` is unambiguous. The
+`docker exec PROJECT-postgres` form works *because* compose pins
+`container_name`. For the off-site leg, configure `rclone` once
+(`rclone config`; Backblaze B2 is a cheap, simple choice — see rclone's
+per-provider docs).
 
 **Verify:** `crontab -l` lists the jobs; next morning the dated files exist;
 after the first off-site run, the files are visible in the bucket.
@@ -773,7 +788,7 @@ reboot you control:
 ls /var/run/reboot-required 2>/dev/null && echo "Reboot required" || echo "No reboot needed"
 ```
 
-To reboot safely: `cd /opt/apps/PROJECT && docker compose stop` (lets the
+To reboot safely: `cd ~/apps/PROJECT && docker compose stop` (lets the
 database flush cleanly), `sudo reboot`, reconnect after a minute,
 `docker compose ps` — everything returns on its own thanks to
 `restart: unless-stopped`.

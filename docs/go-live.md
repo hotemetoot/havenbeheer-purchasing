@@ -418,8 +418,12 @@ you never touch it for this.
 **Setup (Cloudflare dashboard):**
 
 1. dash.cloudflare.com → verify **ttga.cloud** is listed and Active.
-2. **DNS** → delete any existing `A` or `CNAME` record for `app` — the
-   tunnel will create its own and collides with leftovers.
+2. **DNS** → delete the existing `A` record for `app`. **There is one, and as
+   of 2026-07-18 it is dead:** it points at the VPS's IP for the old Caddy
+   setup, which was removed in §2.2 — ports 80 and 443 are closed and nothing
+   answers there. Leaving it in place doesn't just serve errors; the tunnel
+   creates its own record for `app` in step 5 and collides with the leftover.
+   Delete it before creating the tunnel.
 3. **Zero Trust → Networks → Tunnels → Create a tunnel** → connector type
    **Cloudflared** → name it `havenbeheer`.
 4. On the connector page, pick **Docker**. Don't run their command — just
