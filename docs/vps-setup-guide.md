@@ -479,7 +479,8 @@ cd /opt/apps/PROJECT
 ├── compose.yaml     ← the services
 ├── .env             ← secrets (chmod 600, never in git)
 └── <data dirs>      ← whatever the app persists, bind-mounted (e.g. ./storage)
-/opt/backups/        ← daily dumps land here (and are copied off-site)
+/opt/backups/        ← only if you use the cron fallback (§13.2); apps that
+                       back themselves up write inside their own data dir
 ```
 
 Multiple projects = multiple `/opt/apps/<name>` directories, each with its
@@ -659,6 +660,33 @@ And two kinds of state to save:
 - the **file storage** the app writes (uploads, attachments) — via `tar`,
   excluding any live database directory inside it.
 
+### 13.0 First: does the app back itself up?
+
+**Check this before building anything below.** Many apps ship a backup
+feature that already covers all four requirements — database, uploaded
+files, a schedule, and an off-site destination. If yours does, use it and
+skip §13.1–13.2 entirely. A hand-rolled cron stack is code you now own,
+with failure modes (wrong container name, unescaped `%`, a dump that was
+silently empty for months) that the app's own feature doesn't have.
+
+**NocoBase specifically:** the Backup manager plugin does all four. It
+writes one `.nbdata` holding the database *and* `storage/uploads`, runs on a
+cron you set in the UI, keeps the N most recent locally, and uploads each
+finished backup to any configured file storage that isn't the local one.
+Point that at an S3-compatible bucket — the *free* built-in "Amazon S3"
+storage type takes a custom endpoint, so Backblaze B2, Cloudflare R2 or
+MinIO all work without the paid S3(Pro) plugin. See the Havenbeheer
+[go-live guide](go-live.md) §4.1 for the settings, and §4.4 for the drill.
+
+Two gaps to cover by hand whichever route you take: **`compose.yaml` and
+`.env` are never in an app-level backup** (copy them off the server once),
+and **the bucket credentials live on the server** — so scope the key to that
+one bucket and enable object lock or versioning, or anything that
+compromises the app can also erase the backups.
+
+The rest of this section is the fallback: what to build when the app has no
+backup feature of its own.
+
 ### 13.1 Prove the backup works once, by hand
 
 ```bash
@@ -725,8 +753,12 @@ after the first off-site run, the files are visible in the bucket.
 - [ ] default/admin passwords changed immediately after first boot
 
 **Backups:**
-- [ ] manual dump + restore drill done
-- [ ] cron jobs installed; off-site copy verified
+- [ ] decided which route: the app's own backup feature (§13.0) or the cron
+      fallback (§13.2) — not both
+- [ ] schedule active; first run produced a real, non-empty artifact
+- [ ] off-site copy verified in the bucket
+- [ ] restore drill done — restored into a scratch target, not production
+- [ ] `compose.yaml` + `.env` copied off the server (no backup includes them)
 
 ---
 
@@ -749,7 +781,9 @@ database flush cleanly), `sudo reboot`, reconnect after a minute,
 ### 15.2 Upgrading the app (pinned-tag procedure)
 
 1. Read the release notes; upgrade any local/dev instance first if one exists.
-2. Take a fresh backup (both cron artifacts, run by hand).
+2. Take a fresh backup by hand — via the app's own backup feature if it has
+   one (§13.0), otherwise both cron artifacts — and confirm it reached the
+   off-site bucket before touching anything.
 3. Edit the tag in `compose.yaml` to the new exact version.
 4. `docker compose pull app && docker compose up -d app` — only the app
    container is recreated; the database keeps running.
@@ -770,7 +804,7 @@ Occasionally also refresh the connector:
 | --- | --- |
 | Weekly | reboot check (§15.1); `df -h` + `docker system df` for disk |
 | Monthly | confirm off-site backups are arriving; skim app release notes |
-| Quarterly | restore drill (§13.1) |
+| Quarterly | restore drill — into a scratch target, never production |
 | After upgrades | `docker image prune -f` |
 
 ---

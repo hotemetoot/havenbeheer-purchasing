@@ -181,13 +181,18 @@ from scratch, change these six things:
    on. Production runs `nocobase/nocobase:2.1.0-beta.47-full` — the *exact*
    version running locally, which the backup-restore requires. Upgrades
    become a deliberate act (Part 4).
-3. **Backups cover files, not just the database.** The old guide's `pg_dump`
-   cron missed the `storage/` directory — which holds every uploaded
-   attachment, including signed board-approval documents. Both are backed up
-   now, and copied off the server.
-4. **The old backup cron was broken anyway:** `docker exec postgres …`
-   assumes a container literally named `postgres`; Compose names it
-   `nocobase-postgres-1`. Fixed with explicit `container_name:` entries.
+3. **Backups move into NocoBase itself.** The old guide hand-rolled a
+   `pg_dump` + `tar` + `rclone` cron stack. NocoBase's Backup manager plugin
+   already does all of it — database *and* uploaded attachments, on a
+   schedule, with retention, uploaded to a bucket — so the cron stack is
+   gone. See 4.1.
+4. **That also retires two bugs in the old cron:** it missed the `storage/`
+   directory entirely (every uploaded attachment, including signed
+   board-approval documents), and its `docker exec postgres …` assumed a
+   container literally named `postgres` while Compose names it
+   `nocobase-postgres-1`. Neither can recur now. (`container_name:` is still
+   pinned in the compose file below — it makes every other `docker exec` you
+   type reliable.)
 5. **Ubuntu 24.04 SSH gotcha fixed:** 24.04 starts SSH via "socket
    activation", which can ignore the `Port 2222` line in the config. One
    extra command (§2.2 step 4) makes the port change actually stick.
@@ -399,9 +404,11 @@ The token is the tunnel's credential — treat it like a password (it's in the
 ### 2.4 Application files
 
 ```bash
+# No /opt/backups here: the Backup manager writes inside the app's own
+# storage/ directory (which is bind-mounted below) and pushes copies to the
+# bucket. See 4.1.
 sudo mkdir -p /opt/apps/nocobase/storage
-sudo mkdir -p /opt/backups
-sudo chown -R alex:alex /opt/apps/nocobase /opt/backups
+sudo chown -R alex:alex /opt/apps/nocobase
 cd /opt/apps/nocobase
 ```
 
@@ -566,44 +573,67 @@ The backup carries dev data. Prune it on production; local keeps everything.
 
 ## Part 4 — Backups & maintenance (production)
 
-### 4.1 Automated backups
+### 4.1 Automated backups — NocoBase's own Backup manager
 
-Two things need saving: the **database** (pg_dump) and the **storage
-directory** (uploads/attachments — excluded: the live Postgres files, which
-are useless as file copies and belong to pg_dump).
+**No cron, no `pg_dump`, no `rclone`.** NocoBase ships a Backup manager
+plugin that already does the whole job: it dumps the database *and* the
+uploaded files into one `.nbdata` file, on a schedule, keeps N of them, and
+uploads each finished backup to a bucket. It's enabled in this app already —
+it's the same thing `nb backup create` drives.
 
-`crontab -e` as alex on the server:
+Verified against the running container, not just the docs: the plugin's
+settings are `scheduled`, `cron`, `keep`, `enableFilesBackup`, `storageId`
+and `encryptionPassword`, and its upload step ships the finished file to any
+configured file storage whose type isn't `local`.
 
-```cron
-# 03:00 daily — database dump (custom format, compressed)
-0 3 * * * docker exec nocobase-postgres pg_dump -U nocobase -Fc nocobase > /opt/backups/db-$(date +\%F).dump
-# 03:30 daily — uploaded files (storage minus the raw db dir)
-30 3 * * * tar -czf /opt/backups/storage-$(date +\%F).tar.gz -C /opt/apps/nocobase --exclude=storage/db storage
-# 04:00 daily — delete local copies older than 7 days
-0 4 * * * find /opt/backups -name "*.dump" -o -name "*.tar.gz" | xargs -r ls -1 | head -0; find /opt/backups \( -name "*.dump" -o -name "*.tar.gz" \) -mtime +7 -delete
-# 05:00 daily — off-site copy (set up rclone once, see below)
-0 5 * * * rclone copy /opt/backups remote:BUCKET/havenbeheer/
-```
+**Set it up once, in the app UI** (Settings → Backup manager):
 
-(The `docker exec nocobase-postgres` works because compose sets
-`container_name` — the old guide's version silently failed here.)
+1. **Add the bucket as a file storage** first (Settings → File manager →
+   Storages → Add → type **Amazon S3**). That's the *free* built-in S3
+   engine, not the paid "S3(Pro)" plugin — it takes a custom **endpoint**,
+   which is what makes Backblaze B2 (or any S3-compatible bucket) work.
+   Give it the B2 endpoint, region, bucket and application key.
+2. **In Backup manager's settings:**
+   - **Backup local storage files:** on. This is what pulls
+     `storage/uploads` — every attachment, including the signed
+     board-approval documents — into the backup.
+   - **Run automatic backup on the cron schedule:** on, `0 3 * * *` (03:00).
+   - **Maximum number of locally saved backup files:** 7. Older ones are
+     deleted from the server automatically; the bucket keeps its own copies.
+   - **Sync backup to cloud storage:** the storage from step 1.
+   - **Encryption password:** set one. See the warning below.
 
-**Test before trusting:** run the pg_dump line by hand, then restore it into
-a scratch database (`CREATE DATABASE restore_test`, `pg_restore` into it,
-drop it). A backup that's never been restored is a hope, not a backup.
+**Three things the plugin does not cover — handle them by hand:**
 
-**Off-site is not optional:** on-server backups die with the server. Set up
-`rclone` against any S3-compatible bucket (Backblaze B2 is cheap) — or, until
-that's done, keep taking periodic `.nbdata` backups from the Mac via
-`nb backup create` against the prod environment; those land in iCloud and
-count as off-site. Do at least one of the two from day one.
+- **`compose.yaml` and `.env` are not in the backup.** They live on disk, not
+  in the database. Copy both off the server once, into the password manager
+  or iCloud. They only change when you upgrade.
+- **The encryption password is not recoverable.** Store it somewhere that is
+  neither the server nor the bucket. Lost password means the backups are
+  unreadable noise.
+- **The B2 key can delete.** The app holds that key, so whatever compromises
+  the app can also wipe the bucket. Use a B2 *application key scoped to that
+  one bucket*, and turn on object lock or a lifecycle rule that retains
+  previous versions. Then a wipe is recoverable.
+
+**Keep taking occasional manual backups from the Mac** —
+`nb backup create` against the prod environment, landing in iCloud. Not a
+second automated system; just a copy in a place the server holds no
+credentials for at all. That's the answer to the bullet above.
+
+**Test before trusting:** after the first scheduled run, download the
+`.nbdata` from the Backup manager list and confirm it's non-trivial in size
+and that the bucket has a copy. Then do a real restore drill — see 4.4. A
+backup that's never been restored is a hope, not a backup.
 
 ### 4.2 Upgrading NocoBase (the pinned-tag procedure)
 
 Local and prod move **together**, local first:
 
 1. Upgrade local, re-run the test suite, use it for a few days.
-2. Back up prod (the two cron artifacts, taken fresh, plus an `.nbdata`).
+2. Back up prod: trigger a fresh backup by hand in the Backup manager and
+   wait for it to reach the bucket. Download that `.nbdata` to the Mac too —
+   a restore-capable copy that doesn't depend on the server surviving.
 3. Edit the image tag in prod's `compose.yaml` to the new version.
 4. `docker compose pull nocobase && docker compose up -d nocobase` — it
    migrates on boot; watch `docker compose logs -f nocobase`.
@@ -616,8 +646,28 @@ Local and prod move **together**, local first:
 | Weekly | `ls /var/run/reboot-required` — if present: `docker compose stop`, `sudo reboot` (containers auto-start; `restart: unless-stopped`) |
 | Weekly | `df -h` and `docker system df` — disk headroom |
 | Monthly | Check backups actually arrive off-site; skim NocoBase release notes |
-| Quarterly | Test-restore a backup |
+| Quarterly | Restore drill (4.4) |
 | After upgrades | `docker image prune -f` |
+
+### 4.4 The restore drill
+
+A NocoBase restore is a **full replace** of the target app — it is not a
+merge, and it is not something to try on production to "see if the file is
+good". Restore into a throwaway target instead:
+
+1. On the Mac, spin up a scratch NocoBase on the **same version**
+   (`2.1.0-beta.47`) — `nb-new-project` scaffolds one in a few minutes.
+2. Restore the downloaded prod `.nbdata` into it (you'll need the encryption
+   password).
+3. Log in, open a PR with an attachment, and download that attachment. That
+   proves both halves — database *and* files — actually survived.
+4. Delete the scratch app.
+
+**The version rule:** a backup restores onto the same NocoBase version or a
+newer one, never onto an older one. This is why local and prod move in
+lockstep (4.2), and it's the reason a backup taken today may be unrestorable
+onto a server you rebuild next year from a stale image tag — the tag pinned
+in `compose.yaml` is part of the backup story.
 
 ---
 
@@ -641,6 +691,9 @@ secrets.
 data pruned · real users created, real approvers set, no `nbtest` passwords ·
 smoke test passed (PR ladder, PO print, attachment, timezone).
 
-**Afterwards (Part 4):** backup crons installed · manual restore test done ·
-off-site copy verified · upgrade procedure understood (versions move in
-lockstep, local first).
+**Afterwards (Part 4):** B2 bucket added as an S3 file storage · Backup
+manager scheduled, files-backup on, keep 7, cloud sync on, encryption
+password set **and stored off the server** · `compose.yaml` + `.env` copied
+off the server · first scheduled backup landed in the bucket · restore drill
+done (4.4) · upgrade procedure understood (versions move in lockstep, local
+first).
