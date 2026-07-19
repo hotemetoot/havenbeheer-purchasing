@@ -2,14 +2,20 @@
 """Build the Purchase Order Carbone .docx template (MVP9e) — Havenbeheer-branded.
 
 Carbone data root is `d`; renders against `purchase_orders` records.
-Run:    /tmp/po_tpl_venv/bin/python templates/build_po_template.py
+Run:    python3 -m venv /tmp/po_tpl_venv && /tmp/po_tpl_venv/bin/pip install python-docx
+        /tmp/po_tpl_venv/bin/python templates/build_po_template.py
 Output: templates/purchase-order-template.docx
 
 Notes:
 - status & currency are select fields; the template-print render expands them to
-  {value,label} objects, so use `.label`.
+  {value,label} objects, so use `.label` for display and `.value` for conditions.
 - Carbone date patterns: no comma (read as patternIn) and no spaces (stripped) -> use dashes.
 - internal_notes is intentionally NOT rendered (P2).
+- The draft banner (020) rides on the spacer paragraph above the title bar, so a
+  non-draft order gains nothing. Verified against the plugin's bundled Carbone
+  3.8.2 for draft / issued / closed.
+- Deploying: overwrite the HASHED file named in printingTemplates:kkooshlz8rf
+  (storage/print-templates/), not a friendly name, or the change looks cached.
 """
 import os
 from docx import Document
@@ -157,8 +163,21 @@ rp.paragraph_format.space_after = Pt(0)
 rp.paragraph_format.space_before = Pt(0)
 run(rp, "", size=2)
 
+# === Draft watermark banner ===
+# Doubles as the spacer above the title bar: on a non-draft order the marker
+# renders empty and this is just the blank line it always was, so nothing is
+# added to a real order. `draft` is the only pre-issue status.
+# status is a select field -> {value,label}; drive off .value, which is stable.
+_banner = para(doc, space_before=10, space_after=0, align=WD_ALIGN_PARAGRAPH.CENTER)
+run(
+    _banner,
+    "{d.status.value:ifEQ('draft'):show('DRAFT — NOT A VALID ORDER'):elseShow('')}",
+    size=20,
+    bold=True,
+    color=RGBColor(0xC0, 0x1A, 0x1A),
+)
+
 # === Title bar: "PURCHASE ORDER" (left) + PO number (right) ===
-para(doc, space_before=10, space_after=0)
 title = doc.add_table(rows=1, cols=2)
 no_borders(title)
 title.columns[0].width = Cm(10)
