@@ -21,9 +21,9 @@
 - The three UI checks above (017 / 019 / 020) — Alexander, go-live §1.2b.
 - **R42's bulk-import clause has no automated case** — manual check owed, belongs with D83's parked 016 B-cases (see `notes.md` "Drift / open issues").
 - **D80 open issue (suite side):** each full suite run leaves ~9 status-0 approval executions behind (fixture PRs/projects deleted, their pending approval executions not). Harmless under D79's settings, but the backlog regrows; the fix belongs in `runner.py`'s teardown.
-- **42 disabled predecessor workflow revisions** exist live (2026-07-19 count). D81's standing rule: per lineage keep current + 2 newest predecessors, delete older — apply on the next maintenance pass with Alexander's approval.
 - From chunk 020's out-of-scope list: a dangling `member` scope on `purchase_orders`/`po_lines` (`scopeId: 363334209503233` resolves to no row), and `director`'s strategy-mode view grant has no field whitelist (any new PO field becomes director-visible automatically).
 - **Guard meter (2026-07-19 maintenance pass):** 14 enabled request-interception guards — past the point where the suite's guidance says to revisit consolidation (shared admin-exempt heads via subflows, value bounds onto field validation — 020 started the latter). Parked for Alexander.
+- Live debris and revision depth are clean as of 2026-07-19 (D90): `[TEST]` POs deleted, disabled predecessors pruned to D81's keep-2 depth, reports/worktrees swept.
 
 ## How to run the suite
 

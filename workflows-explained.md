@@ -8,7 +8,8 @@ that changes a workflow should also touch this file.
 
 Verified against: PR Approval revision `376242882347008`, Project Approval
 `376252879470592` (both current since 2026-07-19, D88), and the guard/recompute
-revisions current on 2026-07-16.
+revisions current on 2026-07-19 (PO side: D87 line freeze, D89 payload-shape
+hardening, the receiving roll-up correction — see footnote 4).
 
 ---
 
@@ -31,7 +32,8 @@ Two mechanisms enforce the rules:
 - **Guards** — safety nets that inspect a save/delete request *before* it
   touches the database and block it with an error message if it breaks a rule.
   (Technical name: "request-interception workflow" — it intercepts the HTTP
-  request.) Guards always exempt admin.
+  request.) The **lock** guards exempt admin so cleanup stays possible; the
+  **rule-checking** guards bind everyone, admin included (§4).
 
 ---
 
@@ -266,8 +268,9 @@ approved anymore).
 "Guard" = a workflow that runs synchronously inside the save/delete request,
 and either lets it through or cancels it with an error message. Admin (and
 root) are exempt from every **lock** guard — the ones that freeze finished
-records (PR Immutability, Project Immutability, and since 2026-07-16 also the
-PO-side locks: PO Immutability, PO Line Immutability, PO Line Destroy — D82).
+records (PR Immutability, Project Immutability, the PO-side locks — PO
+Immutability, PO Line Immutability, PO Line Destroy (D82) — and the PO Line
+Freeze guard, D87).
 That keeps cleanup possible without disabling guards. The **rule-checking**
 guards (Create PO, budget ceilings, Close, Receive, line-create) apply to
 everyone, admin included. UI-side you find them in the workflow list as type
@@ -354,12 +357,23 @@ Leave it off; see D79 for the race it prevents.)
    reassigned…" that actually sent "PR approved" were renamed during 017's
    revision. One node still legitimately carries that title — `5h232imw9ss`,
    which really is the reassignment notice. Don't "fix" that one.
-4. **PO lifecycle** (not covered here): Create-PO guard, PO/PO-line
-   immutability guards, per-line budget ceiling at the approved PR amount
-   (D47), Issue/Receive/Complete/Close actions with their own guards, and the
-   lines-total recomputes. Same guard concepts as §4 throughout.
+4. **PO lifecycle** (not covered in the same depth): Create-PO guard,
+   PO/PO-line immutability guards, per-line budget ceiling at the approved PR
+   amount (D47), and Issue/Receive/Complete/Close actions with their own
+   guards. Since 2026-07-19 also: **lines freeze at issue** — once a PO
+   leaves Draft, the only line change allowed is a plain receiving entry
+   (D87); the lines-total recompute runs **in the background and reloads the
+   line first**, so import-created rows are counted even though their PO link
+   is empty at trigger time (D83); the receiving roll-up walks an order
+   **back to Issued** when a correction leaves no line with anything received
+   (chunk 020); and the two line-create guards **resolve the parent order id
+   themselves** at the head of the chain, refusing when they can't tell which
+   order the line belongs to, instead of trusting the submitted association
+   shape (D89 — a nested `{id: …}` payload used to crash them into an HTTP
+   500). Same guard concepts as §4 throughout.
 
 ---
 
-*Sources: live node reads 2026-07-16 (scratchpad dumps), decisions.md
-D37/D47/D49/D53/D63/D70/D78/D79, tests/plan.yaml R25–R39.*
+*Sources: live node reads 2026-07-16 and live workflow descriptions re-read
+2026-07-19, decisions.md D37/D47/D49/D53/D63/D70/D78/D79/D82–D89,
+tests/plan.yaml R25–R39.*
