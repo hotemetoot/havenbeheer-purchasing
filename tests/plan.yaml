@@ -347,21 +347,41 @@ fixtures:
     # terminal PO) for R18 + R21's delete-deny. Both after_approvals so the
     # runner creates them in the POST-approval pass — the create-guard
     # requires the source PR already `approved`.
+    #
+    # All four POs below are created as ADMIN since 2026-07-18 (D86) — see
+    # the po_issued note for why. Only po_issued actually broke, but leaving
+    # the others on procurement would mean their `currency`/`total` values
+    # are silently dropped at create while the YAML still claims to set them.
+    # Nothing asserts those two values today, so this is honesty rather than
+    # a fix. Procurement's ability to create a PO at all is still covered as
+    # a real runtime case by R15 (and its deny counterpart R16).
     purchase_orders:
       - id_ref: po_draft
-        as: procurement_a
+        as: admin
         after_approvals: true
         values: { purchase_request: "@ref:pr_approved_2", currency: USD, total: 100 }
       - id_ref: po_closed
-        as: procurement_a
+        as: admin
         after_approvals: true
         values: { purchase_request: "@ref:pr_approved_3", currency: USD, total: 100 }
       # po_issued: seeded complete (supplier + delivery address + currency +
       # total) so the Issue PO guard passes; fixtures.actions below then
-      # drives it draft -> issued. Both associations are in procurement's
-      # create whitelist (confirmed live 2026-07-03).
+      # drives it draft -> issued.
+      #
+      # Created as ADMIN, not procurement — changed 2026-07-18 (D86). Chunk
+      # 019 removed supplier/currency/fx_rate_to_usd/total/issued_at from
+      # procurement's purchase_orders CREATE whitelist, so a procurement
+      # create silently drops three of the four values this fixture needs and
+      # Issue PO then rejects the PO for having no supplier, currency or
+      # total. That rejection is the product working correctly; only the
+      # fixture was wrong. Admin bypasses field whitelists, which is also a
+      # fair simulation of the real path — POs are created by the Generate PO
+      # workflow, and workflow nodes bypass ACL the same way.
+      # (The superseded comment here claimed these fields were in
+      # procurement's create whitelist, "confirmed live 2026-07-03". True
+      # then, false since 019.)
       - id_ref: po_issued
-        as: procurement_a
+        as: admin
         after_approvals: true
         values: { purchase_request: "@ref:pr_approved_4", supplier: "@ref:sup_r22", delivery_address: "@ref:addr_r22", currency: USD, total: 100 }
       # po_r42: R42's OWN purchase order. Deliberately not po_draft — R21's
@@ -370,7 +390,7 @@ fixtures:
       # order-dependent. Stays draft for the whole run (line create, update
       # and delete all require a draft PO).
       - id_ref: po_r42
-        as: procurement_a
+        as: admin
         after_approvals: true
         values: { purchase_request: "@ref:pr_approved_5", currency: USD, total: 500 }
 
