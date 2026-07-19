@@ -57,7 +57,7 @@ edited node's config in full rather than trusting the copy.
 Update the description in the same session: it currently names two outcomes,
 and there will be three.
 
-## Phase 2 — Refuse a negative quantity (field validation, not the guard)
+## Phase 2 — Refuse a negative quantity + value-bound sweep (field validation, not the guard)
 
 **The rule:** a received quantity below 0 is refused. Over-delivery stays
 allowed and unbounded — receiving 12 against 10 ordered keeps working, on
@@ -69,6 +69,26 @@ purpose.
 ```
 validation: { type: "number", rules: [ { name: "min", args: { limit: 0 } } ] }
 ```
+
+**Sweep (added 2026-07-19, approved):** the same mechanism on the other
+money-bearing numbers, none of which is enforced today. Live data checked —
+zero violating rows, except one PR with a **null** fx rate, which must stay
+legal:
+
+| Field | Bound | Joi rule |
+|---|---|---|
+| `po_lines.quantity_ordered` | > 0 | `greater(0)` |
+| `po_lines.unit_price` | ≥ 0 | `min(0)` |
+| `purchase_requests.quoted_total` | ≥ 0 | `min(0)` |
+| `purchase_requests.fx_rate_to_usd` | > 0 **when present** | `greater(0)` |
+| `projects.budget_usd` | > 0 | `greater(0)` |
+
+The fx-rate empirical check must include a create/update with the rate
+absent and with it null — both must save (USD requests carry no rate). If
+Joi rejects null, drop that one bound rather than break USD requests.
+Rationale for the fx bound: USD totals divide by the rate, so a stored 0
+poisons `quoted_total_usd`; for `unit_price`: a negative would silently
+lower the lines total the Issue-gate budget check sums.
 
 The Receive guard `mhfp4d15uee` is **not touched** — no revision, no new nodes.
 
@@ -128,6 +148,8 @@ Draft via `nb-test`, review, then run the full suite:
   Phase 1 extra fix, if you take it)
 - negative received quantity refused
 - over-delivery still accepted — recorded as a rule so nobody "fixes" it later
+- one reject + one accept case per swept bound (Phase 2's table), plus the
+  null-fx-rate accept case
 
 The watermark is a rendering outcome the runner can't check; manual verification.
 
@@ -141,6 +163,9 @@ The watermark is a rendering outcome the runner can't check; manual verification
   repository-level enforcement covers nested and workflow writes that a
   request-interception guard never sees. Guards stay for rules needing related
   records or role context.
+- The bound sweep covers quantity, price, totals, fx rate, and project
+  budget; the fx-rate bound applies only when a value is present (empty
+  stays legal for USD requests).
 - The recompute's status writes are filtered by current status, so a late line
   edit can no longer move a Completed or Closed order (widens 020 by one bug).
 

@@ -38,6 +38,21 @@ After: a received quantity below 0 is refused with a clear message.
 ordered, so receiving 12 against 10 ordered must keep working. No upper
 bound is added. (This is a decision, not an oversight: see the D-entry.)
 
+**Same floor for the other money-bearing numbers** (added 2026-07-19 —
+none of these is enforced today, all checked clean in live data):
+
+- `purchase_requests.fx_rate_to_usd` — must be **above 0 when present**.
+  USD totals divide by this rate; a saved 0 makes the USD total
+  infinite/garbage. Empty stays allowed — one live PR has no rate, and a
+  USD request doesn't need one.
+- `po_lines.quantity_ordered` — above 0. A zero-quantity line is nonsense.
+- `po_lines.unit_price` — 0 or more. A negative price would silently lower
+  the lines total that the budget ceiling checks.
+- `purchase_requests.quoted_total` — 0 or more.
+- `projects.budget_usd` — above 0. A zero-budget envelope can never take a
+  PR anyway; refusing it at save gives a clear message instead of a
+  confusing block later.
+
 ### Rule 3 — A draft order cannot be printed as if it were real
 
 Today: nothing server-side stops anyone with view access from printing a
@@ -62,7 +77,7 @@ well** — the two do different jobs.
 | Changes | Stays |
 |---|---|
 | Receiving recompute gains a "nothing received" branch → status back to Issued | Received/Partially Received logic unchanged |
-| Receiving guard refuses negative quantities | Over-delivery still allowed, unbounded |
+| Field validation refuses negative received quantities — plus floors on quantity, price, totals, fx rate, and project budget | Over-delivery still allowed, unbounded; empty fx rate still allowed |
 | Print template watermarks non-issued orders; print button hidden off-issue | Anyone with view can still print an issued order |
 | — | Issue freeze and budget ceiling untouched (both probed clean, 5/5 each) |
 
@@ -94,19 +109,30 @@ three times on this project: D69, D75, D84 — and twice more during 017).
 Update the workflow description in the same session; it currently describes
 only two outcomes.
 
-### Phase 2 — Receiving guard: the lower bound (Rule 2)
+### Phase 2 — Value bounds via field validation, not the guard (Rule 2)
 
-`mhfp4d15uee` (Guard: Receive), sync request-interception on `po_lines`.
+The open question is settled (see the plan and gotchas' Fields section):
+NocoBase has server-side field validation in `field.options.validation` —
+Joi-backed, run by the repository on create and update. It catches paths a
+guard structurally can't see (nested sub-table writes, imports, workflow
+update nodes), applies to everyone including admin, and needs no revision
+discipline. The Receive guard `mhfp4d15uee` is **not touched**.
 
-**Open question to settle first:** whether a field-level validator would
-enforce this server-side at all. NocoBase `uiSchema` validators are Formily,
-i.e. client-side — a negative sent straight to the API would very likely sail
-past one. Verify before choosing; if confirmed client-side only, put the
-bound in the guard, which already fetches the line and its parent order and
-so has the ordered quantity in hand. A validator may still be worth adding on
-top for the nicer in-form message, but it is not the enforcement.
+Set the bounds listed under Rule 2: `received_quantity` ≥ 0,
+`quantity_ordered` > 0, `unit_price` ≥ 0, `quoted_total` ≥ 0,
+`fx_rate_to_usd` > 0 when present, `budget_usd` > 0.
 
-New revision, same diff discipline.
+**Empirical check first, before trusting any of it:** as a signed-in test
+user, write an out-of-bound value (expect rejection), an in-bound value
+(expect save), an unrelated-field update (expect no interference), and —
+for the fx rate — a PR with **no rate at all** (must still save; one live
+PR legitimately has none). If nulls are rejected, drop the fx-rate bound
+rather than break USD requests. Fallback if validation misbehaves: guard
+nodes, as originally drafted.
+
+The cost is Joi's error message ("must be greater than or equal to 0")
+instead of a friendly one. Accepted; a form-side validator can be layered
+on later purely for wording — it is never the enforcement.
 
 ### Phase 3 — Print watermark + button visibility (Rule 3)
 
@@ -143,6 +169,11 @@ needs a manual check.
 - **Print is gated at the document, not the action.** Non-CRUD plugin
   actions can't be guarded or ACL-denied by name, so the watermark plus
   button-hiding is the whole defence, and it is accepted as such.
+- **Value bounds live on the field, not in a guard.** Record-local bounds
+  go in `field.options.validation` (repository-level, covers nested and
+  workflow writes, admin included); guards stay reserved for rules that
+  need related records, status, aggregates, or role context. Affects: any
+  future rule of the "field X can't be negative/zero" shape.
 
 ## Out of scope
 
