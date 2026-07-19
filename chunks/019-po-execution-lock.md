@@ -291,18 +291,17 @@ sibling budget guard `c9c14tyn876` has the same shape. It is harmless there
 (blanking a price only lowers the total, and the budget check has nothing to
 catch) but the pattern should not be copied into a new guard.
 
-### 2. Phase 1's verification is partly deferred
+### 2. Phase 1's end-to-end check was Alexander's — and it passed
 
-The whitelist change is verified by readback. **Not re-proven this session:**
-that Generate PO still populates the five removed fields. The precedent is
-strong — D46 removed the same five from the *update* whitelist and Generate PO
-kept working, same workflow, same create node, because workflow create nodes
-write through the internal repository and never consult ACL. The end-to-end
-click is on Alexander's go-live list (§1.2b), not something Claude confirmed.
+The whitelist change is verified by readback. Claude could **not** drive
+Generate PO from the CLI: it is a one-click custom action, `nb api` has no
+raw-HTTP verb, and the CLI's own session is root — which the guard exempts by
+design, so an admin call would have proven nothing.
 
-The CLI could not drive it: Generate PO is a one-click custom action, `nb api`
-has no raw-HTTP verb, and the CLI's own session is root — which the guard
-exempts by design, so an admin call would prove nothing anyway.
+**Alexander confirmed it the same day, tested as Pat: Generate PO still works.**
+As predicted — workflow create nodes write through the internal repository and
+never consult ACL, the same reason D46's removal of these five fields from the
+*update* whitelist left the workflow untouched.
 
 ### Live IDs as built
 

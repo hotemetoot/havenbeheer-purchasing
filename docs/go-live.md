@@ -108,10 +108,10 @@ Written 2026-07-18 when 017 and 019 were scheduled. Fill in after each builds.
       would break receiving if the guard were wrong — check it properly.)*
 - [ ] **019** — clearing a line's Quantity Ordered on an Issued PO is rejected
       too, not just changing it.
-- [ ] **019** — **Generate PO** on an approved PR still produces a Draft PO
-      carrying supplier, currency, total and FX rate. *(The one thing Claude
-      could not verify from the CLI — the whitelist change is readback-verified
-      but this end-to-end path is not.)*
+- [x] **019** — **Generate PO** on an approved PR still produces a Draft PO
+      carrying supplier, currency, total and FX rate. **Confirmed by Alexander
+      2026-07-18, tested as Pat.** This was the one thing Claude could not
+      verify from the CLI (the CLI runs as root, which the guard exempts).
 - [ ] **017** — reject a PR at each stage; the submitter, their dept head, and
       (where the PR reached them) the procurement head each get a notification
       naming the stage. The person who rejected gets nothing.

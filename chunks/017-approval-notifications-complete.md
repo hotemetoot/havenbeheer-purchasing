@@ -1,6 +1,7 @@
 # 017 — Complete approval notifications (PR + Project)
 
-**Status:** planned, not built. Scoped 2026-07-18 from a live read of both approval workflows.
+**Status:** planned, not built. Scoped 2026-07-18 from a live read of both approval workflows; ids and all 28 node keys re-verified live the same day.
+**Start a new session here:** [plans/017-handoff.md](../plans/017-handoff.md) — carries the live IDs, the two resolved open questions, the traps that bit during 019, and the correct D-number (D88, not the D85 named in §7 below).
 **Extends:** MVP 015 / D50 (which only covered "PR approved", requester + procurement head on the director path).
 **Supersedes:** D50's recipient rule. D50 stays historically valid; this chunk replaces the recipient matrix it defined.
 
@@ -124,7 +125,10 @@ Over-budget auto-rejection keeps its existing distinct wording ("was auto-reject
 "options": { "duration": 10, "url": "<deep link>" }
 ```
 - PR deep link (known good): `/admin/cuycec133qb/view/ceaecc4498c/filterbytk/{{$context.data.id}}`
-- Project deep link: page uid is `71k045k77w2`; the **view-popup uid is not yet known** — see build step 0.
+- Project deep link — **RESOLVED 2026-07-18, build step 0 is done:**
+  `/admin/71k045k77w2/view/5964407f0c9/filterbytk/{{$context.data.id}}`
+  (Projects page routeId `372377246040064`, view action uid `5964407f0c9`,
+  `filterByTk: {{ ctx.record.id }}`, collection `projects`.)
 
 ---
 
@@ -154,7 +158,7 @@ Consequence for building: node 6 is real and must be correct, but it is the lowe
 7. Update each workflow's **description** in the same session — per D84 a revision that leaves a stale description is not finished.
 8. Live-verify: drive each terminal path and read the resulting in-app messages. Prefer real approver users over admin.
 9. `nb-test run` green, then Alexander's manual confirmation.
-10. Append **D85** to decisions.md; mark D50's recipient rule superseded.
+10. Append **D88** to decisions.md (D85/D86/D87 are taken); mark D50's recipient rule superseded.
 11. Update `workflows-explained.md` (approval ladder sections) and `docs/user-guide.md` (notification behaviour is user-visible — get exact labels via `nb-ui-labels`).
 12. Roadmap: add 017; note 015 superseded-in-part.
 13. Backup, commit, push.
