@@ -128,13 +128,17 @@ Over-budget auto-rejection keeps its existing distinct wording ("was auto-reject
 
 ---
 
-## 6. Open question — resolve before building
+## 6. Open question — RESOLVED 2026-07-18
 
 **Node 6, over-budget auto-rejection: does the procurement head get told?**
 
 This is the one case where no person made the decision. Procurement *approved* the request, and the system then overturned that on the project budget ceiling. The matrix above provisionally says yes, all three, on the reasoning that procurement should know their approval was overridden. The competing reading is that procurement acted, so the actor-exception applies and they're excluded.
 
-The table currently reflects "notify all three". **Confirm or flip this before building** — it's a one-line change either way.
+**Alexander's answer: notify all three — the table stands as written.**
+
+He added a fact worth recording: **in practice this path is close to unreachable.** The procurement approval form carries linkage rules that hide the Approve button when the request's USD amount exceeds the project's remaining USD. So procurement cannot normally approve an over-budget request in the first place, and the auto-rejection only fires if something slips past the form — a concurrent approval eating the remaining budget, an API-level approve, or an admin acting outside the form.
+
+Consequence for building: node 6 is real and must be correct, but it is the lowest-value node in this chunk. If the build runs long, it is the one to cut and carry forward, not one of the five rejection nodes.
 
 ---
 

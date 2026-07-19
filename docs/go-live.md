@@ -12,7 +12,10 @@ https://app.ttga.cloud". Written 2026-07-18. One file, four parts, in order:
 
 ## Part 1 — App readiness (local, before anything touches the server)
 
-### 1.1 Build the Complete Project button (the only missing UI piece)
+### 1.1 Complete Project button — DONE 2026-07-18 ✓
+
+Built by Alexander; PRJ-26-0079 was completed in the app. The build brief is
+kept below for reference.
 
 The backend already exists and is verified: the **Complete Project** workflow
 (key `px2xvjaxoqf`) sets an approved project to `completed`, stamps
@@ -38,6 +41,11 @@ can trigger it (rule R27, suite-green). You only build the button:
   completed project is blocked.
 
 ### 1.2 Manual verification walkthroughs (you, in the UI)
+
+**Status 2026-07-18:** Alexander walked these — "so far so good", no failures
+reported. The individual boxes below are left unticked because they weren't
+confirmed case by case; treat them as a checklist to spot-check rather than as
+outstanding work. Two additions land after chunks 017 and 019 (see §1.2b).
 
 **A. Projects end-to-end (014.6, cases A1–F2)** — as Alice/Oliver/Pat/Dana:
 
@@ -88,15 +96,31 @@ can trigger it (rule R27, suite-green). You only build the button:
       after any line change, however the line arrived). Approve or correct
       the wording; cases get written after that.
 
-### 1.3 Config flips — after the walkthroughs, before the final backup
+### 1.2b Added by the final build phase (chunks 017 and 019)
 
-These must be in the backup that goes to the server, so do them last, locally.
+Written 2026-07-18 when 017 and 019 were scheduled. Fill in after each builds.
 
-- [ ] **Re-negate `member`'s `ui.*` snippet** (change it back to `!ui.*`).
-      Today every user in the app can enter UI-edit mode — a deliberate dev
-      convenience, but a real problem the moment an end user gets an account,
-      because role permissions are unioned (D54). *Claude does this on your
-      go; it's a one-line ACL change.*
+- [ ] **019** — on an **issued** PO, editing a line's Quantity or Unit Price is
+      rejected; on a **draft** PO the same edit still saves.
+- [ ] **019** — entering a Received Quantity on an issued PO's line still saves
+      (the freeze must not break receiving).
+- [ ] **019** — the **Add new** button is gone from the PO table, and Generate
+      PO on an approved PR still produces a draft PO carrying supplier,
+      currency, total and FX rate.
+- [ ] **017** — reject a PR at each stage; the submitter, their dept head, and
+      (where the PR reached them) the procurement head each get a notification
+      naming the stage. The person who rejected gets nothing.
+- [ ] **017** — the same for a rejected project.
+- [ ] **017** — approve a PR to final; the three notification titles now read
+      correctly (they currently say "reassigned to custom approver").
+
+### 1.3 Config flips
+
+- [x] **`member`'s `ui.*` snippet — MOVED to §3.2, on the server.** Alexander's
+      call 2026-07-18: he does this flip in the online version after the
+      restore, keeping the dev convenience on the Mac. **This means the backup
+      shipped to the server still carries the permissive setting** — §3.2 now
+      owns the flip itself, not just the verification. Nothing to do locally.
 - [ ] **Optional now:** give `fiona.finance` the `finance` role. Only matters
       once a finance approval stage exists — none does today.
 - [ ] **No action, just aware:** payment fields and receiving both sit on
@@ -521,8 +545,13 @@ The backup carries dev data. Prune it on production; local keeps everything.
 - [ ] Create the real user accounts, assign roles, set each department's
       main approver to a real person (approval routing reads this).
 - [ ] Change/verify the admin (root) password is strong and unique.
-- [ ] Confirm the `member` `ui.*` flip from §1.3 arrived: log in as a normal
-      user — no UI-edit pencil anywhere.
+- [ ] **Re-negate `member`'s `ui.*` snippet** (change it to `!ui.*`). Moved
+      here from §1.3 on 2026-07-18 — Alexander chose to do this on the server
+      rather than locally, so the dev convenience survives on the Mac. Until
+      this is done, **every user on production can enter UI-edit mode**,
+      because role permissions are unioned (D54). Do it before real accounts
+      get handed out, not after.
+- [ ] Verify the flip: log in as a normal user — no UI-edit pencil anywhere.
 
 ### 3.3 Production smoke test
 
@@ -594,10 +623,12 @@ Local and prod move **together**, local first:
 
 ## Final go-live checklist
 
-**App (Part 1):** Complete Project button built and self-tested · 014.6
-walkthrough passed · 016 walkthrough passed (incl. B8 import recompute) ·
-dept-head edit check · R42 reviewed · `member` `ui.*` re-negated · final
-`nb backup create` taken **after** the flips.
+**App (Part 1):** ~~Complete Project button built and self-tested~~ ✓ ·
+~~014.6 walkthrough passed~~ ✓ · 016 walkthrough passed (incl. B8 import
+recompute) · **chunk 019 built (PO execution lock)** · **chunk 017 built
+(approval notifications)** · §1.2b checks passed · dept-head edit check ·
+R42 reviewed · final `nb backup create` taken last.
+(`member` `ui.*` moved to §3.2 — done on the server, not here.)
 
 **Server (Part 2):** old-VPS data rescued if needed · Ubuntu 24.04 fresh ·
 alex + keys, SSH on 2222, root and passwords disabled, ssh.socket disabled ·

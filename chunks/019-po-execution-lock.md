@@ -81,8 +81,47 @@ if the freeze turns out to bite in practice.
 | ACL resource record | data-source-resources id `366562898804736` |
 | Generate PO | id `368786562547712`, key `2izsx8uv50r`, create node `ubg9mju1tjm` |
 | Generate PO copies | `supplier` ← PR `supplier.id`; `currency` ← PR `quoted_currency`; `total` ← PR `quoted_total`; `fx_rate_to_usd` ← PR `fx_rate_to_usd` |
-| Existing destroy guard | `Guard: PO Line Destroy — block once PO issued`, id `373256900640768`, key `v61hc3ou3pa` — the shape to copy |
-| Existing update guard | `Guard: PO Line Immutability`, key `f3dkb37te22` — bites only on `completed`/`closed`; stays as-is |
+| Existing destroy guard | `Guard: PO Line Destroy — block once PO issued`, id `375767284252672`, key `v61hc3ou3pa` — the shape to copy |
+| Existing update guard | `Guard: PO Line Immutability`, id `375761900863488`, key `f3dkb37te22` — bites only on `completed`/`closed`; stays as-is |
+| PO create guard | `Guard: Create PO (PR must be approved)`, id `366562380808192`, key `vgv8hcrtjvx` — blocks a create whose PR is missing or unapproved, or which already has a PO |
+| `purchase_orders.status` enum | `draft` Draft, `issued` Issued, `partially_received` Partially Received, `received` Received, `completed` Completed, `closed` Closed |
+
+## Re-verified live 2026-07-18 (second drift pass, before building)
+
+Three corrections to the table above, all found by `nb-drift-scout`:
+
+1. **The two guard ids were stale.** Both workflows were revised on 2026-07-16;
+   the ids originally written here (`373256900640768`, `368747750555648`) are
+   now disabled predecessors. Corrected above. The node *shapes* are unchanged,
+   so the pattern this chunk copies is still accurate.
+
+2. **The Phase 1 prerequisite FAILED — a direct-create surface exists.** The
+   Purchase Orders page (route `366560025706496`) has a hidden tab "All POs"
+   (route `366560025706497`) holding a `purchase_orders` table (uid
+   `vldbcvf41r6`) with an **Add new** button (uid `2t0335tmfkf`, popup template
+   `n0hoz6l1jzf`). No hide rule; procurement can reach the route.
+
+   The hole is narrower than it first looked, because `vgv8hcrtjvx` already
+   blocks a create with no PR or an unapproved PR — verified empirically, not
+   just by reading the condition. What is **not** blocked: pick a genuinely
+   approved PR, then type your own supplier, currency, total and FX rate. The
+   guard passes it (PR approved, no PO yet) and the record consumes that PR's
+   one-and-only PO slot. That is exactly the hole Phase 1 closes.
+
+   The popup form shows `purchase_request` (not a required field — the guard is
+   the only enforcement) and does **not** show `po_number`, so a manual PO would
+   have no number at all.
+
+   **Alexander's call 2026-07-18: remove the Add new button.** POs come from the
+   Generate PO button on an approved PR and nowhere else. Added as Phase 1b.
+
+3. **Phase 2's stated risk does not exist.** Execution history across
+   `mhfp4d15uee` (37 runs) and `c9c14tyn876` (71 runs), spanning 2026-07-03 to
+   2026-07-18, shows every real receive submitting exactly one key:
+   `{"received_quantity": N}`. `quantity_ordered` never co-occurs with
+   `received_quantity` in any payload; line edits are always separate requests.
+   A presence-based condition is therefore safe and the fallback design
+   (compare submitted-vs-stored) is not needed.
 
 ## Phases
 
@@ -90,15 +129,26 @@ if the freeze turns out to bite in practice.
 Remove `supplier`, `currency`, `fx_rate_to_usd`, `total`, `issued_at` from
 `procurement`'s **create** field whitelist on `purchase_orders`.
 
-**Prerequisite check:** confirm no UI surface lets procurement create a PO
-directly (only the Generate PO button). If a direct-create form exists, stop
-and re-scope — it would break.
+**Prerequisite check: DONE, and it failed** — a direct-create surface exists.
+See correction 2 above. Handled by Phase 1b rather than by re-scoping.
 
 **Verify:** re-read the whitelist; then run Generate PO on an approved PR as
 procurement and confirm the resulting draft PO still carries supplier,
 currency, total and FX rate.
 
 **Rollback:** re-add the five field names. Trivially reversible.
+
+### Phase 1b — Remove the Add new button on the PO table
+Delete the `AddNewActionModel` (uid `2t0335tmfkf`) from the "All POs" table
+block (uid `vldbcvf41r6`) on route `366560025706497`.
+
+Without this, Phase 1 leaves a button that can still create a blank, numberless
+PO which permanently consumes an approved PR's one PO slot — a worse failure
+than the one being fixed, because it is silent.
+
+**Rollback:** rebuild the button in the UI (it is a stock Add new action; the
+popup template `n0hoz6l1jzf` is a separate record and is not deleted here, so
+the form layout survives). Record the full action config before deleting.
 
 ### Phase 2 — New guard: freeze line quantity and price at issue
 New `request-interception` workflow on `po_lines`, action `update`.
@@ -142,12 +192,12 @@ must compare submitted-vs-stored values instead of testing for presence.
 
 ## Out of scope / open
 
-- **`purchase_orders.fx_rate_to_usd`.** Alexander asked whether it's needed.
-  Finding: no enabled workflow and no print marker reads it, but the formula
-  field `total_usd` ("Invoice Total (USD)", key `mtlqz3a1zks`) is
-  `{{total}} /{{fx_rate_to_usd}}` and is visible to procurement. **Open
-  question: does anyone use "Invoice Total (USD)"?** If not, both it and the
-  rate can be dropped. Not part of this chunk.
+- **`purchase_orders.fx_rate_to_usd` — RESOLVED 2026-07-18: keep it.**
+  Alexander's call: probably nobody uses "Invoice Total (USD)" (`total_usd`,
+  key `mtlqz3a1zks`, `{{total}} /{{fx_rate_to_usd}}`), but neither field costs
+  anything to carry and both may be wanted later. No change. The rate stays in
+  the create whitelist removal (Phase 1) regardless — it is copied by Generate
+  PO, so procurement never needs to type it.
   The drift risk originally raised — PR rate changing after the PO copies it —
   **does not exist**: Guard A locks an approved PR against every edit, and a PO
   can only be generated from an approved PR.
