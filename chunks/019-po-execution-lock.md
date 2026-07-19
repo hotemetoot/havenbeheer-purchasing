@@ -21,22 +21,36 @@ Receiving still works — `received_quantity` stays writable.
 
 ## Why
 
-**The budget cap only runs once.** `issue_po` aggregates `Σ(line_total)` and
-rejects if it exceeds the PR's `quoted_total` (D52 Part A). Today procurement
-can issue a PO at $9,000 against a $10,000 PR, then edit a line's `unit_price`
-up to $15,000, then print it. Nothing re-checks. The chokepoint D52 built is
-only a chokepoint if the numbers can't move afterwards.
+**The printed PO has left the building.** This is the whole argument. Once
+issued, the PDF has gone to the supplier. If the stored line then changes,
+receiving and invoice matching compare against numbers that don't match the
+paper, and nobody can say which version is authoritative.
 
-**The printed PO has left the building.** Once issued, the PDF has gone to the
-supplier. If the stored line differs from the paper, receiving and invoice
-matching compare against the wrong numbers and nobody can say which version is
-authoritative.
+Concretely: a PR is approved at $10,000, the PO is issued with lines summing to
+$9,000, and the supplier is holding paper that says $9,000. Procurement can
+still edit those lines to $9,999 afterwards. Nothing objects, because nothing
+is over budget. The same end state is reachable through import, which bypasses
+the per-line guards by design (D52).
+
+**Correction 2026-07-18 — an earlier draft of this section was wrong.** It
+claimed procurement could edit a line "up to $15,000" against a $10,000 PR,
+and that the budget cap "only runs once" at issue. Both are false. Alexander
+caught it; verified against the live config afterwards.
+
+`Guard: PO Line Update — budget ceiling (PR amount)` (`c9c14tyn876`) caps the
+line sum at the parent PR's `quoted_total`. It compares the **newly submitted**
+value against the sum of the other lines, and it **never reads PO status** — so
+it fires identically on a draft and on an issued PO. Anything over the approved
+amount is already rejected, at every stage of a PO's life.
+
+So budget containment is solved and 019 does not add to it. What 019 adds is
+**document integrity**: staying under the ceiling is not the same as matching
+the paper the supplier received.
 
 **It finishes a job already two-thirds done.** Adding a line after issue is
 already blocked (import button hidden on non-draft + the D47 per-line create
 guards). Deleting a line after issue is already blocked (D81, guard
-`v61hc3ou3pa`). Editing a line is the only one of the three still open, and it
-is the largest hole of the three.
+`v61hc3ou3pa`). Editing a line is the only one of the three still open.
 
 **No escape hatch, deliberately.** Alexander's call 2026-07-18. If a supplier
 changes a price after issue, the answer is close the PO and generate a new one.
@@ -112,8 +126,16 @@ Three corrections to the table above, all found by `nb-drift-scout`:
    the only enforcement) and does **not** show `po_number`, so a manual PO would
    have no number at all.
 
-   **Alexander's call 2026-07-18: remove the Add new button.** POs come from the
-   Generate PO button on an approved PR and nowhere else. Added as Phase 1b.
+   **Alexander's call 2026-07-18: remove the Add new button — and he removed it
+   himself the same day.** Verified live: `2t0335tmfkf` is deleted outright (not
+   orphaned), the block's registered actions are now only Filter and Bulk delete,
+   and a sweep of every `AddNewActionModel` in the app found no create action for
+   `purchase_orders` anywhere. POs now come from the Generate PO button on an
+   approved PR and nowhere else. **Phase 1b is therefore already done.**
+
+   One dead row survives: `AddNewActionModel` uid `i2sb9sjg84d`, targeting
+   `purchase_orders`, with no `parentId`/`subKey`/`subType` at all. Unparented,
+   so it cannot render on any page. Cosmetic cleanup only, not scheduled.
 
 3. **Phase 2's stated risk does not exist.** Execution history across
    `mhfp4d15uee` (37 runs) and `c9c14tyn876` (71 runs), spanning 2026-07-03 to
@@ -129,8 +151,9 @@ Three corrections to the table above, all found by `nb-drift-scout`:
 Remove `supplier`, `currency`, `fx_rate_to_usd`, `total`, `issued_at` from
 `procurement`'s **create** field whitelist on `purchase_orders`.
 
-**Prerequisite check: DONE, and it failed** — a direct-create surface exists.
-See correction 2 above. Handled by Phase 1b rather than by re-scoping.
+**Prerequisite check: DONE.** A direct-create surface did exist; Alexander has
+since removed it (correction 2 above). Nothing in the UI creates a PO now, so
+this whitelist change cannot break a screen.
 
 **Verify:** re-read the whitelist; then run Generate PO on an approved PR as
 procurement and confirm the resulting draft PO still carries supplier,
@@ -138,17 +161,15 @@ currency, total and FX rate.
 
 **Rollback:** re-add the five field names. Trivially reversible.
 
-### Phase 1b — Remove the Add new button on the PO table
-Delete the `AddNewActionModel` (uid `2t0335tmfkf`) from the "All POs" table
-block (uid `vldbcvf41r6`) on route `366560025706497`.
+### Phase 1b — Remove the Add new button on the PO table — DONE 2026-07-18 ✓
+Done by Alexander in the UI, before this chunk was built. The
+`AddNewActionModel` (uid `2t0335tmfkf`) on the "All POs" table block (uid
+`vldbcvf41r6`, route `366560025706497`) is deleted, and no create action for
+`purchase_orders` renders anywhere in the app.
 
-Without this, Phase 1 leaves a button that can still create a blank, numberless
-PO which permanently consumes an approved PR's one PO slot — a worse failure
-than the one being fixed, because it is silent.
-
-**Rollback:** rebuild the button in the UI (it is a stock Add new action; the
-popup template `n0hoz6l1jzf` is a separate record and is not deleted here, so
-the form layout survives). Record the full action config before deleting.
+This mattered: without it, Phase 1 would have left a button that still creates
+a blank, numberless PO which permanently consumes an approved PR's one PO slot
+— a worse failure than the one being fixed, because it is silent.
 
 ### Phase 2 — New guard: freeze line quantity and price at issue
 New `request-interception` workflow on `po_lines`, action `update`.
@@ -170,11 +191,26 @@ the dispatcher race returns 500s).
 Set the workflow `description` and `category` (Guards) on the record itself,
 per D84.
 
-**The risk to test first:** if the receiving form submits the whole line row
-rather than just `received_quantity`, `params.values.quantity_ordered` will be
-non-null on every receive and the guard will block receiving. Check the actual
-receive payload before enabling. If it does submit the whole row, the condition
-must compare submitted-vs-stored values instead of testing for presence.
+**The risk to test first — CHECKED 2026-07-18, it does not exist.** The concern
+was that if the receiving form submits the whole line row rather than just
+`received_quantity`, `params.values.quantity_ordered` would be non-null on every
+receive and the guard would block receiving. Execution history says otherwise
+(correction 3 above): every real receive submits exactly `{"received_quantity":
+N}`. The presence-based condition stands; the submitted-vs-stored fallback is
+not needed.
+
+**This is the fourth interception guard on `po_lines` update, and none of the
+existing three becomes redundant:**
+
+| Guard | What it blocks | Reads PO status? |
+|---|---|---|
+| `c9c14tyn876` budget ceiling | line sum exceeding the PR's approved total | no — fires at every status |
+| `f3dkb37te22` immutability | *every* field, once Completed or Closed | yes |
+| `mhfp4d15uee` receive guard | receiving on a non-receivable PO | yes |
+| **new** | quantity and price only, from Issued onward | yes |
+
+The new guard is the only one that says "these numbers are final now". Where two
+overlap, whichever rejects first wins.
 
 **Rollback:** disable the workflow. Nothing else is touched.
 
