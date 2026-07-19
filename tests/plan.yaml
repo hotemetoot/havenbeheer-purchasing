@@ -113,7 +113,7 @@ rules:
   R43: Once a purchase request reaches Approved or Rejected it is locked. No business role can change any field on it, whatever their permissions would otherwise allow — the safety net blocks the request before it reaches the database. Admin and root are exempt, so cleanup and test teardown stay possible. (Guard 496ookqmg01, version 376198840057856; D84 dropped a dead `cancelled` clause left over from D68.)
   R44: Once a purchase order leaves Draft, the only change allowed on its lines is recording receiving. Quantity and unit price are fixed at issue — the numbers on the document the supplier already received cannot change afterwards. Lines stay fully editable while the order is still Draft. Admin and root are exempt so mistakes can be fixed. (D87, guard eiscjvwiqr6. This is about matching the printed order, not about budget — staying under the approved amount is already enforced separately at every status by the line budget-ceiling guard c9c14tyn876.)
   R45: 'The freeze cannot be sidestepped by how the change is phrased. Erasing a quantity counts as changing it, and so does smuggling a quantity change alongside a receiving entry in the same save. Anything that is not purely a receiving entry is refused on an issued order. (D87. Found by testing — the original guard asked "is a quantity or price being set", which an empty value slipped past, because an absent field and an emptied field look identical to it. The rule was inverted to "allow only receiving" instead.)'
-  R46: 'Adding a line to a Completed or Closed purchase order is always refused, and the refusal says so in words. It makes no difference where the request came from — the PO screen, an import, or another program talking to the app directly — or how that request spelled out which order the line belongs to. A line that does not say which order it belongs to at all is refused too, rather than saved as a line hanging off no order. (D89. Found by testing: the guard used to take the order straight from the request as written. The PO screens write it one way and that worked; anything writing it the other way crashed the lookup, so instead of "you cannot add a line to a closed order" the caller got a server error page. Pat never saw it because the screens only ever write it the way that worked.)'
+  R46: 'Every check that runs when a line is added must be able to find the order the line belongs to, no matter how the request names it, and must say in words what is wrong. That covers both the Completed-or-Closed block and the approved-amount ceiling. It makes no difference where the request came from — the PO screen, an import, or another program talking to the app directly — or how that request spelled out which order the line belongs to. A line that does not say which order it belongs to at all is refused too, rather than saved as a line hanging off no order. (D89. Found by testing: the guard used to take the order straight from the request as written. The PO screens write it one way and that worked; anything writing it the other way crashed the lookup, so instead of "you cannot add a line to a closed order" the caller got a server error page. Pat never saw it because the screens only ever write it the way that worked. The same fault was then found in the approved-amount check and fixed the same way.)'
   R42: The parent PO's Lines Total always ends up equal to the sum of its lines' line_total amounts. On create and on a change to quantity or unit price the recompute runs in the background, so the total catches up shortly after; it holds no matter how the line arrived — typed by hand, written by a workflow, or bulk-imported — because that recompute re-reads the line from the database instead of trusting the trigger payload, whose PO link is empty on import-created rows. On delete the recompute runs inline, so the total is already correct when the delete returns. (D83; create/update 1ugka88lngm, delete pnvp0dtitum.)
 
 fixtures:
@@ -1216,6 +1216,28 @@ cases:
     as: procurement_a
     action: po_lines:create
     values: { purchase_order: { id: "@ref:po_draft" }, description: "[TEST] shape nested draft", quantity_ordered: 1, unit_price: 1 }
+    expect: allow
+
+  # The budget-ceiling check on a new line had the identical fault (D89, guard
+  # 8u81nd3vxhc), in two places: the lookup of the order and the sum of its
+  # existing lines. It hid behind its own first question — it only looks the
+  # order up once a quantity AND a price are both present, so the cases above,
+  # which leave the price off, never reached it. These two always carry a
+  # price. The over-budget one is the sharper of the pair: it can only produce
+  # the right refusal if BOTH lookups resolved, since the message compares the
+  # running total against the approved amount.
+  - rule: R46
+    name: Pat is told a priced line would go over the approved amount, order written the other way
+    as: procurement_a
+    action: po_lines:create
+    values: { purchase_order: { id: "@ref:po_draft" }, description: "[TEST] shape nested over budget", quantity_ordered: 100, unit_price: 10 }
+    expect: deny
+
+  - rule: R46
+    name: Pat can add a priced line within the approved amount, order written the other way
+    as: procurement_a
+    action: po_lines:create
+    values: { purchase_order: { id: "@ref:po_draft" }, description: "[TEST] shape nested priced", quantity_ordered: 1, unit_price: 10 }
     expect: allow
 
   # ==========================================================================
