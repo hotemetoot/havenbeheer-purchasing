@@ -22,3 +22,6 @@ backups/
 # API test runner — secrets and disposable reports
 tests/.env.test
 tests/reports/
+
+# nb-explore per-session token cache (never commit)
+tests/.explore-tokens.json
