@@ -6,8 +6,9 @@ Companion to `role-acl-guidelines.md` (who may click what) — this file covers
 what happens *after* the click. Update it when a workflow changes; the D-entry
 that changes a workflow should also touch this file.
 
-Verified against: PR Approval revision `375705420496896`, Project Approval
-`373589018214400`, and the guard/recompute revisions current on 2026-07-16.
+Verified against: PR Approval revision `376242882347008`, Project Approval
+`376252879470592` (both current since 2026-07-19, D88), and the guard/recompute
+revisions current on 2026-07-16.
 
 ---
 
@@ -90,8 +91,9 @@ If no project is linked, continue to Fork B.
 
 In words: the director sees everything except *regular* purchases under $300.
 
-- Regular purchase, $250 → **approved right here**, no director. Submitter
-  gets an "approved" notification.
+- Regular purchase, $250 → **approved right here**, no director. The submitter
+  and their dept head get an "approved" notification; procurement doesn't,
+  because procurement is the one who just approved it.
 - Regular purchase, exactly $300 → director required (the 300 is inclusive).
 - Non-regular purchase, even $100 → director required. ("Regular" is a
   procurement-set flag meaning routine/recurring; anything not flagged goes
@@ -117,8 +119,35 @@ The board stage's approve makes it Approved; reject ends it.
 > real board approves on paper, and procurement uploads the board's signed
 > document as the approval artifact. Don't "fix" this without a decision.
 
-Every terminal Approve on any branch stamps `approved_at` and notifies the
-submitter.
+Every terminal Approve on any branch stamps `approved_at`.
+
+### Who gets told when it ends (D88, 2026-07-19)
+
+The moment a PR is **Approved or Rejected**, three people get an in-app
+message: the **submitter**, the **head of the submitter's department**, and the
+**head of Procurement**. Two exceptions:
+
+- **Whoever made the decision is never notified.** They just clicked the
+  button. So a dept-head rejection tells the submitter and nobody else; a
+  director rejection tells the submitter, the dept head, and Procurement — but
+  not the director.
+- **Procurement is skipped when the request never reached them.** A rejection
+  at the department or custom-approver stage dies before Procurement ever sees
+  it, so they hear nothing about it.
+
+Rejection messages name the stage — "was rejected at the director stage" — so a
+reader knows where it died without opening the record. **Returned — Info
+Requested sends nothing**, deliberately: a returned PR already shows up in the
+submitter's to-do list.
+
+The same rule runs on the project ladder (§3.1), with one difference: projects
+have no "Procurement is final" path, so that exception never arises there.
+
+How it works, in case you ever move a node: the recipient list is hardcoded per
+node rather than worked out at runtime. Each terminal node sits on exactly one
+approver's branch, so "who acted" is known from *where the node is* in the
+graph. Move a terminal node to a different branch and its recipient list
+becomes wrong with nothing to warn you.
 
 ---
 
@@ -138,6 +167,11 @@ own ladder, very similar to the PR one:
 
 Until it reaches **approved**, the project is just a request; nothing can draw
 against it.
+
+When the project finally lands on **Approved or Rejected**, the same
+notification rule as the PR ladder applies (§2, "Who gets told when it ends") —
+submitter, dept head, head of Procurement, minus whoever made the decision, and
+minus Procurement when a dept-stage rejection killed it before they saw it.
 
 ### 3.2 Linking a PR to a project
 
@@ -173,7 +207,9 @@ authoritative money check:
    total $5,000 → **approved**.
 3. **Over budget** → the PR is auto-**rejected** with a comment that names the
    numbers ("would bring committed to 14,500 USD, over its 5,000 USD budget"),
-   and the submitter is notified. This is the backstop for anything that
+   and the submitter, their dept head, and the head of Procurement are all
+   notified (D88 — Procurement is told here precisely because the system just
+   overturned an approval they had given). This is the backstop for anything that
    slipped past the submit-time guard (D53: the approval form's own writes
    bypass guards, so the check must live inside the workflow).
 4. **Within budget** → status becomes **approved**, and then —
@@ -313,12 +349,11 @@ Leave it off; see D79 for the race it prevents.)
    delete recompute = approved only (what remains). If you change one, decide
    explicitly whether the others should follow — and there's a test rule per
    boundary (tests/plan.yaml R28/R29).
-3. **Some notification nodes carry stale display titles** in the PR Approval
-   designer view (a side effect of node duplication) — e.g. a node *titled*
-   "Notify dept head — PR reassigned…" that actually *sends* "PR approved".
-   The behavior comes from the node's config, which is correct; the label is
-   cosmetic debris. Rename them next time the workflow gets a revision anyway
-   (renaming alone isn't worth burning a revision).
+3. ~~Some notification nodes carry stale display titles.~~ **Fixed 2026-07-19
+   (D88).** The three PR Approval nodes *titled* "Notify dept head — PR
+   reassigned…" that actually sent "PR approved" were renamed during 017's
+   revision. One node still legitimately carries that title — `5h232imw9ss`,
+   which really is the reassignment notice. Don't "fix" that one.
 4. **PO lifecycle** (not covered here): Create-PO guard, PO/PO-line
    immutability guards, per-line budget ceiling at the approved PR amount
    (D47), Issue/Receive/Complete/Close actions with their own guards, and the

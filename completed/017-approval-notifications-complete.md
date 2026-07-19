@@ -1,7 +1,8 @@
 # 017 — Complete approval notifications (PR + Project)
 
-**Status:** planned, not built. Scoped 2026-07-18 from a live read of both approval workflows; ids and all 28 node keys re-verified live the same day.
-**Start a new session here:** [plans/017-handoff.md](../plans/017-handoff.md) — carries the live IDs, the two resolved open questions, the traps that bit during 019, and the correct D-number (D88, not the D85 named in §7 below).
+**Status:** **built + live 2026-07-19, suite 94/94 green — pending Alexander's UI walkthrough** (go-live §1.2b). As-built: PR Approval `376242882347008` (47 nodes), Project Approval `376252879470592` (28 nodes); predecessors `375705420496896` / `373589018214400` disabled. Decision entry: **D88**. Scoped 2026-07-18 from a live read of both approval workflows; a fresh drift check on 2026-07-19 found zero drift, so every id and node key below held.
+**Built to plan, with no scope changes.** The only surprises were in the revision mechanism, not the design — see "What actually happened" below.
+**Session history:** [plans/017-handoff.md](../plans/017-handoff.md) (written at the end of 019) and [plans/017-approval-notifications.md](../plans/017-approval-notifications.md) (the executed plan).
 **Extends:** MVP 015 / D50 (which only covered "PR approved", requester + procurement head on the director path).
 **Supersedes:** D50's recipient rule. D50 stays historically valid; this chunk replaces the recipient matrix it defined.
 
@@ -172,3 +173,50 @@ Consequence for building: node 6 is real and must be correct, but it is the lowe
 - **`projects` has its own `department` field**, separate from the submitter's department. This chunk uses `createdBy.mainDepartment.main_approver` per Alexander's explicit instruction ("same as for the PR workflow"). If a project is ever submitted on behalf of another department, these two diverge and the rule should be revisited.
 - **`projects` also has a `submitter` field** distinct from `createdBy`. This chunk uses `createdById` for consistency with PR Approval. Worth confirming the two never diverge in practice.
 - **Project Approval's Board Approval node `vwuxv7zih9f` has no "Returned" branch** (only reject `b-1` and approve `b2`), unlike every other approval node in both workflows. Not in scope here — flagged as a possible gap for a later chunk.
+
+---
+
+## 9. What actually happened (2026-07-19)
+
+Everything in §1–§5 was built exactly as specified. Nothing in the design changed,
+both §6 answers held, and the suite went green at 94/94 with no new cases — in-app
+notification content stays walkthrough-only per `tests/plan.yaml` line 71.
+
+The cost of this chunk was entirely in the **revision copies, which were unfaithful
+both times**, in three ways the handoff's warning did not cover:
+
+1. **A whole node disappeared.** PR Approval's revision came back with 41 nodes, not
+   42. The missing one was `x8s6jal11h9`, "Write committed_usd to project" — the node
+   that books an approved PR against its project's budget. The copy quietly re-linked
+   `Project drawdown → Approved` straight to the notification node. Recreated by raw
+   `resource create` and re-linked by hand. Proven repaired by the suite's own case
+   ("project committed_usd written at approval"), which passes against the new version
+   and would have caught the drop independently.
+2. **Both `description` fields came back `null`.** Rewritten in the same session per D84.
+3. **Three Project Approval nodes came back with rewritten logic.** Director Approval
+   lost `returnTo: 'ik1ixug5rrs'` — the pointer that sends a director's Return back to
+   Procurement. The Return button survived; only its destination was blanked, so
+   nothing would have errored. Both approval nodes also had their `actions` arrays
+   rewritten (Procurement 9 → 6, Director 5 → 3), and `amc633b85wx` had its department
+   expression silently swapped to a different variable. All three restored verbatim
+   from the live version, keeping only the newly minted `approvalUid`/`taskCardUid`.
+   The duplicated entries in those `actions` arrays look like accumulated cruft, but
+   normalising them is a separate decision and was deliberately not folded in here.
+
+**The lesson, now standing practice (D88):** diff a revision by full node config and
+node count, not by the node keys the chunk happens to name. A diff scoped to the nodes
+you intend to edit reads perfectly clean and misses all three of the above.
+
+Two mechanical facts worth keeping:
+
+- **Raw `resource create` on `flow_nodes` does not re-link neighbours.** The new node
+  knows its upstream and downstream; neither neighbour points back. Both must be
+  patched by hand. `flow-nodes duplicate` links correctly but only works within a
+  single workflow — which is why Project Approval's first node had to be created raw
+  and the other five duplicated off it.
+- **`workflows revision` accepts `--title`**, which pre-empts D84's " copy" bug at the
+  source instead of catching it in the diff.
+
+One correction to a mid-session reading: `categories` is **not** lost by a revision.
+`nb api workflow workflows get` simply never returns that key, for old and new
+workflows alike.

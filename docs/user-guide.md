@@ -354,7 +354,44 @@ If any approver clicks **Reject**, the request becomes **Rejected**. This is fin
 request is locked — the submitter can no longer edit it, and there is no way to reopen or
 resubmit it. If the purchase is still needed, raise a new request.
 
+Everyone who needs to know is told automatically — see §2.7 below.
+
 > 📷 **Screenshot — a Rejected request, showing it locked / no edit action for the submitter.**
+
+### 2.7 — Who gets told when a request is decided
+
+The moment a request reaches **Approved** or **Rejected**, the people who need to know get
+a message on the notification bell. You do not have to check the request yourself.
+
+Three people are told:
+
+- the person who raised the request,
+- the head of that person's department,
+- the head of Procurement.
+
+With two sensible exceptions:
+
+- **Whoever made the decision is not told.** If Dana rejects a request, Dana does not get
+  a message about her own decision — she already knows.
+- **Procurement is not told about a request they never saw.** If a department head rejects
+  a request at the very first stage, it never reaches Procurement, so Procurement hears
+  nothing about it.
+
+A rejection message says where the request died, so you can tell at a glance without
+opening it — for example *"PR-26-0042 "Replacement mooring cleats" was rejected at the
+director stage."*
+
+**Returned requests are the exception: they send no message.** When an approver clicks
+Return, the request goes back to the submitter's own to-do list, which is where they will
+see it anyway (§2.5).
+
+Projects work exactly the same way when a project is approved or rejected.
+
+> **Worth knowing:** if you happen to be both the submitter and your own department's head,
+> you will get the same message twice. That is expected — both roles are being notified,
+> and they are both you.
+
+> 📷 **Screenshot — the notification bell showing an approval and a rejection message.**
 
 ---
 
