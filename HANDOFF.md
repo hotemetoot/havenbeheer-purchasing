@@ -1,4 +1,14 @@
-# HANDOFF — havenbeheer, current state (updated 2026-07-19, chunk 021 closed — no build chunks left before go-live)
+# HANDOFF — havenbeheer, current state (updated 2026-07-20, app emptied for go-live)
+
+> **The local app has no business data.** Every purchase request, order, PO line,
+> project, comment, attachment and notification was deleted on 2026-07-20 (D95) so
+> the go-live backup ships clean. Suppliers, departments, units of measure,
+> delivery addresses and all 13 users (personas + `[TEST]` accounts) survive.
+> Record counters were reset: the next records are **PR-26-0001** and **PRJ-26-0001**.
+> If you open the app expecting fixtures to poke at, there are none — seed your own,
+> or let the suite seed and tear down its own as it always has.
+> Workflow execution history is empty too — the last 179 rows were stuck in "started"
+> and only SQL could remove them (D95 explains why the API cannot).
 
 **Read this first, then:** this project's `CLAUDE.md` (session workflow), `roadmap.md` (chunk table), `decisions.md` D80–D89 (the recent stretch), `notes.md` (traps + go-live pointers), and `workflows-explained.md` (plain-English reference for the approval ladders and guards). Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py`.
 
@@ -9,7 +19,9 @@
 - **First `nb-explore` exploratory session ran 2026-07-19** — invariants now live in `tests/invariants.md`; its three receiving-lifecycle finds became chunk 020.
 - **Chunks 017 / 019 / 020 all closed 2026-07-19 (D92).** Alexander delegated the outstanding §1.2b checks; a 9-scenario API walkthrough drove every PR/project rejection and approval terminal path as the real approver users and verified the notification recipients against the D88 matrix (9/9 exact). 019's boxes closed against suite rules R44/R45; 020's receiving corrections are R46's up-and-down cases. Suite re-run after teardown: 116/116. The walkthrough pattern (temp submitter in a dept whose head is not Pat, read `notificationInAppMessages` back, delete everything) is in D92.
 - **Chunk 021 closed 2026-07-19 (D94) — no build chunks remain before go-live.** All 14 enabled interception guards were read for the D89 payload-shape fault. One hit: "Guard: Create PO (PR must be approved)" (`vgv8hcrtjvx`), the oldest guard in the set, confirmed live as an HTTP 500 on `purchase_request: {id: N}` and a wrong-reason refusal on `purchaseRequestId: N`. Fixed with the same resolver head as `polncreateg1`; new version `376415305990144`, covered by R52 (5 cases). **Everything else is clean and does not need re-auditing** — see D94 for the per-guard list, including `c9c14tyn876` and `eiscjvwiqr6`, which D89 had left as open questions.
-- **In-flight chunks** (statuses in `roadmap.md`): **018** (stranded project commitment, D85) is scoped but not built and is not a go-live blocker.
+- **Chunk 016 closed 2026-07-20.** Its last open item was the B8 screen check — that Lines Total updates per imported row after the D83 fix. Alexander confirmed it in the UI. Both 014 and 016 moved to `completed/`.
+- **Pre-go-live cleanup ran 2026-07-20 (D95).** See the note at the top of this file. Suite re-verified green **121/121** before the wipe.
+- **In-flight chunks** (statuses in `roadmap.md`): **018** (stranded project commitment, D85) is scoped but not built and is not a go-live blocker. It is the only chunk left.
 - **Policy decisions this stretch:** D85 (stranded project commitment is fixed by a director budget raise, never auto-release — MVP 018 scoped, not built), D86 (production backups use the built-in Backup manager, not a cron stack — configured at go-live Part 4).
 
 > **Concurrency note:** before any write-heavy step, make sure no other session is open on this repo (a rule-number collision R46 happened 2026-07-19 between two concurrent sessions; D68 was once committed from a second terminal mid-session).
@@ -17,7 +29,7 @@
 ## Open items
 
 - **R42's bulk-import clause has no automated case** — manual check owed, belongs with D83's parked 016 B-cases (see `notes.md` "Drift / open issues").
-- **D80 open issue (suite side):** each full suite run leaves ~9 status-0 approval executions behind (fixture PRs/projects deleted, their pending approval executions not). Harmless under D79's settings, but the backlog regrows; the fix belongs in `runner.py`'s teardown.
+- **D80 open issue (suite side):** each full suite run leaves ~9 status-0 approval executions behind (fixture PRs/projects deleted, their pending approval executions not). Harmless under D79's settings, but the backlog regrows; the fix belongs in `runner.py`'s teardown. **Now known to be worse than "harmless": these rows cannot be deleted through the API at all** — `executions destroy` reports success and removes nothing, `executions cancel` 500s once the approval record is gone, so only SQL clears them (D95). 179 had piled up by go-live. Raising the priority of the `runner.py` teardown fix accordingly.
 - From chunk 020's out-of-scope list: a dangling `member` scope on `purchase_orders`/`po_lines` (`scopeId: 363334209503233` resolves to no row), and `director`'s strategy-mode view grant has no field whitelist (any new PO field becomes director-visible automatically).
 - **Guard meter (2026-07-19 maintenance pass):** 14 enabled request-interception guards — past the point where the suite's guidance says to revisit consolidation (shared admin-exempt heads via subflows, value bounds onto field validation — 020 started the latter). Parked for Alexander.
 - Live debris and revision depth are clean as of 2026-07-19 (D90, and D94's stray fork deleted the same day): `[TEST]` POs deleted, disabled predecessors pruned to D81's keep-2 depth, reports/worktrees swept.

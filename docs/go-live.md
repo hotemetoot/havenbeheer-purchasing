@@ -81,9 +81,11 @@ outstanding work. Two additions land after chunks 017 and 019 (see §1.2b).
 - [ ] B4 — the Import button is hidden on any non-draft PO.
 - [ ] B5 — the Import button is hidden for non-procurement roles.
 - [ ] B6 — imported rows attach to the right PO and line totals compute.
-- [ ] B8 — **Lines Total updates per imported row** without touching anything
+- [x] B8 — **Lines Total updates per imported row** without touching anything
       (this re-tests yesterday's D83 fix — the one item that was broken
       before). `needs_reprint` stays false on a draft PO.
+      **Confirmed by Alexander in the UI, 2026-07-20.** This was the last
+      open item on chunk 016; the chunk is complete.
 - [ ] B7 — a clean, priced, within-budget draft still issues; incomplete or
       unpriced ones still reject with their existing messages.
 
