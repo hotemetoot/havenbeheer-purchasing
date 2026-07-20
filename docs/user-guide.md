@@ -537,6 +537,13 @@ The whole order's status follows the lines:
 - If any line has something received but not everything is in, the order is **Partially
   Received**.
 - When every line is fully **Received**, the order becomes **Received**.
+- The statuses follow corrections back down too. If a delivery note turns out wrong,
+  correct the **Received Quantity** down and the line and order statuses adjust; when no
+  line has anything received any more, the order returns to **Issued**.
+
+Two edges of the field itself: a **negative** Received Quantity is refused with a message —
+it can never be saved. Receiving **more than ordered** is allowed on purpose (suppliers do
+over-ship); the line simply counts as **Received**.
 
 ### The "ready to complete" nudge
 
@@ -620,6 +627,10 @@ PO can no longer be edited.").
 
 A purchase order can be printed — for example to send or file a copy for the supplier. The
 print action sits on the purchase order record.
+
+Only an issued order prints as a valid document. If the order has not been issued yet, the
+printed page carries a large **DRAFT — NOT A VALID ORDER** watermark, so a draft can never
+be passed off to a supplier as a real order.
 
 > 📷 **Screenshot — the Print action on a purchase order, and the printed result.**
 > Show the **Print** action on the PO and what it produces. Confirm the exact button label

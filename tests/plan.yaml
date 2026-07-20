@@ -120,6 +120,8 @@ rules:
   R48: 'A received quantity below zero is refused, whoever sends it — admin included. Before chunk 020 a negative saved silently and the line still displayed as Pending, so the bad number sat in the data and every sum over received quantities was wrong. The refusal is enforced on the field itself rather than by a safety net on the request, so it also holds for saves that arrive through a sub-table, an import, or a workflow, not just a direct edit. (020 Phase 2; field validation on po_lines.received_quantity, min 0. Message: "PO Lines - Received Quantity must be greater than or equal to 0".)'
   R49: 'Receiving MORE than was ordered stays allowed, with no upper limit — 12 delivered against 10 ordered must keep working, because suppliers really do over-ship and refusing it would stop legitimate receiving. Only negatives are refused. This is a decision, not an oversight: an over-receipt tolerance or approval step was considered and deliberately left out (F1).' # This rule exists to stop a future session "tightening" R48 into a both-sided bound.
   R50: 'Every check that runs when a line is added must be able to find the order the line belongs to, no matter how the request names it, and must say in words what is wrong. That covers both the Completed-or-Closed block and the approved-amount ceiling. It makes no difference where the request came from — the PO screen, an import, or another program talking to the app directly — or how that request spelled out which order the line belongs to. A line that does not say which order it belongs to at all is refused too, rather than saved as a line hanging off no order. (D89. Found by testing: the guard used to take the order straight from the request as written. The PO screens write it one way and that worked; anything writing it the other way crashed the lookup, so instead of "you cannot add a line to a closed order" the caller got a server error page. Pat never saw it because the screens only ever write it the way that worked. The same fault was then found in the approved-amount check and fixed the same way.)'
+  # R51 drafted 2026-07-19 (chunk 020 Phase 2), reviewed by Alexander, green same day.
+  R51: 'Every money-bearing number is checked at save, on the field itself: Quantity Ordered must be above 0, Unit Price must be 0 or more, a request''s Quoted Total must be above 0, its FX Rate to USD must be above 0 when filled in — leaving it empty stays allowed, because a USD request needs no rate — and a project''s Budget (USD) must be above 0. Because the check sits on the field, it holds on every route (sub-table, import, workflow write) and for everyone, admin included, and refuses with a plain message naming the field ("PO Lines: Quantity Ordered must be greater than 0"). Received Quantity''s own floor is R48; over-delivery stays allowed per R49. (020 Phase 2. The rate floor replaced an older "minimum 1" rule set in the UI around May, which would have refused the first euro request — a euro rate is about 0.92 per USD under the local-per-USD convention. Alexander approved the change 2026-07-19.)'
   R42: The parent PO's Lines Total always ends up equal to the sum of its lines' line_total amounts. On create and on a change to quantity or unit price the recompute runs in the background, so the total catches up shortly after; it holds no matter how the line arrived — typed by hand, written by a workflow, or bulk-imported — because that recompute re-reads the line from the database instead of trusting the trigger payload, whose PO link is empty on import-created rows. On delete the recompute runs inline, so the total is already correct when the delete returns. (D83; create/update 1ugka88lngm, delete pnvp0dtitum.)
 
 fixtures:
@@ -285,6 +287,13 @@ fixtures:
         after_approvals: true
         trigger_workflow: cv237r8h7k9
         values: { title: "[TEST] project PR over budget", quoted_total: 9500, fx_rate_to_usd: 1, project: "@ref:proj_approved" }
+      # pr_bounds: plain record, no approval chain — target for R51's
+      # field-bound cases. Created WITHOUT an FX rate on purpose: the create
+      # succeeding is itself the empty-rate witness (a USD request needs no
+      # rate, and the above-0 floor must not refuse an empty field).
+      - id_ref: pr_bounds
+        as: admin
+        values: { title: "[TEST] R51 value-bounds PR", quoted_total: 100 }
 
     # --- projects fixtures (R25-R30). status defaults to draft (field
     # defaultValue, verified live 2026-07-04); operations' create whitelist
@@ -1908,6 +1917,78 @@ cases:
     target: po_issued
     match: { status: received }
     tags: [po_lines, receiving, chunk-020]
+
+  # ==========================================================================
+  # R51: the value floors, chunk 020 Phase 2. These are field-validation
+  # refusals — HTTP 400 with a message naming the field — not guard denials.
+  # Attribution: the line creates run against po_draft, where every guard on
+  # po_lines allows the write (draft status, tiny amounts under the ceiling),
+  # so a deny can only be the field bound. The PR and project cases run as
+  # admin, which bypasses ACL and is exempt from the guards on those
+  # collections, so there too a deny can only be the field bound.
+  - rule: R51
+    name: a line ordering zero of something is refused
+    as: procurement_a
+    action: po_lines:create
+    values: { purchase_order: "@ref:po_draft", description: "[TEST] R51 qty zero", quantity_ordered: 0, unit_price: 5 }
+    expect: deny
+    tags: [validation, chunk-020]
+
+  - rule: R51
+    name: a line with a negative unit price is refused
+    as: procurement_a
+    action: po_lines:create
+    values: { purchase_order: "@ref:po_draft", description: "[TEST] R51 negative price", quantity_ordered: 1, unit_price: -1 }
+    expect: deny
+    tags: [validation, chunk-020]
+
+  # The boundary witness: price exactly 0 is allowed — a free line is real
+  # (samples, warranty replacements) — and it proves the floors don't just
+  # refuse everything.
+  - rule: R51
+    name: a free line, price exactly zero, still saves
+    as: procurement_a
+    action: po_lines:create
+    values: { purchase_order: "@ref:po_draft", description: "[TEST] R51 free line", quantity_ordered: 1, unit_price: 0 }
+    expect: allow
+    tags: [validation, chunk-020]
+
+  - rule: R51
+    name: a quoted total of zero is refused, even for admin
+    as: admin
+    action: purchase_requests:update
+    target: pr_bounds
+    values: { quoted_total: 0 }
+    expect: deny
+    tags: [validation, chunk-020]
+
+  - rule: R51
+    name: an FX rate of zero is refused — USD totals divide by it
+    as: admin
+    action: purchase_requests:update
+    target: pr_bounds
+    values: { fx_rate_to_usd: 0 }
+    expect: deny
+    tags: [validation, chunk-020]
+
+  # The euro witness: guards the above-0 floor against being "fixed" back to
+  # the old minimum-1, which would refuse every euro rate (~0.92 per USD).
+  - rule: R51
+    name: a euro-sized rate of 0.92 saves fine
+    as: admin
+    action: purchase_requests:update
+    target: pr_bounds
+    values: { fx_rate_to_usd: 0.92 }
+    expect: allow
+    tags: [validation, chunk-020]
+
+  - rule: R51
+    name: a project with a zero budget is refused at save
+    as: admin
+    action: projects:create
+    values: { title: "[TEST] R51 zero budget", budget_usd: 0 }
+    expect: deny
+    tags: [validation, chunk-020]
 
 teardown:
   sweep_collections: []

@@ -175,6 +175,26 @@ needs a manual check.
   need related records, status, aggregates, or role context. Affects: any
   future rule of the "field X can't be negative/zero" shape.
 
+## Status — built 2026-07-19 (D91)
+
+- **Phase 1 done**: recompute `ork27v016yo` version `376327812808704` rolls an
+  emptied order back to Issued, never moves a Completed/Closed order.
+- **Phase 2 done**: all six bounds live in `field.options.validation`.
+  Drift found on arrival: `quoted_total` already carried "greater than 0" and
+  `fx_rate_to_usd` a "minimum 1", both UI-set around May. The quoted_total
+  rule was kept (stricter than the drafted ≥ 0, and right). The minimum-1
+  rate rule would have refused the first euro request (~0.92 per USD under
+  the local-per-USD convention) — replaced with "greater than 0" per
+  Alexander. Empirical probes all passed, including the empty-rate save; the
+  refusal messages turn out to use the on-screen labels ("Purchase Requests:
+  FX Rate to USD must be greater than 0"), so the feared ugly-Joi-message
+  cost didn't materialize.
+- **Phase 3 done**: watermark confirmed by Alexander on a printed draft
+  order ("DRAFT — NOT A VALID ORDER"). Button visibility by stage is his
+  linkage-rule build; the watermark holds either way.
+- **Phase 4 done**: R46/R48/R49 (earlier session) + R51 (the sweep, 7 cases).
+  Suite green **116/116** 2026-07-19.
+
 ## Out of scope
 
 - Over-receipt tolerance/approval flow (F1 — left open by decision).
