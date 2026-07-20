@@ -122,6 +122,7 @@ rules:
   R50: 'Every check that runs when a line is added must be able to find the order the line belongs to, no matter how the request names it, and must say in words what is wrong. That covers both the Completed-or-Closed block and the approved-amount ceiling. It makes no difference where the request came from — the PO screen, an import, or another program talking to the app directly — or how that request spelled out which order the line belongs to. A line that does not say which order it belongs to at all is refused too, rather than saved as a line hanging off no order. (D89. Found by testing: the guard used to take the order straight from the request as written. The PO screens write it one way and that worked; anything writing it the other way crashed the lookup, so instead of "you cannot add a line to a closed order" the caller got a server error page. Pat never saw it because the screens only ever write it the way that worked. The same fault was then found in the approved-amount check and fixed the same way.)'
   # R51 drafted 2026-07-19 (chunk 020 Phase 2), reviewed by Alexander, green same day.
   R51: 'Every money-bearing number is checked at save, on the field itself: Quantity Ordered must be above 0, Unit Price must be 0 or more, a request''s Quoted Total must be above 0, its FX Rate to USD must be above 0 when filled in — leaving it empty stays allowed, because a USD request needs no rate — and a project''s Budget (USD) must be above 0. Because the check sits on the field, it holds on every route (sub-table, import, workflow write) and for everyone, admin included, and refuses with a plain message naming the field ("PO Lines: Quantity Ordered must be greater than 0"). Received Quantity''s own floor is R48; over-delivery stays allowed per R49. (020 Phase 2. The rate floor replaced an older "minimum 1" rule set in the UI around May, which would have refused the first euro request — a euro rate is about 0.92 per USD under the local-per-USD convention. Alexander approved the change 2026-07-19.)'
+  R52: 'The check that a purchase order may only be raised against an approved purchase request must be able to find that request no matter how the submission names it, and must answer in words. Whether the request comes from the PO screen, an import, or another program talking to the app directly, and whichever of the legal ways it spells out which purchase request the order is for, the answer is the same: an approved request without a PO is accepted, anything else is refused with "Cannot create PO: purchase request must be approved and must not already have a PO." A submission that names no purchase request at all is refused outright with "Cannot determine which purchase request this PO is for." rather than saved as an order belonging to nothing. (021, guard vgv8hcrtjvx. This is R50''s rule applied to the PO side. The guard used to read the purchase request straight from the submission as written; the PO screens write it one way and that worked, while the other legal way crashed the lookup and returned a server error page, and a third way silently found nothing and refused an approved request for the wrong reason.)'
   R42: The parent PO's Lines Total always ends up equal to the sum of its lines' line_total amounts. On create and on a change to quantity or unit price the recompute runs in the background, so the total catches up shortly after; it holds no matter how the line arrived — typed by hand, written by a workflow, or bulk-imported — because that recompute re-reads the line from the database instead of trusting the trigger payload, whose PO link is empty on import-created rows. On delete the recompute runs inline, so the total is already correct when the delete returns. (D83; create/update 1ugka88lngm, delete pnvp0dtitum.)
 
 fixtures:
@@ -196,6 +197,19 @@ fixtures:
         as: operations_a
         trigger_workflow: cv237r8h7k9   # PR Approval workflow key
         values: { title: "[TEST] R42 lines_total fixture source PR", quoted_total: 500 }
+      # pr_approved_6: source PR for R52's payload-shape allow case. PR->PO is
+      # 1:1, so the nested-shape allow case cannot reuse pr_approved (R15's
+      # case already consumes it) and needs its own approved PR.
+      - id_ref: pr_approved_6
+        as: operations_a
+        trigger_workflow: cv237r8h7k9   # PR Approval workflow key
+        values: { title: "[TEST] R52 nested-shape fixture source PR", quoted_total: 100 }
+      # pr_approved_7: source PR for R52's foreign-key allow case. Same 1:1
+      # reason as pr_approved_6 — each allow case consumes one approved PR.
+      - id_ref: pr_approved_7
+        as: operations_a
+        trigger_workflow: cv237r8h7k9   # PR Approval workflow key
+        values: { title: "[TEST] R52 foreign-key fixture source PR", quoted_total: 100 }
       # --- R31-R38 branch fixtures (2026-07-05). Dept-stage witnesses use
       # operations_proj (the ONLY dept-bearing test user; its dept's main
       # approver is Pat — known creds, and NOT the submitter, so the dept
@@ -551,6 +565,34 @@ fixtures:
       assert:
         - collection: purchase_requests
           id_ref: pr_approved_5
+          match: { status: approved }
+      timeout_s: 30
+    # pr_approved_6 / pr_approved_7: same full chain, source PRs for R52's two
+    # allow cases (one per payload shape — PR->PO is 1:1).
+    - target: pr_approved_6
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement approve -> director stage"
+        - as: dana_director
+          decision: approve
+          comment: "[TEST] director approve -> approved"
+      assert:
+        - collection: purchase_requests
+          id_ref: pr_approved_6
+          match: { status: approved }
+      timeout_s: 30
+    - target: pr_approved_7
+      steps:
+        - as: pat_procurement
+          decision: approve
+          comment: "[TEST] procurement approve -> director stage"
+        - as: dana_director
+          decision: approve
+          comment: "[TEST] director approve -> approved"
+      assert:
+        - collection: purchase_requests
+          id_ref: pr_approved_7
           match: { status: approved }
       timeout_s: 30
 
@@ -947,6 +989,53 @@ cases:
     action: purchase_orders:create
     values: { purchase_request: "@ref:pr_draft_a", currency: USD, total: 100 }
     expect: deny
+
+  # --- R52: payload-shape sensitivity of the same guard (021, vgv8hcrtjvx).
+  # R15 and R16 above both name the purchase request as a plain id, which is
+  # the one shape the old guard understood — that is why they stayed green
+  # while the nested shape returned HTTP 500 to anyone calling the API
+  # directly, and the foreign-key shape found nothing and refused for the
+  # wrong reason. A 500 is not in the runner's DENY_CODES, so the nested deny
+  # case fails loudly if the direct read ever comes back.
+  - rule: R52
+    name: procurement cannot create a PO from an unapproved PR, request written the other way (this one used to crash)
+    as: procurement_a
+    action: purchase_orders:create
+    values: { purchase_request: { id: "@ref:pr_draft_a" }, currency: USD, total: 100 }
+    expect: deny
+
+  - rule: R52
+    name: procurement cannot create a PO from an unapproved PR, request written as the foreign key
+    as: procurement_a
+    action: purchase_orders:create
+    values: { purchaseRequestId: "@ref:pr_draft_a", currency: USD, total: 100 }
+    expect: deny
+
+  - rule: R52
+    name: procurement cannot create a PO that says nothing about which PR it is for
+    as: procurement_a
+    action: purchase_orders:create
+    values: { currency: USD, total: 100 }
+    expect: deny
+
+  # The pass side, one per shape. These are the cases that prove the resolver
+  # found the RIGHT purchase request: a wrong non-zero id would find no row
+  # and refuse with the same "must be approved" message as the denies above,
+  # so the denies alone cannot tell a working resolver from a broken one.
+  # Each consumes its own approved PR because PR->PO is 1:1.
+  - rule: R52
+    name: procurement can create a PO from an approved PR, request written the other way
+    as: procurement_a
+    action: purchase_orders:create
+    values: { purchase_request: { id: "@ref:pr_approved_6" }, currency: USD, total: 100 }
+    expect: allow
+
+  - rule: R52
+    name: procurement can create a PO from an approved PR, request written as the foreign key
+    as: procurement_a
+    action: purchase_orders:create
+    values: { purchaseRequestId: "@ref:pr_approved_7", currency: USD, total: 100 }
+    expect: allow
 
   # --- R19/R23: finance and operations have no independent create grant on
   # purchase_orders/po_lines (D59 audit) — member view-only baseline, same

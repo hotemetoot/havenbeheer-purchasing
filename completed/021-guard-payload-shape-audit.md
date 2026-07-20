@@ -1,6 +1,10 @@
 # 021 — Guard payload-shape audit (purchase requests, projects, everything else)
 
-**Status:** open. Scoped 2026-07-19 as the leftover from D89. Audit + fix, not a feature.
+**Status:** COMPLETE 2026-07-19 (D94). Audit + fix, not a feature.
+**Result:** 14 enabled interception guards read, **one fault found** — "Guard: Create PO (PR must be approved)" (`vgv8hcrtjvx`), the oldest guard in the set. Fixed with the D89 resolver head, new live version `376416662847488`, predecessor `366562380808192` disabled. Covered by new rule **R52** (5 cases, 2 new fixtures). Suite **121/121**.
+**What turned out clean** — recorded so nobody re-audits it: `c9c14tyn876` and `eiscjvwiqr6` (the two D89 left unchecked) read only scalars; both PR Budget guards already carried resolver heads, so the PR-side associations this chunk feared most were never exposed; `2h75zryz3cb`, `xvcsdv07c5j`, `f3dkb37te22`, `v61hc3ou3pa`, `496ookqmg01` read nothing from the payload at all; `b6brl8r9c58` and `mhfp4d15uee` are scalar-only.
+**Sharpening the plan's "force the same key" step:** revise with `--filter '{"key":"<key>"}'`, never `--filter-by-tk` — by record id the endpoint forks a brand-new lineage, which is what happened here and cost a recovery revision. `workflows update` cannot repair it afterwards; only the revision endpoint honors `key`, passed in `--body`. Check the returned `key` before building on a revision. Passing `--title` prevents D84's " copy" suffix.
+
 **Size:** half a session if the guards are clean, longer if any need a revision.
 **Do this before go-live.** A guard with this fault does not fail safe — it returns a server error page to the caller, and in one of the two cases found so far it let requests through entirely for as long as the broken version was live.
 
