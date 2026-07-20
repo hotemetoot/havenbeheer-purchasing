@@ -94,9 +94,10 @@ outstanding work. Two additions land after chunks 017 and 019 (see §1.2b).
 - [ ] Dept-head content edit: while a project sits at *pending dept approval*,
       the dept head can edit its content fields (incl. budget) from the
       approval form. No automated case exists — one manual check.
-- [ ] Review draft rule **R42** in `tests/plan.yaml` (Lines Total catches up
-      after any line change, however the line arrived). Approve or correct
-      the wording; cases get written after that.
+- [x] Review draft rule **R42** in `tests/plan.yaml` (Lines Total catches up
+      after any line change, however the line arrived). **Approved by
+      Alexander 2026-07-18 (D84); cases are live in the suite.** Its
+      bulk-import clause is covered by case B8 above, confirmed 2026-07-20.
 
 ### 1.2b Added by the final build phase (chunks 017 and 019)
 

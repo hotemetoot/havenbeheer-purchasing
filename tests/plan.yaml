@@ -94,7 +94,9 @@ rules:
   # delete (pnvp0dtitum) is sync and reads purchaseOrderId off the payload
   # (safe there — on a delete the row existed, so its PO link is filled in).
   # The import-created path has no runner case: import is a UI action the
-  # runner can't drive. It stays a manual check (D83's parked 016 B-cases).
+  # runner can't drive. Verified by hand instead — Alexander ran a real UI
+  # import 2026-07-20 (go-live case B8) and Lines Total updated per row.
+  # Standing manual check: re-run B8 if either recompute workflow changes.
   # --- R43 drafted 2026-07-18 (D84). Fills a real gap: Guard A's BLOCK side
   # had no case at all — only its pass side (R2's info_requested edits) and
   # its admin exemption (implicitly, via teardown deleting approved PRs).

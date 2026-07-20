@@ -7,12 +7,29 @@
 > Record counters were reset: the next records are **PR-26-0001** and **PRJ-26-0001**.
 > If you open the app expecting fixtures to poke at, there are none — seed your own,
 > or let the suite seed and tear down its own as it always has.
-> Workflow execution history is empty too — the last 179 rows were stuck in "started"
-> and only SQL could remove them (D95 explains why the API cannot).
+> Workflow execution history was purged too — the last 179 rows were stuck in
+> "started" and only SQL could remove them (D95 explains why the API cannot).
+> **It did not stay empty:** the wipe's own cascade of deletes re-fired the
+> workflows, writing 268 fresh executions in a 45-second burst (231 succeeded,
+> 25 failed, 9 stuck at status 0). Confirmed by the 2026-07-20 maintenance pass.
+> Harmless under D79's settings, but the go-live backup carries those rows, so
+> production did not start execution-clean either.
 
 **Read this first, then:** this project's `CLAUDE.md` (session workflow), `roadmap.md` (chunk table), `decisions.md` D80–D89 (the recent stretch), `notes.md` (traps + go-live pointers), and `workflows-explained.md` (plain-English reference for the approval ladders and guards). Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py`.
 
-## Where things stand (2026-07-19)
+## Where things stand (2026-07-20)
+
+- **The app is live on production.** Alexander restored the go-live backup onto
+  the server (`docs/go-live.md` §3.1) on 2026-07-20. **§3.2, the post-restore
+  cleanup, is still entirely open, and two of its items are urgent:** `member`'s
+  `ui.*` snippet is still un-negated there, so under D54's union rule *every*
+  user who signs in at the production URL can enter UI-edit mode; and the six
+  dev personas came across carrying the shared `nbtest` password on a public
+  URL. Both must be settled before real accounts are handed out. Server work is
+  Alexander's — never touch the VPS from here.
+- **A maintenance pass ran 2026-07-20** (this file's execution-history note
+  above is one of its findings). See the bottom of `notes.md` for the stale-ID
+  list it deleted and why.
 
 - **The retrofit pilot is done** (steps 0–8). The one open remnant of Step 7: `docs/user-guide.md`'s **Appendix — Suppliers** stub. Everything else in the guide is written from the live app; `📷` markers await Alexander's screenshots.
 - **Suite: 45 rules / 121 cases, green 121/121 on 2026-07-19** (latest report in `tests/reports/`). No `# TODO verify` markers.
@@ -28,11 +45,12 @@
 
 ## Open items
 
-- **R42's bulk-import clause has no automated case** — manual check owed, belongs with D83's parked 016 B-cases (see `notes.md` "Drift / open issues").
+- **R42's bulk-import clause will never have an automated case** (import is a UI action the runner can't drive) — Alexander verified it by hand 2026-07-20 as go-live case B8. Now a standing manual check: re-run B8 if either recompute workflow changes. See `notes.md` "Drift / open issues".
 - **D80 open issue (suite side):** each full suite run leaves ~9 status-0 approval executions behind (fixture PRs/projects deleted, their pending approval executions not). Harmless under D79's settings, but the backlog regrows; the fix belongs in `runner.py`'s teardown. **Now known to be worse than "harmless": these rows cannot be deleted through the API at all** — `executions destroy` reports success and removes nothing, `executions cancel` 500s once the approval record is gone, so only SQL clears them (D95). 179 had piled up by go-live. Raising the priority of the `runner.py` teardown fix accordingly.
 - From chunk 020's out-of-scope list: a dangling `member` scope on `purchase_orders`/`po_lines` (`scopeId: 363334209503233` resolves to no row), and `director`'s strategy-mode view grant has no field whitelist (any new PO field becomes director-visible automatically).
-- **Guard meter (2026-07-19 maintenance pass):** 14 enabled request-interception guards — past the point where the suite's guidance says to revisit consolidation (shared admin-exempt heads via subflows, value bounds onto field validation — 020 started the latter). Parked for Alexander.
-- Live debris and revision depth are clean as of 2026-07-19 (D90, and D94's stray fork deleted the same day): `[TEST]` POs deleted, disabled predecessors pruned to D81's keep-2 depth, reports/worktrees swept.
+- **Guard meter (re-counted 2026-07-20, unchanged):** 14 enabled request-interception guards — past the point where the suite's guidance says to revisit consolidation (shared admin-exempt heads via subflows, value bounds onto field validation — 020 started the latter). Parked for Alexander.
+- **A cross-project trap was lost** in the 2026-07-19 merge of the trap memories into `gotchas.md`: the CLI storing the *string* `"false"` as a boolean field's default, which is truthy. Its original wording is unrecoverable and reproducing it needs a throwaway field created live, so it was not restored to the catalogue. The audit step it backed now stands on its own in `role-acl-guidelines.md` §5.7. Live check 2026-07-20: all three `purchase_requests` flag fields store `null` — clean.
+- Live debris and revision depth clean as of 2026-07-20: no business records at all (post-D95), no `[TEST]` rows, 40 disabled revisions with no lineage deeper than D81's keep-2, no stray test registry, `tests/reports/` pruned to the last green run plus the exploratory pilot.
 
 ## How to run the suite
 

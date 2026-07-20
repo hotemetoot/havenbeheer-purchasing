@@ -28,7 +28,7 @@ Distilled from the 2026-06-11 audit of this app. Written to be reusable in any N
 ## 3. Snippets (configuration permissions)
 
 - **Vanilla defaults:** admin `["pm", "pm.*", "ui.*"]`; member `["!ui.*", "!pm", "!pm.*"]`; derived business roles should negate all three.
-- **`ui.*` un-negated on a non-admin role means those users can enter UI edit mode.** This shows up as a leftover debugging workaround (e.g. trying to fix approval-form `flowModels:save` 403s — the correct fix is pre-creating comment models, see auto-memory `feedback_approval_blueprint_comment_models`). Audit snippets on every role after any troubleshooting session.
+- **`ui.*` un-negated on a non-admin role means those users can enter UI edit mode.** This shows up as a leftover debugging workaround (e.g. trying to fix approval-form `flowModels:save` 403s — the correct fix is pre-creating comment models — see `nb-bootstrap`'s `references/gotchas.md`, "Blueprint omits comment models"). Audit snippets on every role after any troubleshooting session.
 - A role's `updatedAt` is a useful tell: a base role modified on a build/debug day deserves a diff against the vanilla defaults.
 
 ## 4. Approver assignment
@@ -46,7 +46,7 @@ Distilled from the 2026-06-11 audit of this app. Written to be reusable in any N
 4. For every workflow-owned collection: attempt-list the columns a client could write (strategy roles → all). Confirm a guard or whitelist covers `status` and stamp fields.
 5. Users: list with roles + departments; confirm no orphan users, no users holding `root`/`admin` unintentionally, test users documented.
 6. Org data: approver fields populated for every department that a workflow routes through; no hardcoded assignee IDs in active workflow versions.
-7. Booleans: check raw `defaultValue` types on flag fields (the CLI string-`"false"` coercion bug stores truthy defaults — see `feedback_fields_apply_boolean_default`).
+7. Booleans: check the raw `defaultValue` on every flag field and confirm it is a real JSON boolean or `null`, never the **string** `"false"` — a string is truthy, so a field that reads "default false" in the UI would create records already flagged true. Read it with `nb api data-modeling collections fields list --collection-name <c> -j` and look at the raw value, not the form. (Checked 2026-07-20 on `purchase_requests`: `is_regular`, `is_emergency`, `use_custom_approver` all store `null` — clean.)
 
 ## 6. Havenbeheer-specific state (updated 2026-07-02, retrofit drift report)
 
