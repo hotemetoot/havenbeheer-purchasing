@@ -12,7 +12,7 @@ See auto-memory `feedback_plain_language_concrete_examples` (the single home): p
 
 ## Drift / open issues
 
-- **CLOSED 2026-07-20 — R42's bulk-import clause.** R42 says the PO's Lines Total catches up "no matter how the line arrived — typed by hand, written by a workflow, or bulk-imported". The first two have runner cases; **bulk-imported never will**, because import is a UI action `runner.py` cannot drive. Alexander verified it by hand instead: a real UI import onto a draft PO, Lines Total updating per imported row (go-live case B8, the last open item on chunk 016). It stays a standing manual check — re-run B8 after any change to the recompute workflows (`1ugka88lngm` create/update, `pnvp0dtitum` delete), because it is the one path no test covers and the exact scenario the async reload was built for (on import-created rows the trigger payload's PO link is empty).
+- **R42's bulk-import clause can never be automated — it is a permanent manual check.** R42 says the PO's Lines Total catches up "no matter how the line arrived — typed by hand, written by a workflow, or bulk-imported". The first two have runner cases; bulk-imported cannot, because import is a UI action `runner.py` has no way to drive. **The check:** import PO lines via the UI onto a draft PO, then confirm Lines Total equals the sum of the imported lines. Re-run it after any change to the recompute workflows (`1ugka88lngm` create/update, `pnvp0dtitum` delete) — it is the one path no test covers, and the exact scenario the async reload was built for (on import-created rows the trigger payload's PO link is empty). **Status lives in one place: go-live case B8** in [docs/go-live.md](docs/go-live.md) — don't record it here.
 
 ## Before go-live
 
