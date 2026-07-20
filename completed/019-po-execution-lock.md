@@ -1,6 +1,6 @@
 # 019 — PO is execution only: lock the approved terms, freeze line prices at issue
 
-**Status:** BUILT + suite-green 2026-07-18 (D87), pending Alexander's UI confirmation.
+**Status:** COMPLETE 2026-07-19 — built + suite-green 2026-07-18 (D87); the §1.2b UI boxes were closed 2026-07-19 per D92 against suite rules R44/R45 (run green as real signed-in users). Generate PO was the one UI-only item and Alexander confirmed it 2026-07-18.
 Phase 1 and Phase 2 both live. **Phase 2 shipped a wider rule than drafted** —
 see "What was actually built" below; the narrow version had a real hole.
 **Depends on:** D46 (PR-copied fields locked on update), D52 (Issue-gate budget cap), D81 (line destroy blocked once issued), D82 (admin-exempt lock guards)

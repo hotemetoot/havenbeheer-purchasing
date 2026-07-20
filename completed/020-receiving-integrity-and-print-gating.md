@@ -175,7 +175,7 @@ needs a manual check.
   need related records, status, aggregates, or role context. Affects: any
   future rule of the "field X can't be negative/zero" shape.
 
-## Status — built 2026-07-19 (D91)
+## Status — COMPLETE 2026-07-19 (D91, closed per D92: receiving-corrections pass covered by R46's up-and-down cases as real users; no separate manual UI pass)
 
 - **Phase 1 done**: recompute `ork27v016yo` version `376327812808704` rolls an
   emptied order back to Issued, never moves a Completed/Closed order.

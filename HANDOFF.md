@@ -1,4 +1,4 @@
-# HANDOFF — havenbeheer, current state (updated 2026-07-19, maintenance pass)
+# HANDOFF — havenbeheer, current state (updated 2026-07-19, chunks 017/019/020 closed per D92)
 
 **Read this first, then:** this project's `CLAUDE.md` (session workflow), `roadmap.md` (chunk table), `decisions.md` D80–D89 (the recent stretch), `notes.md` (traps + go-live pointers), and `workflows-explained.md` (plain-English reference for the approval ladders and guards). Skim `~/.claude/skills/nb-project-suite/HANDOFF.md` if you touch `runner.py`.
 
@@ -7,18 +7,15 @@
 - **The retrofit pilot is done** (steps 0–8). The one open remnant of Step 7: `docs/user-guide.md`'s **Appendix — Suppliers** stub. Everything else in the guide is written from the live app; `📷` markers await Alexander's screenshots.
 - **Suite: 44 rules / 116 cases, green 116/116 on 2026-07-19** (latest report in `tests/reports/`). No `# TODO verify` markers.
 - **First `nb-explore` exploratory session ran 2026-07-19** — invariants now live in `tests/invariants.md`; its three receiving-lifecycle finds became chunk 020.
+- **Chunks 017 / 019 / 020 all closed 2026-07-19 (D92).** Alexander delegated the outstanding §1.2b checks; a 9-scenario API walkthrough drove every PR/project rejection and approval terminal path as the real approver users and verified the notification recipients against the D88 matrix (9/9 exact). 019's boxes closed against suite rules R44/R45; 020's receiving corrections are R46's up-and-down cases. Suite re-run after teardown: 116/116. The walkthrough pattern (temp submitter in a dept whose head is not Pat, read `notificationInAppMessages` back, delete everything) is in D92.
 - **In-flight chunks** (statuses in `roadmap.md`):
-  - **017** — approval notifications (D88): built + suite-green, **pending Alexander's UI walkthrough** (reject a PR at each of the five stages and a project, driving real approver users — go-live §1.2b).
-  - **019** — PO execution lock (D87): built + suite-green, **pending UI check**.
-  - **020** — receiving integrity + print gating: **all four phases built (D91), suite 116/116.** Watermark confirmed by Alexander on a printed draft. Value floors live on the fields — including replacing a May-era UI-set "minimum 1" FX-rate rule that would have refused euro rates (~0.92 local-per-USD); `quoted_total`'s pre-existing "greater than 0" kept. Remaining: Alexander's UI pass on the receiving corrections.
-  - **021** — guard payload-shape audit (D89 leftover): scoped, not started. The two hit `po_lines` guards are fixed (R50); PR and project guards are unaudited, and they read associations — the shape that breaks. D89 also names `c9c14tyn876` and `eiscjvwiqr6` as unchecked for the nested shape.
+  - **021** — guard payload-shape audit (D89 leftover): scoped, not started. **This is the next build chunk, flagged before go-live.** The two hit `po_lines` guards are fixed (R50); PR and project guards are unaudited, and they read associations — the shape that breaks. D89 also names `c9c14tyn876` and `eiscjvwiqr6` as unchecked for the nested shape.
 - **Policy decisions this stretch:** D85 (stranded project commitment is fixed by a director budget raise, never auto-release — MVP 018 scoped, not built), D86 (production backups use the built-in Backup manager, not a cron stack — configured at go-live Part 4).
 
 > **Concurrency note:** before any write-heavy step, make sure no other session is open on this repo (a rule-number collision R46 happened 2026-07-19 between two concurrent sessions; D68 was once committed from a second terminal mid-session).
 
 ## Open items
 
-- The three UI checks above (017 / 019 / 020-receiving) — Alexander, go-live §1.2b.
 - **R42's bulk-import clause has no automated case** — manual check owed, belongs with D83's parked 016 B-cases (see `notes.md` "Drift / open issues").
 - **D80 open issue (suite side):** each full suite run leaves ~9 status-0 approval executions behind (fixture PRs/projects deleted, their pending approval executions not). Harmless under D79's settings, but the backlog regrows; the fix belongs in `runner.py`'s teardown.
 - From chunk 020's out-of-scope list: a dangling `member` scope on `purchase_orders`/`po_lines` (`scopeId: 363334209503233` resolves to no row), and `director`'s strategy-mode view grant has no field whitelist (any new PO field becomes director-visible automatically).
@@ -53,4 +50,4 @@ Runbook: `docs/go-live.md`. Short list (detail in `notes.md`): re-negate `member
 
 ## How Alexander works
 
-Single home: auto-memory — `feedback_plain_language_concrete_examples` is the anchor (plain language, concrete stories, front-end labels not API names). Review protocol above; review gates by logical group; he builds all UI; never touch a VPS. Plus one project-level point: pragmatic about local dev-only risk, but explicit, specifically-named confirmation before mutating real accounts, data, or live ACL/config.
+Single home: auto-memory — `feedback_plain_language_concrete_examples` is the anchor (plain language, concrete stories, front-end labels not API names). **Verification split (D93, standing):** Claude runs every API-reachable walkthrough/check itself as real signed-in users; Alexander is asked only for screen-only items (print layout, button visibility, form appearance), named one by one. Review protocol above; review gates by logical group; he builds all UI; never touch a VPS. Plus one project-level point: pragmatic about local dev-only risk, but explicit, specifically-named confirmation before mutating real accounts, data, or live ACL/config.

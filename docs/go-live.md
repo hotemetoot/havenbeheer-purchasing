@@ -100,24 +100,38 @@ outstanding work. Two additions land after chunks 017 and 019 (see §1.2b).
 
 Written 2026-07-18 when 017 and 019 were scheduled. Fill in after each builds.
 
-- [ ] **019** — on an **Issued** PO, editing a line's Quantity Ordered or Unit
+- [x] **019** — on an **Issued** PO, editing a line's Quantity Ordered or Unit
       Price is rejected with *"Once a PO has been issued, its lines can only be
       updated to record receiving…"*; on a **Draft** PO the same edit saves.
-- [ ] **019** — the row's **Receive** button still works on an Issued PO, and
-      typing a Received Quantity by hand still saves. *(This is the one that
-      would break receiving if the guard were wrong — check it properly.)*
-- [ ] **019** — clearing a line's Quantity Ordered on an Issued PO is rejected
-      too, not just changing it.
+      **Covered by suite rules R44 (block + draft-allow sides), run green
+      116/116 on 2026-07-19 as real signed-in users, not root** — closed per
+      D92 (Alexander delegated §1.2b verification to API walkthroughs).
+- [x] **019** — the row's **Receive** button still works on an Issued PO, and
+      typing a Received Quantity by hand still saves. **Covered by R44's
+      receiving-allow case (same request the Receive button sends), green
+      2026-07-19** — closed per D92.
+- [x] **019** — clearing a line's Quantity Ordered on an Issued PO is rejected
+      too, not just changing it. **Covered by R45's blanking case, green
+      2026-07-19** — closed per D92.
 - [x] **019** — **Generate PO** on an approved PR still produces a Draft PO
       carrying supplier, currency, total and FX rate. **Confirmed by Alexander
       2026-07-18, tested as Pat.** This was the one thing Claude could not
       verify from the CLI (the CLI runs as root, which the guard exempts).
-- [ ] **017** — reject a PR at each stage; the submitter, their dept head, and
+- [x] **017** — reject a PR at each stage; the submitter, their dept head, and
       (where the PR reached them) the procurement head each get a notification
-      naming the stage. The person who rejected gets nothing.
-- [ ] **017** — the same for a rejected project.
-- [ ] **017** — approve a PR to final; the three notification titles now read
+      naming the stage. The person who rejected gets nothing. **Done 2026-07-19
+      via API walkthrough (D92): all five PR rejection stages driven as the
+      real approver users (Oliver / Dana-as-custom-approver / Pat / Dana /
+      board), recipients read back from the in-app message records — exact
+      match with the D88 matrix in every scenario, no extra recipients.**
+- [x] **017** — the same for a rejected project. **Done 2026-07-19 (D92):
+      dept-stage rejection notified the submitter only; director-stage
+      rejection notified all three.**
+- [x] **017** — approve a PR to final; the three notification titles now read
       correctly (they currently say "reassigned to custom approver").
+      **Done 2026-07-19 (D92): director-approved and procurement-final paths
+      driven to approval; the "PR approved" messages landed on exactly the
+      matrix recipients.**
 
 ### 1.3 Config flips
 
